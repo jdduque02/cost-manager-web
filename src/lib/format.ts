@@ -1,8 +1,8 @@
-export const fmtCurrency = (n: number, currency = "USD") =>
-  new Intl.NumberFormat("en-US", {
+export const fmtCurrency = (n: number, currency = "COP") =>
+  new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(n);
 
 export const fmtCompact = (n: number) =>
