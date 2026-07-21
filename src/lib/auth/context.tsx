@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authApi, type LoginResult, type AuthTokens } from "@/lib/api/auth";
+import { authApi, type AuthTokens } from "@/lib/api/auth";
 import { getAccessToken, clearTokens } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 
@@ -27,14 +27,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     authApi
       .introspect(token)
-      .then((result) => {
-        const data = result.data?.[0];
-        if (data?.active) {
-          if (data.userId !== undefined) {
-            return identityApi.getUser(String(data.userId), token);
+      .then((introspectData) => {
+        if (introspectData?.active) {
+          if (introspectData.userId !== undefined) {
+            return identityApi.getUser(String(introspectData.userId), token);
           }
-          if (data.sub) {
-            return identityApi.getUser(data.sub, token);
+          if (introspectData.sub) {
+            return identityApi.getUser(introspectData.sub, token);
           }
         }
         clearTokens();
@@ -51,14 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await authApi.login({ username, password });
 
     if (!result.accessToken) {
-      throw new Error("No se recibió token de acceso");
+      throw new Error("No se recibio token de acceso");
     }
 
-    const introspect = await authApi.introspect(result.accessToken);
-    const introspectData = introspect.data?.[0];
+    const introspectData = await authApi.introspect(result.accessToken);
 
     if (!introspectData?.active) {
-      throw new Error("Token inválido");
+      throw new Error("Token invalido");
     }
 
     let userId: string;
@@ -72,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const u = await identityApi.getUser(userId, result.accessToken);
     setUser(u);
-    return { data: [{ access_token: result.accessToken, refresh_token: result.refreshToken }] };
+    return { access_token: result.accessToken, refresh_token: result.refreshToken };
   }, []);
 
   const logout = useCallback(async () => {

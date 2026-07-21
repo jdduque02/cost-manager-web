@@ -6,44 +6,38 @@ export interface LoginPayload {
 }
 
 export interface AuthTokens {
-  data: [{
-    access_token: string;
-    refresh_token: string;
-    expires_in?: number;
-    userId?: number;
-  }]
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  userId?: number;
 }
 
 export interface IntrospectResult {
-  data: [{
-    active: boolean;
-    exp?: number;
-    iat?: number;
-    sub: string;
-    username?: string;
-    email?: string;
-    realm_access?: { roles: string[] };
-    expires_in_seconds?: number;
-    userId?: number;
-  }]
+  active: boolean;
+  exp?: number;
+  iat?: number;
+  sub: string;
+  username?: string;
+  email?: string;
+  realm_access?: { roles: string[] };
+  expires_in_seconds?: number;
+  userId?: number;
 }
 
 export interface LoginResult {
   accessToken: string;
   refreshToken: string;
-  sub?: string;
   userId?: number;
 }
 
 export const authApi = {
   async login(payload: LoginPayload): Promise<LoginResult> {
-    const response = await api.post<AuthTokens>("auth/login", payload);
-    const tokens = response.data[0];
+    const tokens = await api.post<AuthTokens>("auth/login", payload);
     setTokens(tokens.access_token, tokens.refresh_token);
-    return { 
-      accessToken: tokens.access_token, 
+    return {
+      accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      userId: tokens.userId
+      userId: tokens.userId,
     };
   },
 
@@ -59,5 +53,6 @@ export const authApi = {
   forgotPassword: (email: string) =>
     api.post<{ message: string }>("auth/forgot-password", { email }),
 
-  introspect: (token?: string | null) => api.post<IntrospectResult>("auth/introspect", { token: token ?? getAccessToken() }),
+  introspect: (token?: string | null) =>
+    api.post<IntrospectResult>("auth/introspect", { token: token ?? getAccessToken() }),
 };

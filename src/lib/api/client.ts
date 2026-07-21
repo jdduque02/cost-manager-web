@@ -6,9 +6,56 @@
  * 1. POST /auth/login  → receives access_token + refresh_token
  * 2. All subsequent requests include Authorization: Bearer <access_token>
  * 3. On 401, call POST /auth/refresh with refresh_token
+ *
+ * Response envelope: All responses are wrapped in ApiResponseDto:
+ * { status: boolean, message: string, data: T[], timestamp: string }
+ * This client automatically unwraps the envelope.
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1";
+
+/** Check if response has ApiResponseDto shape */
+function isApiResponseEnvelope(json: unknown): json is {
+  status: boolean;
+  message: string;
+  data: unknown[];
+  timestamp: string;
+} {
+  return (
+    json !== null &&
+    typeof json === "object" &&
+    "status" in json &&
+    typeof (json as Record<string, unknown>).status === "boolean" &&
+    "data" in json &&
+    Array.isArray((json as Record<string, unknown>).data)
+  );
+}
+
+/**
+ * Unwrap the ApiResponseDto envelope.
+ * Handles two cases:
+ * 1. Simple: data = [item] → return item
+ * 2. Paginated: data = [{ data: [...], total }] → return the inner object
+ */
+function unwrapEnvelope<T>(json: Record<string, unknown>): T {
+  const data = json.data as unknown[];
+  if (data.length === 0) return undefined as T;
+  if (data.length === 1) {
+    const single = data[0];
+    // Handle paginated response: { data: [...items], total: N }
+    if (
+      single !== null &&
+      typeof single === "object" &&
+      "data" in single &&
+      "total" in single &&
+      Array.isArray((single as Record<string, unknown>).data)
+    ) {
+      return single as T;
+    }
+    return single as T;
+  }
+  return data as unknown as T;
+}
 
 /** Retrieve stored token from localStorage */
 export function getAccessToken(): string | null {
@@ -52,14 +99,19 @@ async function refreshAndRetry(url: string, options: RequestInit): Promise<Respo
     throw new Error("Session expired. Please log in again.");
   }
 
-  const { access_token, refresh_token } = await refreshRes.json();
-  setTokens(access_token, refresh_token);
+  const refreshJson = await refreshRes.json();
+  // Backend wraps in ApiResponseDto: { data: [{ access_token, refresh_token }] }
+  const tokens = isApiResponseEnvelope(refreshJson)
+    ? (refreshJson.data[0] as { access_token: string; refresh_token: string })
+    : (refreshJson as { access_token: string; refresh_token: string });
+
+  setTokens(tokens.access_token, tokens.refresh_token);
 
   const retryOptions = {
     ...options,
     headers: {
       ...options.headers,
-      Authorization: `Bearer ${access_token}`,
+      Authorization: `Bearer ${tokens.access_token}`,
     },
   };
   return fetch(url, retryOptions);
@@ -70,8 +122,8 @@ export interface ApiFetchOptions extends RequestInit {
 }
 
 /**
- * Main fetch wrapper. Automatically adds Authorization header and handles
- * token refresh on 401 responses.
+ * Main fetch wrapper. Automatically adds Authorization header, handles
+ * token refresh on 401 responses, and unwraps ApiResponseDto envelope.
  */
 export async function apiFetch<T = unknown>(
   path: string,
@@ -79,7 +131,7 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const { token: explicitToken, ...fetchOptions } = options;
   const token = explicitToken ?? getAccessToken();
-  
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(fetchOptions.headers ?? {}),
@@ -106,7 +158,14 @@ export async function apiFetch<T = unknown>(
 
   if (res.status === 204) return undefined as T;
 
-  return res.json() as Promise<T>;
+  const json = await res.json();
+
+  // Unwrap ApiResponseDto envelope if present
+  if (isApiResponseEnvelope(json)) {
+    return unwrapEnvelope<T>(json);
+  }
+
+  return json as T;
 }
 
 export const api = {
