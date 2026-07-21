@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { financeApi, type CreateTransactionDto, type CreateObjectiveDto } from "@/lib/api/finance";
-import { bankingApi } from "@/lib/api/banking";
+import { bankingApi, type CreateBankAccountDto, type CreateFinancialAssetDto, type CreateFinancialLiabilityDto } from "@/lib/api/banking";
 import { identityApi, type CreateFinancialBudgetProfileDto, type UpdateFinancialBudgetProfileDto } from "@/lib/api/identity";
+import { catalogApi } from "@/lib/api/catalog";
 import { useAuth } from "@/lib/auth";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -14,6 +15,11 @@ export const qk = {
   assets: (userId: string) => ["financial-assets", userId] as const,
   liabilities: (userId: string) => ["financial-liabilities", userId] as const,
   financialBudgetProfile: (userId: string) => ["financialBudgetProfile", userId] as const,
+  categories: ["categories"] as const,
+  subcategories: (userId: string, categoryId?: number) =>
+    ["subcategories", userId, categoryId] as const,
+  financialSummary: (userId: string) => ["financialSummary", userId] as const,
+  taxSummary: (userId: string, year?: number) => ["taxSummary", userId, year] as const,
 };
 
 // ─── Finance Hooks ────────────────────────────────────────────────────────────
@@ -91,6 +97,18 @@ export function useBankAccounts() {
   });
 }
 
+export function useCreateBankAccount() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateBankAccountDto) =>
+      bankingApi.createAccount(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
 export function useFinancialAssets() {
   const { userId } = useAuth();
   return useQuery({
@@ -100,12 +118,36 @@ export function useFinancialAssets() {
   });
 }
 
+export function useCreateFinancialAsset() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateFinancialAssetDto) =>
+      bankingApi.createAsset(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
 export function useFinancialLiabilities() {
   const { userId } = useAuth();
   return useQuery({
     queryKey: qk.liabilities(userId ?? ""),
     queryFn: () => bankingApi.getLiabilities(userId!),
     enabled: !!userId,
+  });
+}
+
+export function useCreateFinancialLiability() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateFinancialLiabilityDto) =>
+      bankingApi.createLiability(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+    },
   });
 }
 
@@ -125,7 +167,7 @@ export function useNetWorth() {
   return { summary, isLoading, error };
 }
 
-// ─── Identity Hooks - Financial Budget Profile ──────────────────────────────────
+// ─── Identity Hooks - Financial Budget Profile ────────────────────────────────
 
 export function useFinancialBudgetProfile() {
   const { userId } = useAuth();
@@ -168,5 +210,90 @@ export function useDeleteFinancialBudgetProfile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.financialBudgetProfile(userId ?? "") });
     },
+  });
+}
+
+// ─── Catalog Hooks ────────────────────────────────────────────────────────────
+
+export function useCategories() {
+  return useQuery({
+    queryKey: qk.categories,
+    queryFn: () => catalogApi.getCategories(),
+  });
+}
+
+export function useSubcategories(categoryId?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.subcategories(userId ?? "", categoryId),
+    queryFn: () => catalogApi.getSubcategories(userId!, categoryId),
+    enabled: !!userId,
+  });
+}
+
+// ─── Intelligence Hooks ───────────────────────────────────────────────────────
+
+import { api } from "@/lib/api/client";
+
+export interface FinancialSummary {
+  id: number;
+  user_id: number;
+  financial_period_id: number;
+  total_income: number;
+  total_expense: number;
+  total_debt: number;
+  net_worth: number;
+  expense_ratio: number | null;
+  debt_ratio: number | null;
+  savings_rate: number | null;
+  recommended_max_expense: number | null;
+  recommended_savings: number | null;
+  is_over_spending: boolean;
+  is_over_indebted: boolean;
+  insights: Array<{
+    type: string;
+    severity: string;
+    message: string;
+    category_id?: number;
+    suggested_action?: string;
+  }>;
+  calculated_at: string | null;
+  is_final: boolean;
+}
+
+export interface TaxSummary {
+  id: number;
+  user_id: number;
+  fiscal_year: number;
+  total_income: number;
+  total_assets: number;
+  total_liabilities: number;
+  patrimony: number | null;
+  income_in_uvt: number | null;
+  assets_in_uvt: number | null;
+  uvt_value: number;
+  must_declare: boolean;
+  estimated_tax: number | null;
+  created_at: string;
+}
+
+export function useFinancialSummary() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.financialSummary(userId ?? ""),
+    queryFn: () => api.get<FinancialSummary>(`users/${userId}/intelligence/financial-summary`),
+    enabled: !!userId,
+  });
+}
+
+export function useTaxSummary(year?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.taxSummary(userId ?? "", year),
+    queryFn: () => {
+      const qs = year ? `?year=${year}` : "";
+      return api.get<TaxSummary>(`users/${userId}/intelligence/tax-summary${qs}`);
+    },
+    enabled: !!userId,
   });
 }
