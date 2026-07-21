@@ -1,58 +1,114 @@
 import { api } from "./client";
 
-export type TransactionType = "INCOME" | "EXPENSE";
+export type TransactionType = "income" | "expense";
+
+export type PaymentMethod =
+  | "bank_transfer"
+  | "cash"
+  | "debit_card"
+  | "credit_card"
+  | "digital_wallet"
+  | "mobile_payment"
+  | "check"
+  | "crypto";
 
 export interface TransactionRecord {
-  id: string;
-  name: string;
-  description?: string;
-  amount: number;
+  id: number;
+  user_id: number;
+  category_id: number;
+  subcategory_id?: number;
   type: TransactionType;
-  category?: string;
-  subcategoryId?: string;
-  date: string;
-  userId: string;
-  financialPeriodId?: string;
-  createdAt: string;
-  updatedAt: string;
+  amount: number;
+  payment_method?: PaymentMethod;
+  description?: string;
+  reference_code?: string;
+  attachments?: string[];
+  source_account?: string;
+  destination_account?: string;
+  source_bank?: string;
+  destination_bank?: string;
+  addressee?: string;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface CreateTransactionDto {
-  name: string;
-  description?: string;
-  amount: number;
+  category_id: number;
+  subcategory_id?: number;
   type: TransactionType;
-  subcategoryId?: string;
-  date: string;
-  financialPeriodId?: string;
+  amount: number;
+  payment_method?: PaymentMethod;
+  description?: string;
+  reference_code?: string;
+  attachments?: string[];
+  source_account?: string;
+  destination_account?: string;
+  source_bank?: string;
+  destination_bank?: string;
+  addressee?: string;
+  created_at?: string;
 }
 
+export type FinancialObjectiveType = "loan" | "savings" | "goal";
+export type Frequency = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+
 export interface FinancialObjective {
-  id: string;
+  id: number;
+  user_id: number;
+  category_id?: number;
+  subcategory_id?: number;
   name: string;
-  targetAmount: number;
-  currentAmount: number;
-  deadline?: string;
-  userId: string;
-  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
-  createdAt: string;
-  updatedAt: string;
+  type: FinancialObjectiveType;
+  target_amount: number;
+  current_balance: number;
+  interest_rate?: number;
+  fees?: number;
+  monthly_payment?: number;
+  owner?: string;
+  frequency?: Frequency;
+  due_day?: number;
+  start_date?: string;
+  end_date?: string;
+  is_completed: boolean;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string | null;
 }
 
 export interface CreateObjectiveDto {
   name: string;
-  targetAmount: number;
-  deadline?: string;
+  type: FinancialObjectiveType;
+  target_amount: number;
+  category_id?: number;
+  subcategory_id?: number;
+  interest_rate?: number;
+  fees?: number;
+  monthly_payment?: number;
+  owner?: string;
+  frequency?: Frequency;
+  due_day?: number;
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface FinancialPeriod {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: "OPEN" | "CLOSED";
-  userId: string;
-  createdAt: string;
+  id: number;
+  user_id: number;
+  year: number;
+  month: number;
+  is_closed: boolean;
+  closed_at?: string | null;
+  created_at: string;
+}
+
+export interface ObjectivePayment {
+  id: number;
+  objective_id: number;
+  user_id: number;
+  amount: number;
+  payment_date: string;
+  note?: string;
+  created_at: string;
 }
 
 export const financeApi = {
@@ -75,19 +131,22 @@ export const financeApi = {
     api.delete<void>(`users/${userId}/financial-objectives/${id}`),
 
   getObjectivePayments: (userId: string, objectiveId: string) =>
-    api.get<{ id: string; amount: number; date: string }[]>(
+    api.get<ObjectivePayment[]>(
       `users/${userId}/financial-objectives/${objectiveId}/payments`
     ),
   createObjectivePayment: (
     userId: string,
     objectiveId: string,
-    dto: { amount: number; date: string }
+    dto: { amount: number; payment_date: string; note?: string }
   ) =>
-    api.post(`users/${userId}/financial-objectives/${objectiveId}/payments`, dto),
+    api.post<ObjectivePayment>(
+      `users/${userId}/financial-objectives/${objectiveId}/payments`,
+      dto
+    ),
 
   getPeriods: (userId: string) =>
     api.get<FinancialPeriod[]>(`users/${userId}/financial-periods`),
-  createPeriod: (userId: string, dto: { name: string; startDate: string; endDate: string }) =>
+  createPeriod: (userId: string, dto: { year: number; month: number }) =>
     api.post<FinancialPeriod>(`users/${userId}/financial-periods`, dto),
   closePeriod: (userId: string, id: string) =>
     api.patch<FinancialPeriod>(`users/${userId}/financial-periods/${id}/close`, {}),
