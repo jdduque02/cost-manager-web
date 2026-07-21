@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth";
+import { NotificationProvider } from "@/lib/notifications/context";
 
 import appCss from "../styles.css?url";
 
@@ -81,7 +82,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <NotificationProvider>
+          <Outlet />
+        </NotificationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
