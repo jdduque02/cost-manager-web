@@ -3,7 +3,6 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useFinancialBudgetProfile, useUpdateFinancialBudgetProfile, useCreateFinancialBudgetProfile } from "@/lib/hooks/use-api";
-import { fmtCurrency } from "@/lib/format";
 import {
   User,
   Bell,
@@ -22,8 +21,8 @@ const sections = [
   { id: "financial", label: "Perfil Financiero", icon: Wallet },
   { id: "notifications", label: "Notificaciones", icon: Bell },
   { id: "security", label: "Seguridad", icon: Shield },
-  { id: "billing", label: "Facturación", icon: CreditCard },
-  { id: "language", label: "Idioma y Región", icon: Globe },
+  { id: "billing", label: "Facturacion", icon: CreditCard },
+  { id: "language", label: "Idioma y Region", icon: Globe },
   { id: "appearance", label: "Apariencia", icon: Palette },
 ];
 
@@ -82,14 +81,14 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  const name = user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "Cost Manager User";
-  const initials = user?.firstName ? user.firstName.substring(0, 2).toUpperCase() : "CM";
+  const name = user?.username ?? "Cost Manager User";
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
 
   return (
     <div className="space-y-7">
       <div>
         <p className="text-sm text-muted-foreground">Preferencias</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Configuración</h1>
+        <h1 className="mt-1 font-display text-3xl font-semibold">Configuracion</h1>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
@@ -128,7 +127,7 @@ export function Settings() {
             <Card>
               <h3 className="font-display text-lg font-semibold mb-2">Perfil</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Administra tu información personal y detalles de la cuenta.
+                Administra tu informacion personal y detalles de la cuenta.
               </p>
               <div className="flex items-center gap-5 mb-6">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-xl font-semibold text-primary-foreground shadow-glow">
@@ -143,10 +142,10 @@ export function Settings() {
               <div className="space-y-0">
                 {[
                   { label: "Nombre completo", value: name },
-                  { label: "Correo electrónico", value: user?.email || "" },
+                  { label: "Correo electronico", value: user?.email || "" },
                   { label: "Usuario", value: user?.username ? `@${user.username}` : "" },
-                  { label: "País", value: "Colombia 🇨🇴" },
-                  { label: "Moneda", value: "USD ($)" },
+                  { label: "Pais", value: user?.locale === "es" ? "Colombia" : user?.locale || "N/A" },
+                  { label: "Zona horaria", value: user?.timezone || "America/Bogota" },
                 ].map((row) => (
                   <SettingRow key={row.label} label={row.label} value={row.value} />
                 ))}
@@ -162,9 +161,9 @@ export function Settings() {
             <Card>
               <h3 className="font-display text-lg font-semibold mb-2">Notificaciones</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Configura cuándo y cómo recibes alertas.
+                Configura cuando y como recibes alertas.
               </p>
-              <SettingRow label="Notificaciones por correo" value="Resúmenes e informes por correo">
+              <SettingRow label="Notificaciones por correo" value="Resumenes e informes por correo">
                 <Toggle checked={notifEmail} onChange={setNotifEmail} />
               </SettingRow>
               <SettingRow label="Notificaciones push" value="Alertas en tu dispositivo">
@@ -182,10 +181,10 @@ export function Settings() {
               <p className="text-sm text-muted-foreground mb-6">
                 Protege tu cuenta con opciones avanzadas de seguridad.
               </p>
-              <SettingRow label="Autenticación de dos factores" value="Añade una capa extra de seguridad">
+              <SettingRow label="Autenticacion de dos factores" value="Anade una capa extra de seguridad">
                 <Toggle checked={twoFa} onChange={setTwoFa} />
               </SettingRow>
-              <SettingRow label="Cambiar contraseña" value="Último cambio hace 30 días" />
+              <SettingRow label="Cambiar contrasena" value="Ultimo cambio hace 30 dias" />
               <SettingRow label="Sesiones activas" value="2 dispositivos">
                 <Badge tone="warning">Administrar</Badge>
               </SettingRow>
@@ -197,9 +196,9 @@ export function Settings() {
             <Card glow>
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h3 className="font-display text-lg font-semibold">Facturación</h3>
+                  <h3 className="font-display text-lg font-semibold">Facturacion</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Administra tu suscripción y métodos de pago.
+                    Administra tu suscripcion y metodos de pago.
                   </p>
                 </div>
                 <Badge tone="success">Premium activo</Badge>
@@ -209,21 +208,21 @@ export function Settings() {
                 <p className="mt-1 font-display text-2xl font-semibold">Mindful Spend Mate Pro</p>
                 <p className="text-sm text-muted-foreground mt-1">$9.99 / month · Renews Jun 1, 2026</p>
               </div>
-              <SettingRow label="Método de pago" value="Visa terminada en 4242" />
-              <SettingRow label="Historial de facturación" value="Ver facturas anteriores" />
+              <SettingRow label="Metodo de pago" value="Visa terminada en 4242" />
+              <SettingRow label="Historial de facturacion" value="Ver facturas anteriores" />
             </Card>
           )}
 
           {active === "language" && (
             <Card>
-              <h3 className="font-display text-lg font-semibold mb-2">Idioma y Región</h3>
+              <h3 className="font-display text-lg font-semibold mb-2">Idioma y Region</h3>
               <p className="text-sm text-muted-foreground mb-6">
                 Configura tu idioma preferido, zona horaria y formato de moneda.
               </p>
-              <SettingRow label="Idioma" value="Español (Colombia)" />
-              <SettingRow label="Zona horaria" value="America/Bogota (UTC−5)" />
+              <SettingRow label="Idioma" value="Espanol (Colombia)" />
+              <SettingRow label="Zona horaria" value="America/Bogota (UTC-5)" />
               <SettingRow label="Formato de fecha" value="DD/MM/YYYY" />
-              <SettingRow label="Formato de números" value="1.234,56" />
+              <SettingRow label="Formato de numeros" value="1.234.567" />
             </Card>
           )}
 
@@ -264,7 +263,7 @@ export function Settings() {
               )}
             >
               {saved ? (
-                <><Check className="h-4 w-4" /> ¡Guardado!</>
+                <><Check className="h-4 w-4" /> Guardado!</>
               ) : (
                 "Guardar cambios"
               )}
@@ -341,7 +340,7 @@ function FinancialProfileSettings() {
     <Card>
       <h3 className="font-display text-lg font-semibold mb-2">Perfil Financiero</h3>
       <p className="text-sm text-muted-foreground mb-6">
-        {hasProfile 
+        {hasProfile
           ? "Actualiza tu presupuesto personalizado basado en la regla 50/30/20."
           : "Configura tu presupuesto personalizado basado en la regla 50/30/20."}
       </p>
@@ -361,7 +360,7 @@ function FinancialProfileSettings() {
         <RatioSlider label="Necesidades" value={needsRatio} onChange={setNeedsRatio} color="primary" />
         <RatioSlider label="Deseos" value={wantsRatio} onChange={setWantsRatio} color="warning" />
         <RatioSlider label="Ahorros" value={savingsRatio} onChange={setSavingsRatio} color="success" />
-        <RatioSlider label="Deuda máxima" value={maxDebtRatio} onChange={setMaxDebtRatio} color="destructive" />
+        <RatioSlider label="Deuda maxima" value={maxDebtRatio} onChange={setMaxDebtRatio} color="destructive" />
       </div>
 
       <div className="mt-6 flex justify-end">
@@ -374,7 +373,7 @@ function FinancialProfileSettings() {
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : saved ? (
-            <><Check className="h-4 w-4" /> ¡Guardado!</>
+            <><Check className="h-4 w-4" /> Guardado!</>
           ) : (
             hasProfile ? "Guardar cambios" : "Crear perfil"
           )}

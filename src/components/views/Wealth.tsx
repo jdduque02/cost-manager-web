@@ -15,7 +15,7 @@ function Row({ name, value, type, debt }: { name: string; value: number; type: s
         <p className="text-xs text-muted-foreground">{type}</p>
       </div>
       <span className={`font-display text-base font-semibold tabular-nums ${debt ? "text-destructive" : "text-success"}`}>
-        {debt ? "−" : ""}{fmtCurrency(value)}
+        {debt ? "-" : ""}{fmtCurrency(value)}
       </span>
     </div>
   );
@@ -27,41 +27,45 @@ export function Wealth() {
   const { data: liabilities = [], isLoading: loadLia } = useFinancialLiabilities();
 
   const totalAssets = useMemo(() => {
-    const accTotal = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
-    const astTotal = assets.reduce((sum, a) => sum + (a.currentValue ?? 0), 0);
+    const accTotal = accounts.reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
+    const astTotal = assets.reduce((sum, a) => sum + (a.current_value ?? 0), 0);
     return accTotal + astTotal;
   }, [accounts, assets]);
 
-  const totalLiab = liabilities.reduce((sum, l) => sum + (l.currentBalance ?? 0), 0);
+  const totalLiab = liabilities.reduce((sum, l) => sum + (l.current_balance ?? 0), 0);
   const net = totalAssets - totalLiab;
 
   const isLoading = loadAcc || loadAst || loadLia;
 
-  const activeAccountsCount = accounts.filter(a => a.status === "ACTIVE").length;
-  const cashOnHand = accounts.filter(a => a.type === "CASH" || a.type === "CHECKING").reduce((sum, a) => sum + (a.balance ?? 0), 0);
-  const investments = assets.filter(a => a.type === "INVESTMENT" || a.type === "STOCK" || a.type === "CRYPTO").reduce((sum, a) => sum + (a.currentValue ?? 0), 0);
+  const activeAccountsCount = accounts.filter((a) => a.is_primary).length;
+  const cashOnHand = accounts
+    .filter((a) => a.account_type === "ahorros" || a.account_type === "corriente")
+    .reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
+  const investments = assets
+    .filter((a) => a.asset_type === "acciones" || a.asset_type === "fondos_inversion" || a.asset_type === "cryptomonedas")
+    .reduce((sum, a) => sum + (a.current_value ?? 0), 0);
 
   const wealthComposition = useMemo(() => {
     const comp: { name: string; value: number }[] = [];
-    
+
     // Group bank accounts by type
     const accGroup: Record<string, number> = {};
-    accounts.forEach(a => {
-      const t = a.type || "OTHER_ACCOUNT";
-      accGroup[t] = (accGroup[t] || 0) + (a.balance ?? 0);
+    accounts.forEach((a) => {
+      const t = a.account_type || "otro";
+      accGroup[t] = (accGroup[t] || 0) + Number(a.display_balance ?? 0);
     });
     Object.entries(accGroup).forEach(([type, value]) => {
-      if(value > 0) comp.push({ name: type.replace(/_/g, " "), value });
+      if (value > 0) comp.push({ name: type.replace(/_/g, " "), value });
     });
 
     // Group assets by type
     const astGroup: Record<string, number> = {};
-    assets.forEach(a => {
-      const t = a.type || "OTHER_ASSET";
-      astGroup[t] = (astGroup[t] || 0) + (a.currentValue ?? 0);
+    assets.forEach((a) => {
+      const t = a.asset_type || "otro";
+      astGroup[t] = (astGroup[t] || 0) + (a.current_value ?? 0);
     });
     Object.entries(astGroup).forEach(([type, value]) => {
-      if(value > 0) comp.push({ name: type.replace(/_/g, " "), value });
+      if (value > 0) comp.push({ name: type.replace(/_/g, " "), value });
     });
 
     return comp.sort((a, b) => b.value - a.value);
@@ -89,7 +93,7 @@ export function Wealth() {
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Total Pasivos</p>
-          <p className="mt-2 font-display text-2xl font-semibold text-destructive">−{fmtCurrency(totalLiab)}</p>
+          <p className="mt-2 font-display text-2xl font-semibold text-destructive">-{fmtCurrency(totalLiab)}</p>
         </Card>
         <Card glow>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Patrimonio Neto</p>
@@ -112,10 +116,10 @@ export function Wealth() {
                   <p className="text-sm text-muted-foreground">No se encontraron activos.</p>
                 )}
                 {accounts.map((a) => (
-                  <Row key={a.id} name={a.name} value={a.balance ?? 0} type={a.type} />
+                  <Row key={a.id} name={`${a.bank_name} - ${a.account_type}`} value={Number(a.display_balance ?? 0)} type={a.account_type} />
                 ))}
                 {assets.map((a) => (
-                  <Row key={a.id} name={a.name} value={a.currentValue ?? 0} type={a.type} />
+                  <Row key={a.id} name={a.name} value={a.current_value} type={a.asset_type} />
                 ))}
               </div>
             </section>
@@ -131,7 +135,7 @@ export function Wealth() {
                   <p className="text-sm text-muted-foreground">No se encontraron pasivos.</p>
                 )}
                 {liabilities.map((l) => (
-                  <Row key={l.id} name={l.name} value={l.currentBalance ?? 0} type={l.type} debt />
+                  <Row key={l.id} name={l.name} value={l.current_balance} type={l.liability_type} debt />
                 ))}
               </div>
             </section>
@@ -139,9 +143,9 @@ export function Wealth() {
         </Card>
 
         <Card>
-          <h3 className="font-display text-lg font-semibold">Composición del patrimonio</h3>
-          <p className="text-sm text-muted-foreground">Donde está tu dinero</p>
-          
+          <h3 className="font-display text-lg font-semibold">Composicion del patrimonio</h3>
+          <p className="text-sm text-muted-foreground">Donde esta tu dinero</p>
+
           {wealthComposition.length > 0 ? (
             <>
               <div className="mt-4 h-56">
@@ -183,9 +187,9 @@ export function Wealth() {
               </ul>
             </>
           ) : (
-<div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
-                No hay datos para mostrar.
-              </div>
+            <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+              No hay datos para mostrar.
+            </div>
           )}
         </Card>
       </div>
@@ -194,14 +198,14 @@ export function Wealth() {
         <Card>
           <Wallet className="h-5 w-5 text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">Cuentas bancarias</p>
-          <p className="font-display text-xl font-semibold">{fmtCurrency(accounts.reduce((s, a) => s + (a.balance ?? 0), 0))}</p>
+          <p className="font-display text-xl font-semibold">{fmtCurrency(accounts.reduce((s, a) => s + Number(a.display_balance ?? 0), 0))}</p>
           <Badge tone="success">{activeAccountsCount} activa(s)</Badge>
         </Card>
         <Card>
           <TrendingUp className="h-5 w-5 text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">Inversiones</p>
           <p className="font-display text-xl font-semibold">{fmtCurrency(investments)}</p>
-          <Badge tone="success">Año actual</Badge>
+          <Badge tone="success">Ano actual</Badge>
         </Card>
         <Card>
           <Banknote className="h-5 w-5 text-primary" />

@@ -2,21 +2,29 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { fmtCurrency } from "@/lib/format";
 import { Search, ShoppingBag, Coffee, Home, Car, Zap, Tag, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTransactions } from "@/lib/hooks/use-api";
+import { useTransactions, useCategories } from "@/lib/hooks/use-api";
+import { useMemo } from "react";
 
-function getCategoryIcon(category?: string) {
-  if (!category) return Tag;
-  const c = category.toLowerCase();
-  if (c.includes("groceries") || c.includes("shopping")) return ShoppingBag;
-  if (c.includes("dining") || c.includes("coffee") || c.includes("restaurant")) return Coffee;
-  if (c.includes("housing") || c.includes("rent")) return Home;
-  if (c.includes("transport") || c.includes("car")) return Car;
-  if (c.includes("utilities") || c.includes("bills")) return Zap;
+function getCategoryIcon(categoryName?: string) {
+  if (!categoryName) return Tag;
+  const c = categoryName.toLowerCase();
+  if (c.includes("aliment") || c.includes("supermercado") || c.includes("groceries") || c.includes("shopping")) return ShoppingBag;
+  if (c.includes("restaurant") || c.includes("dining") || c.includes("cafe") || c.includes("coffee")) return Coffee;
+  if (c.includes("vivienda") || c.includes("arriendo") || c.includes("housing") || c.includes("rent")) return Home;
+  if (c.includes("transporte") || c.includes("carro") || c.includes("transport") || c.includes("car")) return Car;
+  if (c.includes("servicio") || c.includes("utilities") || c.includes("bills")) return Zap;
   return Tag;
 }
 
 export function TransactionsList() {
   const { data: transactions, isLoading, error } = useTransactions();
+  const { data: categories = [] } = useCategories();
+
+  const categoryMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    categories.forEach((c) => { map[c.id] = c.name; });
+    return map;
+  }, [categories]);
 
   return (
     <div className="space-y-7">
@@ -28,7 +36,7 @@ export function TransactionsList() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
-            placeholder="Buscar transacciones…"
+            placeholder="Buscar transacciones..."
             className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary lg:w-80"
           />
         </div>
@@ -51,25 +59,26 @@ export function TransactionsList() {
         ) : (
           <ul className="divide-y divide-border">
             {transactions.map((t) => {
-              const Icon = getCategoryIcon(t.category);
+              const categoryName = categoryMap[t.category_id] ?? "General";
+              const Icon = getCategoryIcon(categoryName);
               return (
                 <li key={t.id} className="flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60">
                   <div className={cn(
                     "flex h-10 w-10 items-center justify-center rounded-xl",
-                    t.type === "INCOME" ? "bg-success/10 text-success" : "bg-surface-2 text-muted-foreground"
+                    t.type === "income" ? "bg-success/10 text-success" : "bg-surface-2 text-muted-foreground"
                   )}>
                     <Icon className="h-4.5 w-4.5" size={18} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(t.date).toLocaleDateString()}</p>
+                    <p className="truncate text-sm font-medium">{t.description ?? "Sin descripcion"}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleDateString("es-CO")}</p>
                   </div>
-                  <Badge tone="muted">{t.category ?? "General"}</Badge>
+                  <Badge tone="muted">{categoryName}</Badge>
                   <span className={cn(
                     "w-28 text-right font-display text-base font-semibold tabular-nums",
-                    t.type === "INCOME" ? "text-success" : "text-foreground"
+                    t.type === "income" ? "text-success" : "text-foreground"
                   )}>
-                    {t.type === "INCOME" ? "+" : "−"}{fmtCurrency(t.amount)}
+                    {t.type === "income" ? "+" : "-"}{fmtCurrency(t.amount)}
                   </span>
                 </li>
               );
