@@ -91,7 +91,7 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          ¿No tienes cuenta? <a href="#" className="font-medium text-primary hover:underline">Solicita acceso</a>
+          No tienes cuenta? <a href="/register" className="font-medium text-primary hover:underline">Registrate aqui</a>
         </p>
       </div>
     </div>
