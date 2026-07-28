@@ -5,6 +5,10 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface EncryptResult {
+  encrypted_password: string;
+}
+
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
@@ -31,13 +35,24 @@ export interface LoginResult {
 }
 
 export const authApi = {
+  async encryptPassword(password: string): Promise<string> {
+    const result = await api.post<EncryptResult[]>("auth/encrypt", { password });
+    const r = Array.isArray(result) ? result[0] : result;
+    return r.encrypted_password;
+  },
+
   async login(payload: LoginPayload): Promise<LoginResult> {
-    const tokens = await api.post<AuthTokens>("auth/login", payload);
-    setTokens(tokens.access_token, tokens.refresh_token);
+    const encryptedPassword = await this.encryptPassword(payload.password);
+    const tokens = await api.post<AuthTokens[]>("auth/login", {
+      username: payload.username,
+      password: encryptedPassword,
+    });
+    const t = Array.isArray(tokens) ? tokens[0] : tokens;
+    setTokens(t.access_token, t.refresh_token);
     return {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      userId: tokens.userId,
+      accessToken: t.access_token,
+      refreshToken: t.refresh_token,
+      userId: t.userId,
     };
   },
 
@@ -53,6 +68,8 @@ export const authApi = {
   forgotPassword: (email: string) =>
     api.post<{ message: string }>("auth/forgot-password", { email }),
 
-  introspect: (token?: string | null) =>
-    api.post<IntrospectResult>("auth/introspect", { token: token ?? getAccessToken() }),
+  introspect: async (token?: string | null): Promise<IntrospectResult> => {
+    const result = await api.post<IntrospectResult[]>("auth/introspect", { token: token ?? getAccessToken() });
+    return Array.isArray(result) ? result[0] : result;
+  },
 };

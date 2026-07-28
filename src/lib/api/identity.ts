@@ -50,17 +50,27 @@ export interface UpdateFinancialBudgetProfileDto {
 }
 
 export const identityApi = {
-  getStatus: () => api.get<{ status: string }>("user/public/status"),
-  getUser: (id: string, token?: string | null) => api.get<User>(`user/${id}`, token),
+  getStatus: async () => {
+    const result = await api.get<{ status: string }[]>("user/public/status");
+    return Array.isArray(result) ? result[0] : result;
+  },
+  getUser: async (id: string, token?: string | null): Promise<User> => {
+    const result = await api.get<User[]>(`user/${id}`, token);
+    return Array.isArray(result) ? result[0] : result;
+  },
   getUsers: () => api.get<User[]>("user"),
   updateUser: (id: string, dto: Partial<Omit<User, "id" | "created_at" | "updated_at" | "external_id">>) =>
     api.patch<User>(`user/${id}`, dto),
-  getFinancialProfile: (userId: string, token?: string | null) =>
-    api.get<FinancialProfile>(`user/${userId}/financial-profile`, token),
+  getFinancialProfile: async (userId: string, token?: string | null): Promise<FinancialProfile> => {
+    const result = await api.get<FinancialProfile[]>(`user/${userId}/financial-profile`, token);
+    return Array.isArray(result) ? result[0] : result;
+  },
   updateFinancialProfile: (userId: string, dto: Partial<FinancialProfile>, token?: string | null) =>
     api.patch<FinancialProfile>(`user/${userId}/financial-profile`, dto, token),
-  getFinancialBudgetProfile: (userId: string, token?: string | null) =>
-    api.get<FinancialProfile>(`user/${userId}/financial-profile`, token),
+  getFinancialBudgetProfile: async (userId: string, token?: string | null): Promise<FinancialProfile> => {
+    const result = await api.get<FinancialProfile[]>(`user/${userId}/financial-profile`, token);
+    return Array.isArray(result) ? result[0] : result;
+  },
   createFinancialBudgetProfile: (userId: string, dto: CreateFinancialBudgetProfileDto, token?: string | null) =>
     api.post<FinancialProfile>(`user/${userId}/financial-profile`, dto, token),
   updateFinancialBudgetProfile: (userId: string, dto: UpdateFinancialBudgetProfileDto, token?: string | null) =>

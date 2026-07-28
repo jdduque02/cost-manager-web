@@ -12,7 +12,7 @@
  * This client automatically unwraps the envelope.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1";
+const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1") + "/";
 
 /** Check if response has ApiResponseDto shape */
 function isApiResponseEnvelope(json: unknown): json is {
@@ -33,13 +33,13 @@ function isApiResponseEnvelope(json: unknown): json is {
 
 /**
  * Unwrap the ApiResponseDto envelope.
- * Handles two cases:
- * 1. Simple: data = [item] → return item
- * 2. Paginated: data = [{ data: [...], total }] → return the inner object
+ * The backend always wraps responses as { status, data: T[], message, timestamp }.
+ * - Paginated: data = [{ data: [...items], total: N }] → returns the inner items array
+ * - All others: data = [item1, item2, ...] → returns the array as-is
  */
 function unwrapEnvelope<T>(json: Record<string, unknown>): T {
   const data = json.data as unknown[];
-  if (data.length === 0) return undefined as T;
+  if (data.length === 0) return [] as unknown as T;
   if (data.length === 1) {
     const single = data[0];
     // Handle paginated response: { data: [...items], total: N }
@@ -50,9 +50,8 @@ function unwrapEnvelope<T>(json: Record<string, unknown>): T {
       "total" in single &&
       Array.isArray((single as Record<string, unknown>).data)
     ) {
-      return single as T;
+      return (single as Record<string, unknown>).data as T;
     }
-    return single as T;
   }
   return data as unknown as T;
 }
@@ -175,4 +174,9 @@ export const api = {
   patch: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body), token }),
   delete: <T>(path: string, token?: string | null) => apiFetch<T>(path, { method: "DELETE", token }),
+  /** Like get, but extracts the first element from the response array */
+  getOne: async <T>(path: string, token?: string | null): Promise<T> => {
+    const result = await apiFetch<T[]>(path, { method: "GET", token });
+    return Array.isArray(result) ? result[0] : (result as unknown as T);
+  },
 };

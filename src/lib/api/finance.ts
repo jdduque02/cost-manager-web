@@ -50,7 +50,8 @@ export interface CreateTransactionDto {
 }
 
 export type FinancialObjectiveType = "loan" | "savings" | "goal";
-export type Frequency = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
+export type Frequency = "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
+export type QuotaFrequency = "weekly" | "biweekly" | "monthly";
 
 export interface FinancialObjective {
   id: number;
@@ -111,9 +112,38 @@ export interface ObjectivePayment {
   created_at: string;
 }
 
+export interface CalculateQuotaRequest {
+  target_amount: number;
+  current_balance?: number;
+  start_date?: string;
+  end_date?: string;
+  frequency: QuotaFrequency;
+}
+
+export interface CalculateQuotaResponse {
+  target_amount: number;
+  current_balance: number;
+  amount_to_save: number;
+  start_date: string;
+  end_date: string | null;
+  frequency: string;
+  total_periods: number;
+  days_in_period: number;
+  quota_amount: number;
+  monthly_income: number | null;
+  savings_ratio: number;
+  max_allowed_per_period: number | null;
+  is_within_budget: boolean | null;
+  bank: string | null;
+  current_profitability: number | null;
+  projected_final_balance: number | null;
+  has_financial_profile: boolean;
+  warnings: string[];
+  recommendations: string[];
+}
+
 export const financeApi = {
-  getTransactions: (userId: string) =>
-    api.get<TransactionRecord[]>(`users/${userId}/transactions`),
+  getTransactions: (userId: string) => api.get<TransactionRecord[]>(`users/${userId}/transactions`),
   createTransaction: (userId: string, dto: CreateTransactionDto) =>
     api.post<TransactionRecord>(`users/${userId}/transactions`, dto),
   updateTransaction: (userId: string, id: string, dto: Partial<CreateTransactionDto>) =>
@@ -131,23 +161,20 @@ export const financeApi = {
     api.delete<void>(`users/${userId}/financial-objectives/${id}`),
 
   getObjectivePayments: (userId: string, objectiveId: string) =>
-    api.get<ObjectivePayment[]>(
-      `users/${userId}/financial-objectives/${objectiveId}/payments`
-    ),
+    api.get<ObjectivePayment[]>(`users/${userId}/financial-objectives/${objectiveId}/payments`),
   createObjectivePayment: (
     userId: string,
     objectiveId: string,
-    dto: { amount: number; payment_date: string; note?: string }
+    dto: { amount: number; payment_date: string; note?: string },
   ) =>
-    api.post<ObjectivePayment>(
-      `users/${userId}/financial-objectives/${objectiveId}/payments`,
-      dto
-    ),
+    api.post<ObjectivePayment>(`users/${userId}/financial-objectives/${objectiveId}/payments`, dto),
 
-  getPeriods: (userId: string) =>
-    api.get<FinancialPeriod[]>(`users/${userId}/financial-periods`),
+  getPeriods: (userId: string) => api.get<FinancialPeriod[]>(`users/${userId}/financial-periods`),
   createPeriod: (userId: string, dto: { year: number; month: number }) =>
     api.post<FinancialPeriod>(`users/${userId}/financial-periods`, dto),
   closePeriod: (userId: string, id: string) =>
     api.patch<FinancialPeriod>(`users/${userId}/financial-periods/${id}/close`, {}),
+
+  calculateQuota: (userId: string, dto: CalculateQuotaRequest) =>
+    api.post<CalculateQuotaResponse>(`users/${userId}/financial-objectives/calculate-quota`, dto),
 };
