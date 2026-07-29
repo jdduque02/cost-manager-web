@@ -1,18 +1,70 @@
-import { ArrowDownRight, ArrowUpRight, Plus, Sparkles, TrendingUp, Wallet, PiggyBank, type LucideIcon, ShoppingBag, Coffee, Home, Car, Zap, Tag } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart, Legend } from "recharts";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Plus,
+  Sparkles,
+  TrendingUp,
+  Wallet,
+  PiggyBank,
+  type LucideIcon,
+  ShoppingBag,
+  Coffee,
+  Home,
+  Car,
+  Zap,
+  Tag,
+} from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Bar,
+  BarChart,
+  Legend,
+} from "recharts";
 import { Card, Badge } from "@/components/ui/primitives";
-import { fmtCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNetWorth, useTransactions, useCategories } from "@/lib/hooks/use-api";
-import { useMemo } from "react";
+import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useMemo, useState } from "react";
+import { TransactionDialog } from "./TransactionDialog";
+import { NewsCarousel } from "@/components/ui/news-carousel";
 
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName.toLowerCase();
-  if (c.includes("aliment") || c.includes("supermercado") || c.includes("groceries") || c.includes("shopping")) return ShoppingBag;
-  if (c.includes("restaurant") || c.includes("dining") || c.includes("cafe") || c.includes("coffee")) return Coffee;
-  if (c.includes("vivienda") || c.includes("arriendo") || c.includes("housing") || c.includes("rent")) return Home;
-  if (c.includes("transporte") || c.includes("carro") || c.includes("transport") || c.includes("car")) return Car;
+  if (
+    c.includes("aliment") ||
+    c.includes("supermercado") ||
+    c.includes("groceries") ||
+    c.includes("shopping")
+  )
+    return ShoppingBag;
+  if (
+    c.includes("restaurant") ||
+    c.includes("dining") ||
+    c.includes("cafe") ||
+    c.includes("coffee")
+  )
+    return Coffee;
+  if (
+    c.includes("vivienda") ||
+    c.includes("arriendo") ||
+    c.includes("housing") ||
+    c.includes("rent")
+  )
+    return Home;
+  if (
+    c.includes("transporte") ||
+    c.includes("carro") ||
+    c.includes("transport") ||
+    c.includes("car")
+  )
+    return Car;
   if (c.includes("servicio") || c.includes("utilities") || c.includes("bills")) return Zap;
   if (c.includes("salario") || c.includes("income") || c.includes("ingreso")) return TrendingUp;
   return Tag;
@@ -43,7 +95,12 @@ function KPI({
         </Badge>
       </div>
       <p className="mt-5 text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 font-display text-2xl font-semibold tracking-tight", positive ? "text-foreground" : "text-foreground")}>
+      <p
+        className={cn(
+          "mt-1 font-display text-2xl font-semibold tracking-tight",
+          positive ? "text-foreground" : "text-foreground",
+        )}
+      >
         {value}
       </p>
     </Card>
@@ -54,13 +111,17 @@ export function Dashboard() {
   const { data: txs = [] } = useTransactions();
   const { data: nw } = useNetWorth();
   const { data: categories = [] } = useCategories();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const fmtAmount = useFormattedAmount();
 
   const netWorthValue = nw?.summary?.netWorth ?? 0;
 
   // Build a map: category_id -> category name
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
-    categories.forEach((c) => { map[c.id] = c.name; });
+    categories.forEach((c) => {
+      map[c.id] = c.name;
+    });
     return map;
   }, [categories]);
 
@@ -71,9 +132,14 @@ export function Dashboard() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  const monthlyIncome = currentMonthTxs.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0);
-  const monthlyExpenses = currentMonthTxs.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0);
-  const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
+  const monthlyIncome = currentMonthTxs
+    .filter((t) => t.type === "income")
+    .reduce((acc, t) => acc + t.amount, 0);
+  const monthlyExpenses = currentMonthTxs
+    .filter((t) => t.type === "expense")
+    .reduce((acc, t) => acc + t.amount, 0);
+  const savingsRate =
+    monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
 
   // Build monthly chart data from transactions (last 6 months)
   const monthlyChartData = useMemo(() => {
@@ -114,10 +180,15 @@ export function Dashboard() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Buenas tardes</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Resumen financiero</h1>
+          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">
+            Resumen financiero
+          </h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90">
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
+          >
             <Plus className="h-4 w-4" />
             Nueva Transacción
           </button>
@@ -126,11 +197,38 @@ export function Dashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KPI label="Patrimonio" value={fmtCurrency(netWorthValue)} delta="Tiempo real" positive icon={Wallet} />
-        <KPI label="Ingresos del mes" value={fmtCurrency(monthlyIncome)} delta="Este mes" positive icon={TrendingUp} />
-        <KPI label="Gastos del mes" value={fmtCurrency(monthlyExpenses)} delta="Este mes" positive={false} icon={ArrowDownRight} />
-        <KPI label="Tasa de ahorro" value={`${savingsRate.toFixed(1)}%`} delta="Este mes" positive={savingsRate > 0} icon={PiggyBank} />
+        <KPI
+          label="Patrimonio"
+          value={fmtAmount(netWorthValue)}
+          delta="Tiempo real"
+          positive
+          icon={Wallet}
+        />
+        <KPI
+          label="Ingresos del mes"
+          value={fmtAmount(monthlyIncome)}
+          delta="Este mes"
+          positive
+          icon={TrendingUp}
+        />
+        <KPI
+          label="Gastos del mes"
+          value={fmtAmount(monthlyExpenses)}
+          delta="Este mes"
+          positive={false}
+          icon={ArrowDownRight}
+        />
+        <KPI
+          label="Tasa de ahorro"
+          value={`${savingsRate.toFixed(1)}%`}
+          delta="Este mes"
+          positive={savingsRate > 0}
+          icon={PiggyBank}
+        />
       </div>
+
+      {/* News Carousel */}
+      <NewsCarousel />
 
       {/* AI Insight */}
       <Card glow className="relative overflow-hidden">
@@ -143,10 +241,12 @@ export function Dashboard() {
             <div>
               <Badge tone="primary">Insight de IA</Badge>
               <p className="mt-2 text-base font-medium text-foreground">
-                Sincronizando automaticamente tus datos financieros para ofrecer insights en tiempo real.
+                Sincronizando automaticamente tus datos financieros para ofrecer insights en tiempo
+                real.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Continua registrando tus transacciones para ver estrategias de ahorro personalizadas.
+                Continua registrando tus transacciones para ver estrategias de ahorro
+                personalizadas.
               </p>
             </div>
           </div>
@@ -173,7 +273,10 @@ export function Dashboard() {
 
           <div className="mt-6 h-72 w-full">
             <ResponsiveContainer>
-              <AreaChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart
+                data={monthlyChartData}
+                margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="income" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="oklch(0.78 0.17 165)" stopOpacity={0.5} />
@@ -184,9 +287,25 @@ export function Dashboard() {
                     <stop offset="100%" stopColor="oklch(0.68 0.20 18)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="oklch(0.30 0.014 260)" strokeDasharray="3 6" vertical={false} />
-                <XAxis dataKey="month" stroke="oklch(0.68 0.02 260)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="oklch(0.68 0.02 260)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+                <CartesianGrid
+                  stroke="oklch(0.30 0.014 260)"
+                  strokeDasharray="3 6"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  stroke="oklch(0.68 0.02 260)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="oklch(0.68 0.02 260)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `$${v / 1000}k`}
+                />
                 <Tooltip
                   contentStyle={{
                     background: "oklch(0.21 0.014 260)",
@@ -194,10 +313,22 @@ export function Dashboard() {
                     borderRadius: 12,
                     color: "oklch(0.97 0.005 260)",
                   }}
-                  formatter={(v: number) => fmtCurrency(v)}
+                  formatter={(v: number) => fmtAmount(v)}
                 />
-                <Area type="monotone" dataKey="income" stroke="oklch(0.78 0.17 165)" strokeWidth={2.5} fill="url(#income)" />
-                <Area type="monotone" dataKey="expenses" stroke="oklch(0.68 0.20 18)" strokeWidth={2.5} fill="url(#expense)" />
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  stroke="oklch(0.78 0.17 165)"
+                  strokeWidth={2.5}
+                  fill="url(#income)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="expenses"
+                  stroke="oklch(0.68 0.20 18)"
+                  strokeWidth={2.5}
+                  fill="url(#expense)"
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -213,28 +344,44 @@ export function Dashboard() {
           </div>
           <ul className="mt-4 space-y-1.5">
             {txs.length === 0 ? (
-              <li className="py-8 text-center text-sm text-muted-foreground">No hay transacciones recientes.</li>
+              <li className="py-8 text-center text-sm text-muted-foreground">
+                No hay transacciones recientes.
+              </li>
             ) : (
               txs.slice(0, 5).map((t) => {
                 const categoryName = categoryMap[t.category_id] ?? "General";
                 const Icon = getCategoryIcon(categoryName);
                 return (
-                  <li key={t.id} className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-surface">
-                    <div className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg",
-                      t.type === "income" ? "bg-success/10 text-success" : "bg-surface-2 text-muted-foreground"
-                    )}>
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-surface"
+                  >
+                    <div
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-lg",
+                        t.type === "income"
+                          ? "bg-success/10 text-success"
+                          : "bg-surface-2 text-muted-foreground",
+                      )}
+                    >
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{t.description ?? "Sin descripcion"}</p>
-                      <p className="text-xs text-muted-foreground">{categoryName} · {new Date(t.created_at).toLocaleDateString("es-CO")}</p>
+                      <p className="truncate text-sm font-medium">
+                        {t.description ?? "Sin descripcion"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {categoryName} · {new Date(t.created_at).toLocaleDateString("es-CO")}
+                      </p>
                     </div>
-                    <span className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      t.type === "income" ? "text-success" : "text-foreground"
-                    )}>
-                      {t.type === "income" ? "+" : "-"}{fmtCurrency(t.amount)}
+                    <span
+                      className={cn(
+                        "text-sm font-semibold tabular-nums",
+                        t.type === "income" ? "text-success" : "text-foreground",
+                      )}
+                    >
+                      {t.type === "income" ? "+" : "-"}
+                      {fmtAmount(t.amount)}
                     </span>
                   </li>
                 );
@@ -256,9 +403,25 @@ export function Dashboard() {
           {categorySpending.length > 0 ? (
             <ResponsiveContainer>
               <BarChart data={categorySpending}>
-                <CartesianGrid stroke="oklch(0.30 0.014 260)" strokeDasharray="3 6" vertical={false} />
-                <XAxis dataKey="cat" stroke="oklch(0.68 0.02 260)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="oklch(0.68 0.02 260)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <CartesianGrid
+                  stroke="oklch(0.30 0.014 260)"
+                  strokeDasharray="3 6"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="cat"
+                  stroke="oklch(0.68 0.02 260)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="oklch(0.68 0.02 260)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `$${v}`}
+                />
                 <Tooltip
                   cursor={{ fill: "oklch(0.25 0.016 260 / 0.5)" }}
                   contentStyle={{
@@ -266,7 +429,7 @@ export function Dashboard() {
                     border: "1px solid oklch(0.30 0.014 260)",
                     borderRadius: 12,
                   }}
-                  formatter={(v: number) => fmtCurrency(v)}
+                  formatter={(v: number) => fmtAmount(v)}
                 />
                 <Bar dataKey="amt" fill="oklch(0.78 0.17 165)" radius={[8, 8, 0, 0]} />
                 <Legend wrapperStyle={{ display: "none" }} />
@@ -279,6 +442,8 @@ export function Dashboard() {
           )}
         </div>
       </Card>
+
+      <TransactionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }

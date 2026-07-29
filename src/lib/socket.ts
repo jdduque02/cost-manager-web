@@ -1,7 +1,9 @@
 import { io, Socket } from "socket.io-client";
-import { getAccessToken } from "./client";
+import { getAccessToken } from "@/lib/api/client";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace("/api/v1", "") ?? "http://localhost:3000";
+const SOCKET_URL = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace("/api/v1", "")
+  : "http://localhost:3000";
 
 export interface NotificationPayload {
   id: number;
@@ -22,6 +24,10 @@ export const NOTIFICATION_EVENTS = {
   UNSUBSCRIBE: "notification:unsubscribe",
   MARK_AS_READ: "notification:mark_read",
   MARK_ALL_AS_READ: "notification:mark_all_read",
+} as const;
+
+export const NEWS_EVENTS = {
+  NEW_NEWS: "news:new",
 } as const;
 
 let socket: Socket | null = null;

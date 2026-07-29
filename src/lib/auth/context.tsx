@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authApi, type AuthTokens } from "@/lib/api/auth";
-import { getAccessToken, clearTokens } from "@/lib/api/client";
+import { getAccessToken, clearTokens, getStoredUserId } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 
 export interface AuthState {
@@ -20,27 +20,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = getAccessToken();
-    if (!token) {
+    const userId = getStoredUserId();
+    if (!token || !userId) {
+      clearTokens();
       setIsLoading(false);
       return;
     }
 
-    authApi
-      .introspect(token)
-      .then((introspectData) => {
-        if (introspectData?.active) {
-          if (introspectData.userId !== undefined) {
-            return identityApi.getUser(String(introspectData.userId), token);
-          }
-          if (introspectData.sub) {
-            return identityApi.getUser(introspectData.sub, token);
-          }
-        }
-        clearTokens();
-        return null;
-      })
+    identityApi
+      .getUser(userId, token)
       .then((u) => {
         if (u) setUser(u);
+        else clearTokens();
       })
       .catch(() => clearTokens())
       .finally(() => setIsLoading(false));
@@ -53,22 +44,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("No se recibio token de acceso");
     }
 
-    const introspectData = await authApi.introspect(result.accessToken);
-
-    if (!introspectData?.active) {
-      throw new Error("Token invalido");
-    }
-
-    let userId: string;
-    if (introspectData.userId !== undefined) {
-      userId = String(introspectData.userId);
-    } else if (introspectData.sub) {
-      userId = introspectData.sub;
-    } else {
+    if (!result.userId) {
       throw new Error("No se pudo obtener el userId");
     }
 
-    const u = await identityApi.getUser(userId, result.accessToken);
+    const u = await identityApi.getUser(String(result.userId), result.accessToken);
     setUser(u);
     return { access_token: result.accessToken, refresh_token: result.refreshToken };
   }, []);

@@ -1,11 +1,26 @@
 import { Card, Badge } from "@/components/ui/primitives";
-import { fmtCurrency } from "@/lib/format";
+import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { FileText, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancialBudgetProfile, useTransactions, useTaxSummary } from "@/lib/hooks/use-api";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { FinancialEducation } from "./FinancialEducation";
+import { LifeStageGuide } from "./LifeStageGuide";
 
-function BudgetBar({ name, actual, limit, tone }: { name: string; actual: number; limit: number; tone: string }) {
+function BudgetBar({
+  name,
+  actual,
+  limit,
+  tone,
+  fmtAmount,
+}: {
+  name: string;
+  actual: number;
+  limit: number;
+  tone: string;
+  fmtAmount: (v: number) => string;
+}) {
   const pct = Math.min((actual / limit) * 100, 130);
   const over = actual > limit;
   const colorClass: Record<string, string> = {
@@ -18,7 +33,7 @@ function BudgetBar({ name, actual, limit, tone }: { name: string; actual: number
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{name}</span>
         <span className="tabular-nums text-muted-foreground">
-          {fmtCurrency(actual)} <span className="text-muted-foreground/60">/ {fmtCurrency(limit)}</span>
+          {fmtAmount(actual)} <span className="text-muted-foreground/60">/ {fmtAmount(limit)}</span>
         </span>
       </div>
       <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
@@ -29,7 +44,11 @@ function BudgetBar({ name, actual, limit, tone }: { name: string; actual: number
       </div>
       <div className="mt-1.5 flex justify-between text-xs">
         <span className="text-muted-foreground">{Math.round((actual / limit) * 100)}% usado</span>
-        {over ? <Badge tone="destructive">Sobre presupuesto</Badge> : <Badge tone="success">En camino</Badge>}
+        {over ? (
+          <Badge tone="destructive">Sobre presupuesto</Badge>
+        ) : (
+          <Badge tone="success">En camino</Badge>
+        )}
       </div>
     </div>
   );
@@ -39,6 +58,7 @@ export function Intelligence() {
   const { data: profile, isLoading: loadProfile } = useFinancialBudgetProfile();
   const { data: txs = [], isLoading: loadTxs } = useTransactions();
   const { data: taxSummary, isLoading: loadTax } = useTaxSummary();
+  const fmtAmount = useFormattedAmount();
 
   const isLoading = loadProfile || loadTxs || loadTax;
 
@@ -51,8 +71,12 @@ export function Intelligence() {
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
 
-    const monthlyIncome = currentMonthTxs.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0);
-    const monthlyExpenses = currentMonthTxs.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0);
+    const monthlyIncome = currentMonthTxs
+      .filter((t) => t.type === "income")
+      .reduce((acc, t) => acc + t.amount, 0);
+    const monthlyExpenses = currentMonthTxs
+      .filter((t) => t.type === "expense")
+      .reduce((acc, t) => acc + t.amount, 0);
 
     const needsLimit = monthlyIncome * (profile.needs_ratio / 100);
     const wantsLimit = monthlyIncome * (profile.wants_ratio / 100);
@@ -64,9 +88,24 @@ export function Intelligence() {
     const savingsActual = monthlyIncome - monthlyExpenses;
 
     return [
-      { name: `Necesidades (${profile.needs_ratio}%)`, actual: needsActual, limit: needsLimit, tone: "primary" },
-      { name: `Deseos (${profile.wants_ratio}%)`, actual: wantsActual, limit: wantsLimit, tone: "destructive" },
-      { name: `Ahorros (${profile.savings_ratio}%)`, actual: savingsActual, limit: savingsLimit, tone: "warning" },
+      {
+        name: `Necesidades (${profile.needs_ratio}%)`,
+        actual: needsActual,
+        limit: needsLimit,
+        tone: "primary",
+      },
+      {
+        name: `Deseos (${profile.wants_ratio}%)`,
+        actual: wantsActual,
+        limit: wantsLimit,
+        tone: "destructive",
+      },
+      {
+        name: `Ahorros (${profile.savings_ratio}%)`,
+        actual: savingsActual,
+        limit: savingsLimit,
+        tone: "warning",
+      },
     ];
   }, [profile, txs]);
 
@@ -82,7 +121,9 @@ export function Intelligence() {
     <div className="space-y-7">
       <div>
         <p className="text-sm text-muted-foreground">Inteligencia e Impuestos</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Presupuesto inteligente y proyecciones</h1>
+        <h1 className="mt-1 font-display text-3xl font-semibold">
+          Presupuesto inteligente y proyecciones
+        </h1>
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -92,15 +133,17 @@ export function Intelligence() {
               <h3 className="font-display text-lg font-semibold">Regla 50 / 30 / 20</h3>
               <p className="text-sm text-muted-foreground">Tu asignacion ideal vs. gasto real</p>
             </div>
-            <Badge tone="primary"><Sparkles className="h-3 w-3" /> Guia de IA</Badge>
+            <Badge tone="primary">
+              <Sparkles className="h-3 w-3" /> Guia de IA
+            </Badge>
           </div>
           <div className="mt-6 space-y-6">
             {budgetData ? (
-              budgetData.map((b) => (
-                <BudgetBar key={b.name} {...b} />
-              ))
+              budgetData.map((b) => <BudgetBar key={b.name} {...b} fmtAmount={fmtAmount} />)
             ) : (
-              <p className="text-sm text-muted-foreground">Configura tu perfil financiero para ver el desglose 50/30/20.</p>
+              <p className="text-sm text-muted-foreground">
+                Configura tu perfil financiero para ver el desglose 50/30/20.
+              </p>
             )}
           </div>
         </Card>
@@ -113,7 +156,9 @@ export function Intelligence() {
             </div>
             <div>
               <Badge tone="primary">DIAN - Colombia</Badge>
-              <h3 className="mt-1 font-display text-lg font-semibold">Proyeccion de Impuestos {taxSummary?.fiscal_year ?? 2026}</h3>
+              <h3 className="mt-1 font-display text-lg font-semibold">
+                Proyeccion de Impuestos {taxSummary?.fiscal_year ?? 2026}
+              </h3>
             </div>
           </div>
 
@@ -121,15 +166,29 @@ export function Intelligence() {
             <div className="flex items-end justify-between border-b border-border pb-3">
               <dt className="text-sm text-muted-foreground">Patrimonio Neto (UVT)</dt>
               <dd className="text-right">
-                <p className="font-display text-lg font-semibold">{taxSummary?.assets_in_uvt ? Math.round(taxSummary.assets_in_uvt).toLocaleString() : "N/A"} UVT</p>
-                <p className="text-xs text-muted-foreground">{taxSummary?.patrimony ? fmtCurrency(taxSummary.patrimony) : "N/A"}</p>
+                <p className="font-display text-lg font-semibold">
+                  {taxSummary?.assets_in_uvt
+                    ? Math.round(taxSummary.assets_in_uvt).toLocaleString()
+                    : "N/A"}{" "}
+                  UVT
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {taxSummary?.patrimony ? fmtAmount(taxSummary.patrimony) : "N/A"}
+                </p>
               </dd>
             </div>
             <div className="flex items-end justify-between border-b border-border pb-3">
               <dt className="text-sm text-muted-foreground">Ingreso Anual (UVT)</dt>
               <dd className="text-right">
-                <p className="font-display text-lg font-semibold">{taxSummary?.income_in_uvt ? Math.round(taxSummary.income_in_uvt).toLocaleString() : "N/A"} UVT</p>
-                <p className="text-xs text-muted-foreground">{taxSummary?.total_income ? fmtCurrency(taxSummary.total_income) : "N/A"}</p>
+                <p className="font-display text-lg font-semibold">
+                  {taxSummary?.income_in_uvt
+                    ? Math.round(taxSummary.income_in_uvt).toLocaleString()
+                    : "N/A"}{" "}
+                  UVT
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {taxSummary?.total_income ? fmtAmount(taxSummary.total_income) : "N/A"}
+                </p>
               </dd>
             </div>
             <div className="flex items-end justify-between">
@@ -144,7 +203,18 @@ export function Intelligence() {
             </div>
           </dl>
 
-          <button className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background/40 px-4 py-2.5 text-sm font-medium hover:bg-surface">
+          <button
+            onClick={() => {
+              if (!taxSummary) {
+                toast.info("Generando informe de impuestos...");
+                return;
+              }
+              toast.success(
+                `Informe ${taxSummary.fiscal_year}: Ingresos ${fmtAmount(taxSummary.total_income)}, Patrimonio ${taxSummary.patrimony ? fmtAmount(taxSummary.patrimony) : "N/A"}, Obligación: ${taxSummary.must_declare ? "Sí" : "No"}`,
+              );
+            }}
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background/40 px-4 py-2.5 text-sm font-medium hover:bg-surface"
+          >
             <ShieldCheck className="h-4 w-4 text-primary" /> Generar informe de impuestos
           </button>
         </Card>
@@ -154,18 +224,33 @@ export function Intelligence() {
         <h3 className="font-display text-lg font-semibold">Recomendaciones de IA</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {[
-            { t: "Oportunidad de refinanciacion", d: "Refinanciar tu prestamo de auto podria ahorrarte ~$1,240/anio con las tasas actuales." },
-            { t: "Ahorro redondeado", d: "Activa los redondeos para invertir spare change. Estimado +$38/mes a tu portafolio." },
-            { t: "Auditoria de suscripciones", d: "3 suscripciones sin usar por 60+ dias. Cancela para recuperar $42/mes." },
+            {
+              t: "Oportunidad de refinanciacion",
+              d: "Refinanciar tu prestamo de auto podria ahorrarte ~$1,240/anio con las tasas actuales.",
+            },
+            {
+              t: "Ahorro redondeado",
+              d: "Activa los redondeos para invertir spare change. Estimado +$38/mes a tu portafolio.",
+            },
+            {
+              t: "Auditoria de suscripciones",
+              d: "3 suscripciones sin usar por 60+ dias. Cancela para recuperar $42/mes.",
+            },
           ].map((x) => (
             <div key={x.t} className="rounded-xl border border-border bg-surface/40 p-4">
-              <Badge tone="primary"><Sparkles className="h-3 w-3" /> Insight</Badge>
+              <Badge tone="primary">
+                <Sparkles className="h-3 w-3" /> Insight
+              </Badge>
               <p className="mt-3 font-medium">{x.t}</p>
               <p className="mt-1 text-sm text-muted-foreground">{x.d}</p>
             </div>
           ))}
         </div>
       </Card>
+
+      <FinancialEducation />
+
+      <LifeStageGuide />
     </div>
   );
 }

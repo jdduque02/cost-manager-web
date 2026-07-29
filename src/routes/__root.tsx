@@ -2,6 +2,8 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications/context";
+import { VisibilityProvider } from "@/lib/visibility-context";
+import { LoadingBar } from "@/components/ui/loading-bar";
 
 import appCss from "../styles.css?url";
 
@@ -43,7 +45,11 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Cost Manager — Mindful Spend Mate" },
-      { name: "description", content: "Premium personal finance dashboard with AI insights, budgeting, wealth tracking and tax projections." },
+      {
+        name: "description",
+        content:
+          "Premium personal finance dashboard with AI insights, budgeting, wealth tracking and tax projections.",
+      },
       { property: "og:title", content: "Cost Manager — Mindful Spend Mate" },
       { property: "og:description", content: "Premium personal finance dashboard" },
       { property: "og:type", content: "website" },
@@ -81,10 +87,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
+      <LoadingBar />
       <AuthProvider>
-        <NotificationProvider>
-          <Outlet />
-        </NotificationProvider>
+        <VisibilityProvider>
+          <NotificationProvider>
+            <Outlet />
+          </NotificationProvider>
+        </VisibilityProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

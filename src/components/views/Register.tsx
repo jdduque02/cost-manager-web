@@ -17,6 +17,10 @@ export function Register() {
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [documentId, setDocumentId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,8 +35,8 @@ export function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !email || !password) {
-      setError("Por favor completa todos los campos");
+    if (!username || !email || !password || !fullName) {
+      setError("Por favor completa todos los campos obligatorios");
       return;
     }
     if (password !== confirmPassword) {
@@ -52,17 +56,16 @@ export function Register() {
         username,
         email,
         password,
+        full_name: fullName,
+        phone: phone || undefined,
+        address: address || undefined,
+        document_id: documentId || undefined,
         locale: "es",
-        timezone: "America/Bogota",
+        timezone: `${username}_${new Date().getFullYear()}`,
         is_active: true,
-        financial_profile: {
-          user_id: "0",
-          profile_name: "Plan 50-30-20",
-          is_custom: false,
-          needs_ratio: 50,
-          wants_ratio: 30,
-          savings_ratio: 20,
-          max_debt_ratio: 35,
+        metadata: {
+          prefered_theme: "dark",
+          notifications: true,
         },
       });
       setSuccess(true);
@@ -109,7 +112,19 @@ export function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Usuario</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Nombre completo *</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              placeholder="Juan Perez Garcia"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Usuario *</label>
             <input
               type="text"
               value={username}
@@ -121,7 +136,7 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Correo electronico</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Correo electronico *</label>
             <input
               type="email"
               value={email}
@@ -133,7 +148,43 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Contrasena</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Documento de identidad</label>
+            <input
+              type="text"
+              value={documentId}
+              onChange={(e) => setDocumentId(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              placeholder="1234567890"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Telefono</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              placeholder="+57 310 123 4567"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Direccion</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              placeholder="Cra 10 #5-20, Bogota"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Contrasena *</label>
             <input
               type="password"
               value={password}
@@ -145,7 +196,7 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Confirmar contrasena</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Confirmar contrasena *</label>
             <input
               type="password"
               value={confirmPassword}

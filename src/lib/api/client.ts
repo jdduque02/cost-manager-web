@@ -62,16 +62,23 @@ export function getAccessToken(): string | null {
   return localStorage.getItem("cm_access_token");
 }
 
-export function setTokens(access: string, refresh: string) {
+export function setTokens(access: string, refresh: string, userId?: number | string) {
   if (typeof window === "undefined") return;
   localStorage.setItem("cm_access_token", access);
   localStorage.setItem("cm_refresh_token", refresh);
+  if (userId !== undefined) localStorage.setItem("cm_user_id", String(userId));
 }
 
 export function clearTokens() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("cm_access_token");
   localStorage.removeItem("cm_refresh_token");
+  localStorage.removeItem("cm_user_id");
+}
+
+export function getStoredUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("cm_user_id");
 }
 
 export function getRefreshToken(): string | null {

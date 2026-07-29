@@ -12,19 +12,88 @@ import {
   X,
   CircleDollarSign,
   Loader2,
+  Tag,
+  Lock,
+  Unlock,
+  EyeOff,
+  Newspaper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getAccessToken } from "@/lib/api/client";
+import { useVisibility } from "@/lib/visibility-context";
+import { PasswordDialog } from "@/components/ui/password-dialog";
 
 const nav = [
   { to: "/", label: "Panel", icon: LayoutDashboard, exact: true },
   { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight },
   { to: "/wealth", label: "Patrimonio", icon: Wallet },
   { to: "/goals", label: "Metas", icon: Target },
+  { to: "/categories", label: "Categorías", icon: Tag },
   { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles },
+  { to: "/news", label: "Noticias", icon: Newspaper },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
+
+function VisibilityToggle({ className }: { className?: string }) {
+  const { mode, setMasked, setEncrypted, setVisible } = useVisibility();
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  function handleClick() {
+    if (mode === "visible") {
+      setPwdOpen(true);
+    } else {
+      setVisible();
+    }
+  }
+
+  async function handlePasswordSubmit(password: string) {
+    setLoading(true);
+    try {
+      setEncrypted(password);
+      setPwdOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleClick}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+          mode === "visible"
+            ? "text-muted-foreground hover:bg-surface hover:text-foreground"
+            : "bg-warning/15 text-warning hover:bg-warning/25",
+          className,
+        )}
+        title={mode === "visible" ? "Cifrar datos financieros" : "Mostrar datos financieros"}
+      >
+        {mode === "visible" ? (
+          <>
+            <EyeOff className="h-4 w-4" />
+            <span className="hidden lg:inline">Cifrar</span>
+          </>
+        ) : (
+          <>
+            <Unlock className="h-4 w-4" />
+            <span className="hidden lg:inline">Descifrar</span>
+          </>
+        )}
+      </button>
+
+      <PasswordDialog
+        open={pwdOpen}
+        onOpenChange={setPwdOpen}
+        onSubmit={handlePasswordSubmit}
+        mode="encrypt"
+        loading={loading}
+      />
+    </>
+  );
+}
 
 function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { user, logout } = useAuth();
@@ -35,7 +104,9 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
     navigate({ to: "/login" });
   };
 
-  const name = user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "Usuario Cost Manager";
+  const name = user?.firstName
+    ? `${user.firstName} ${user.lastName || ""}`.trim()
+    : "Usuario Cost Manager";
   const initials = user?.firstName ? user.firstName.substring(0, 2).toUpperCase() : "CM";
 
   return (
@@ -63,13 +134,13 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                 active
                   ? "bg-surface-2 text-foreground shadow-elegant"
-                  : "text-muted-foreground hover:bg-surface hover:text-foreground"
+                  : "text-muted-foreground hover:bg-surface hover:text-foreground",
               )}
             >
               <Icon
                 className={cn(
                   "h-4.5 w-4.5 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                  active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
                 )}
                 size={18}
               />
@@ -79,6 +150,10 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
           );
         })}
       </nav>
+
+      <div className="px-3 pb-1">
+        <VisibilityToggle className="w-full justify-center" />
+      </div>
 
       <div className="m-3 rounded-2xl border border-border bg-surface/60 p-4">
         <div className="flex items-center gap-3">
@@ -90,7 +165,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
             <p className="truncate text-xs text-muted-foreground">{user?.email || ""}</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={handleLogout}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
         >
@@ -131,7 +206,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile sidebar */}
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
           <aside className="relative h-full w-72 border-r border-border bg-background">
             <button
               className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground hover:bg-surface"
@@ -153,6 +231,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-display text-base font-semibold">Cost Manager</span>
+          <div className="ml-auto">
+            <VisibilityToggle />
+          </div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>
       </div>

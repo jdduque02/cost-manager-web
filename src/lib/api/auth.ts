@@ -1,4 +1,4 @@
-import { api, setTokens, clearTokens, getAccessToken, getRefreshToken } from "./client";
+import { api, setTokens, clearTokens, getRefreshToken } from "./client";
 
 export interface LoginPayload {
   username: string;
@@ -16,18 +16,6 @@ export interface AuthTokens {
   userId?: number;
 }
 
-export interface IntrospectResult {
-  active: boolean;
-  exp?: number;
-  iat?: number;
-  sub: string;
-  username?: string;
-  email?: string;
-  realm_access?: { roles: string[] };
-  expires_in_seconds?: number;
-  userId?: number;
-}
-
 export interface LoginResult {
   accessToken: string;
   refreshToken: string;
@@ -36,9 +24,12 @@ export interface LoginResult {
 
 export const authApi = {
   async encryptPassword(password: string): Promise<string> {
-    const result = await api.post<EncryptResult[]>("auth/encrypt", { password });
+    const result = await api.post<unknown>("auth/encrypt", { password });
     const r = Array.isArray(result) ? result[0] : result;
-    return r.encrypted_password;
+    if (typeof r === "string") return r;
+    if (r && typeof r === "object" && "encrypted_password" in r)
+      return (r as EncryptResult).encrypted_password;
+    throw new Error("Formato inesperado de /auth/encrypt");
   },
 
   async login(payload: LoginPayload): Promise<LoginResult> {
@@ -48,7 +39,7 @@ export const authApi = {
       password: encryptedPassword,
     });
     const t = Array.isArray(tokens) ? tokens[0] : tokens;
-    setTokens(t.access_token, t.refresh_token);
+    setTokens(t.access_token, t.refresh_token, t.userId);
     return {
       accessToken: t.access_token,
       refreshToken: t.refresh_token,
@@ -67,9 +58,4 @@ export const authApi = {
 
   forgotPassword: (email: string) =>
     api.post<{ message: string }>("auth/forgot-password", { email }),
-
-  introspect: async (token?: string | null): Promise<IntrospectResult> => {
-    const result = await api.post<IntrospectResult[]>("auth/introspect", { token: token ?? getAccessToken() });
-    return Array.isArray(result) ? result[0] : result;
-  },
 };
