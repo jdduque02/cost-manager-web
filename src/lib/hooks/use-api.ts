@@ -53,7 +53,10 @@ export function useTransactions() {
   const { userId } = useAuth();
   return useQuery({
     queryKey: qk.transactions(userId ?? ""),
-    queryFn: () => financeApi.getTransactions(userId!),
+    queryFn: async () => {
+      const data = await financeApi.getTransactions(userId!);
+      return data.map((t) => ({ ...t, amount: Number(t.amount) }));
+    },
     enabled: !!userId,
   });
 }
@@ -264,6 +267,17 @@ export function useDeleteFinancialAsset() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => bankingApi.deleteAsset(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
+export function useRefreshAssetQuotes() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => bankingApi.getAssetQuotes(userId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
     },
@@ -509,6 +523,23 @@ export interface TaxSummary {
   created_at: string;
 }
 
+function normalizeFinancialSummary(s: FinancialSummary): FinancialSummary {
+  return {
+    ...s,
+    financial_period_id: Number(s.financial_period_id),
+    total_income: Number(s.total_income ?? 0),
+    total_expense: Number(s.total_expense ?? 0),
+    total_debt: Number(s.total_debt ?? 0),
+    net_worth: Number(s.net_worth ?? 0),
+    expense_ratio: s.expense_ratio != null ? Number(s.expense_ratio) : null,
+    debt_ratio: s.debt_ratio != null ? Number(s.debt_ratio) : null,
+    savings_rate: s.savings_rate != null ? Number(s.savings_rate) : null,
+    recommended_max_expense:
+      s.recommended_max_expense != null ? Number(s.recommended_max_expense) : null,
+    recommended_savings: s.recommended_savings != null ? Number(s.recommended_savings) : null,
+  };
+}
+
 export function useFinancialSummary() {
   const { userId } = useAuth();
   return useQuery({
@@ -517,10 +548,25 @@ export function useFinancialSummary() {
       const result = await api.get<FinancialSummary[]>(
         `users/${userId}/intelligence/financial-summary`,
       );
-      return Array.isArray(result) ? result[0] : result;
+      return normalizeFinancialSummary(Array.isArray(result) ? result[0] : result);
     },
     enabled: !!userId,
   });
+}
+
+function normalizeTaxSummary(t: TaxSummary): TaxSummary {
+  return {
+    ...t,
+    fiscal_year: Number(t.fiscal_year),
+    total_income: Number(t.total_income ?? 0),
+    total_assets: Number(t.total_assets ?? 0),
+    total_liabilities: Number(t.total_liabilities ?? 0),
+    patrimony: t.patrimony != null ? Number(t.patrimony) : null,
+    income_in_uvt: t.income_in_uvt != null ? Number(t.income_in_uvt) : null,
+    assets_in_uvt: t.assets_in_uvt != null ? Number(t.assets_in_uvt) : null,
+    uvt_value: Number(t.uvt_value ?? 0),
+    estimated_tax: t.estimated_tax != null ? Number(t.estimated_tax) : null,
+  };
 }
 
 export function useTaxSummary(year?: number) {
@@ -530,7 +576,7 @@ export function useTaxSummary(year?: number) {
     queryFn: async () => {
       const qs = year ? `?year=${year}` : "";
       const result = await api.get<TaxSummary[]>(`users/${userId}/intelligence/tax-summary${qs}`);
-      return Array.isArray(result) ? result[0] : result;
+      return normalizeTaxSummary(Array.isArray(result) ? result[0] : result);
     },
     enabled: !!userId,
   });

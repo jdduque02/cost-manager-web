@@ -86,8 +86,10 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem("cm_refresh_token");
 }
 
-/** Refresh token and retry request on 401 */
-async function refreshAndRetry(url: string, options: RequestInit): Promise<Response> {
+let refreshInFlight: Promise<{ access_token: string; refresh_token: string }> | null = null;
+
+/** Exchange the stored refresh token for a fresh pair (single in-flight request). */
+async function requestNewTokens(): Promise<{ access_token: string; refresh_token: string }> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
     clearTokens();
@@ -112,6 +114,26 @@ async function refreshAndRetry(url: string, options: RequestInit): Promise<Respo
     : (refreshJson as { access_token: string; refresh_token: string });
 
   setTokens(tokens.access_token, tokens.refresh_token);
+  return tokens;
+}
+
+/**
+ * Single-flight refresh: when an access token expires, several requests may hit
+ * 401 at the same time. Sharing one refresh promise avoids racing refresh-token
+ * rotation (which would invalidate every refresh but the first) and duplicate calls.
+ */
+function refreshTokens(): Promise<{ access_token: string; refresh_token: string }> {
+  if (!refreshInFlight) {
+    refreshInFlight = requestNewTokens().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/** Refresh token and retry request on 401 */
+async function refreshAndRetry(url: string, options: RequestInit): Promise<Response> {
+  const tokens = await refreshTokens();
 
   const retryOptions = {
     ...options,
@@ -133,7 +155,7 @@ export interface ApiFetchOptions extends RequestInit {
  */
 export async function apiFetch<T = unknown>(
   path: string,
-  options: ApiFetchOptions = {}
+  options: ApiFetchOptions = {},
 ): Promise<T> {
   const { token: explicitToken, ...fetchOptions } = options;
   const token = explicitToken ?? getAccessToken();
@@ -180,7 +202,8 @@ export const api = {
     apiFetch<T>(path, { method: "POST", body: JSON.stringify(body), token }),
   patch: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body), token }),
-  delete: <T>(path: string, token?: string | null) => apiFetch<T>(path, { method: "DELETE", token }),
+  delete: <T>(path: string, token?: string | null) =>
+    apiFetch<T>(path, { method: "DELETE", token }),
   /** Like get, but extracts the first element from the response array */
   getOne: async <T>(path: string, token?: string | null): Promise<T> => {
     const result = await apiFetch<T[]>(path, { method: "GET", token });
