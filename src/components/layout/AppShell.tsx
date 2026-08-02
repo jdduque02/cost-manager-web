@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth";
 import { getAccessToken } from "@/lib/api/client";
 import { useVisibility } from "@/lib/visibility-context";
 import { PasswordDialog } from "@/components/ui/password-dialog";
+import { NotificationBell } from "@/components/ui/notification-bell";
 
 const nav = [
   { to: "/", label: "Panel", icon: LayoutDashboard, exact: true },
@@ -104,10 +105,8 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
     navigate({ to: "/login" });
   };
 
-  const name = user?.firstName
-    ? `${user.firstName} ${user.lastName || ""}`.trim()
-    : "Usuario Cost Manager";
-  const initials = user?.firstName ? user.firstName.substring(0, 2).toUpperCase() : "CM";
+  const name = user?.username ? user.username : "Usuario Cost Manager";
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
 
   return (
     <div className="flex h-full flex-col">
@@ -115,10 +114,11 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
           <CircleDollarSign className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-display text-lg font-semibold tracking-tight">Cost Manager</p>
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Premium</p>
         </div>
+        <NotificationBell />
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
@@ -231,7 +231,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <span className="font-display text-base font-semibold">Cost Manager</span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <NotificationBell />
             <VisibilityToggle />
           </div>
         </header>

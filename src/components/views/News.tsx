@@ -51,13 +51,9 @@ export function News() {
                 )}
                 <div className="flex items-center gap-2 mb-2">
                   <Newspaper className="h-3.5 w-3.5 text-primary" />
-                  {item.category && (
-                    <Badge tone="primary">{item.category}</Badge>
-                  )}
+                  {item.category && <Badge tone="primary">{item.category}</Badge>}
                 </div>
-                <h3 className="font-display text-base font-semibold leading-snug">
-                  {item.title}
-                </h3>
+                <h3 className="font-display text-base font-semibold leading-snug">{item.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground line-clamp-3 flex-1">
                   {item.summary || item.content}
                 </p>
