@@ -1,12 +1,20 @@
 import { cn } from "@/lib/utils";
 
-export function Card({ className, children, glow = false }: { className?: string; children: React.ReactNode; glow?: boolean }) {
+export function Card({
+  className,
+  children,
+  glow = false,
+}: {
+  className?: string;
+  children: React.ReactNode;
+  glow?: boolean;
+}) {
   return (
     <div
       className={cn(
         "rounded-2xl border border-border bg-gradient-card p-5 shadow-elegant",
         glow && "glow-border",
-        className
+        className,
       )}
     >
       {children}
@@ -17,9 +25,11 @@ export function Card({ className, children, glow = false }: { className?: string
 export function Badge({
   children,
   tone = "muted",
+  className,
 }: {
   children: React.ReactNode;
   tone?: "muted" | "success" | "destructive" | "warning" | "primary";
+  className?: string;
 }) {
   const tones: Record<string, string> = {
     muted: "bg-surface-2 text-muted-foreground border-border",
@@ -29,7 +39,13 @@ export function Badge({
     primary: "bg-primary/10 text-primary border-primary/20",
   };
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", tones[tone])}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        tones[tone],
+        className,
+      )}
+    >
       {children}
     </span>
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface CurrencyInputProps {
@@ -28,6 +28,10 @@ export function CurrencyInput({
   required,
 }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState(() => formatDisplay(value));
+
+  useEffect(() => {
+    setDisplayValue(formatDisplay(value));
+  }, [value]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

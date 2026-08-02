@@ -14,7 +14,10 @@ export function LoadingBar() {
       setProgress(30);
       const t1 = setTimeout(() => setProgress(60), 200);
       const t2 = setTimeout(() => setProgress(80), 600);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
     setProgress(100);
     const t = setTimeout(() => {
