@@ -109,12 +109,12 @@ function KPI({
 
 export function Dashboard() {
   const { data: txs = [] } = useTransactions();
-  const { data: nw } = useNetWorth();
+  const { summary: nw } = useNetWorth();
   const { data: categories = [] } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
   const fmtAmount = useFormattedAmount();
 
-  const netWorthValue = nw?.summary?.netWorth ?? 0;
+  const netWorthValue = nw?.netWorth ?? 0;
 
   // Build a map: category_id -> category name
   const categoryMap = useMemo(() => {
@@ -126,7 +126,7 @@ export function Dashboard() {
   }, [categories]);
 
   // Calculate this month's income and expenses
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
   const currentMonthTxs = txs.filter((t) => {
     const d = new Date(t.created_at);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -361,7 +361,9 @@ export function Dashboard() {
                         "flex h-9 w-9 items-center justify-center rounded-lg",
                         t.type === "income"
                           ? "bg-success/10 text-success"
-                          : "bg-surface-2 text-muted-foreground",
+                          : t.type === "investment"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-surface-2 text-muted-foreground",
                       )}
                     >
                       <Icon className="h-4 w-4" />
@@ -377,10 +379,14 @@ export function Dashboard() {
                     <span
                       className={cn(
                         "text-sm font-semibold tabular-nums",
-                        t.type === "income" ? "text-success" : "text-foreground",
+                        t.type === "income"
+                          ? "text-success"
+                          : t.type === "investment"
+                            ? "text-primary"
+                            : "text-foreground",
                       )}
                     >
-                      {t.type === "income" ? "+" : "-"}
+                      {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
                       {fmtAmount(t.amount)}
                     </span>
                   </li>

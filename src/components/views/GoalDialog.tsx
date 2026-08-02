@@ -51,6 +51,23 @@ const frequencyOptions: { value: QuotaFrequency; label: string; perMonth: string
   { value: "monthly", label: "Mensual", perMonth: "1/mes" },
 ];
 
+function formatPlazo(q: CalculateQuotaResponse): string {
+  if (typeof q.days_in_period === "number" && q.days_in_period > 0) {
+    return `${Math.round(q.days_in_period / 30)} meses`;
+  }
+  if (q.end_date) {
+    const months = Math.max(
+      1,
+      Math.round(
+        (new Date(q.end_date).getTime() - new Date(q.start_date).getTime()) /
+          (1000 * 60 * 60 * 24 * 30),
+      ),
+    );
+    return `${months} meses`;
+  }
+  return "Sin fecha fin";
+}
+
 export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
   const createGoal = useCreateObjective();
   const updateGoal = useUpdateObjective();
@@ -130,7 +147,7 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
       name: name.trim(),
       type: type as "savings" | "loan" | "goal",
       target_amount: Number(targetAmount),
-      current_balance: currentBalance ? Number(currentBalance) : undefined,
+      current_balance: currentBalance ? Number(currentBalance) : 0,
       start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
       end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
       frequency,
@@ -355,7 +372,7 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
                   <p className="text-muted-foreground">Saldo actual</p>
                   <p className="font-semibold">{fmtCurrency(quotaResult.current_balance)}</p>
                 </div>
-                {quotaResult.monthly_income !== null && (
+                {typeof quotaResult.monthly_income === "number" && (
                   <>
                     <div className="rounded-lg bg-surface p-3">
                       <p className="text-muted-foreground">Ingreso mensual</p>
@@ -373,11 +390,7 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
                 )}
                 <div className="rounded-lg bg-surface p-3">
                   <p className="text-muted-foreground">Plazo</p>
-                  <p className="font-semibold">
-                    {quotaResult.days_in_period > 0
-                      ? `${Math.round(quotaResult.days_in_period / 30)} meses`
-                      : "Sin fecha fin"}
-                  </p>
+                  <p className="font-semibold">{formatPlazo(quotaResult)}</p>
                 </div>
                 <div className="rounded-lg bg-surface p-3">
                   <p className="text-muted-foreground">Perfil financiero</p>
@@ -392,7 +405,7 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
               </div>
 
               {/* Budget status */}
-              {quotaResult.is_within_budget !== null && (
+              {quotaResult.is_within_budget != null && (
                 <div
                   className={cn(
                     "flex items-start gap-3 rounded-xl border p-3 text-sm",
@@ -415,9 +428,9 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
               )}
 
               {/* Warnings */}
-              {quotaResult.warnings.length > 0 && (
+              {(quotaResult.warnings ?? []).length > 0 && (
                 <div className="space-y-2">
-                  {quotaResult.warnings.map((w, i) => (
+                  {(quotaResult.warnings ?? []).map((w, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-warning"
@@ -430,9 +443,9 @@ export function GoalDialog({ open, onOpenChange, goal }: GoalDialogProps) {
               )}
 
               {/* Recommendations */}
-              {quotaResult.recommendations.length > 0 && (
+              {(quotaResult.recommendations ?? []).length > 0 && (
                 <div className="space-y-2">
-                  {quotaResult.recommendations.map((r, i) => (
+                  {(quotaResult.recommendations ?? []).map((r, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground"

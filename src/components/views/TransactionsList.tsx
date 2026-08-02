@@ -63,7 +63,7 @@ export function TransactionsList() {
   const fmtAmount = useFormattedAmount();
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "investment">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionRecord | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionRecord | null>(null);
@@ -128,7 +128,7 @@ export function TransactionsList() {
             />
           </div>
           <div className="flex rounded-xl bg-surface p-1">
-            {(["all", "expense", "income"] as const).map((f) => (
+            {(["all", "expense", "income", "investment"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setTypeFilter(f)}
@@ -139,11 +139,19 @@ export function TransactionsList() {
                       ? "bg-destructive/15 text-destructive"
                       : f === "income"
                         ? "bg-success/15 text-success"
-                        : "bg-surface-2 text-foreground"
+                        : f === "investment"
+                          ? "bg-primary/15 text-primary"
+                          : "bg-surface-2 text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {f === "all" ? "Todos" : f === "expense" ? "Gastos" : "Ingresos"}
+                {f === "all"
+                  ? "Todos"
+                  : f === "expense"
+                    ? "Gastos"
+                    : f === "income"
+                      ? "Ingresos"
+                      : "Inversiones"}
               </button>
             ))}
           </div>
@@ -191,7 +199,9 @@ export function TransactionsList() {
                       "flex h-10 w-10 items-center justify-center rounded-xl",
                       t.type === "income"
                         ? "bg-success/10 text-success"
-                        : "bg-surface-2 text-muted-foreground",
+                        : t.type === "investment"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-surface-2 text-muted-foreground",
                     )}
                   >
                     <Icon className="h-4.5 w-4.5" size={18} />
@@ -205,13 +215,28 @@ export function TransactionsList() {
                     </p>
                   </div>
                   <Badge tone="muted">{categoryName}</Badge>
+                  {t.is_fixed && (
+                    <Badge tone="primary">
+                      Fija
+                      {t.frequency === "monthly"
+                        ? " · Mensual"
+                        : t.frequency === "biweekly"
+                          ? " · Quincenal"
+                          : ""}
+                      {t.due_day ? ` · Día ${t.due_day}` : ""}
+                    </Badge>
+                  )}
                   <span
                     className={cn(
                       "w-28 text-right font-display text-base font-semibold tabular-nums",
-                      t.type === "income" ? "text-success" : "text-foreground",
+                      t.type === "income"
+                        ? "text-success"
+                        : t.type === "investment"
+                          ? "text-primary"
+                          : "text-foreground",
                     )}
                   >
-                    {t.type === "income" ? "+" : "-"}
+                    {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
                     {fmtAmount(t.amount)}
                   </span>
                   <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">

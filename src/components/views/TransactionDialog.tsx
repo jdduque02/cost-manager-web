@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { parseCurrency } from "@/lib/format";
 import { Badge } from "@/components/ui/primitives";
@@ -29,7 +30,13 @@ import {
   useCategories,
   useSubcategories,
 } from "@/lib/hooks/use-api";
-import type { TransactionType, PaymentMethod, TransactionRecord } from "@/lib/api/finance";
+import type {
+  TransactionType,
+  PaymentMethod,
+  TransactionRecord,
+  FixedType,
+  FixedFrequency,
+} from "@/lib/api/finance";
 
 interface TransactionDialogProps {
   open: boolean;
@@ -47,8 +54,7 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
 ];
 
 export function TransactionDialog({ open, onOpenChange, transaction }: TransactionDialogProps) {
-  const { data: categories = [] } = useCategories();
-  const { data: subcategories = [], isLoading: loadingSubs } = useSubcategories();
+  const { data: categories = [], isLoading: loadingCategories } = useCategories();
   const createTx = useCreateTransaction();
   const updateTx = useUpdateTransaction();
   const navigate = useNavigate();
@@ -58,19 +64,40 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
+  const [subcategoryId, setSubcategoryId] = useState<string>("");
   const [description, setDescription] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [isFixed, setIsFixed] = useState(false);
+  const [fixedType, setFixedType] = useState<FixedType>("deduction");
+  const [frequency, setFrequency] = useState<FixedFrequency | "">("");
+  const [dueDay, setDueDay] = useState("");
+  const [reminderDays, setReminderDays] = useState("3");
+  const [sourceBank, setSourceBank] = useState("");
+  const [sourceAccount, setSourceAccount] = useState("");
 
-  const hasSubcategories = subcategories.length > 0;
+  const selectedCategoryId = categoryId ? Number(categoryId) : undefined;
+  const { data: subcategories = [] } = useSubcategories(selectedCategoryId);
+
+  const hasCategories = categories.length > 0;
   const isPending = createTx.isPending || updateTx.isPending;
 
   useEffect(() => {
     if (transaction) {
       setType(transaction.type);
-      setAmount(String(transaction.amount));
+      setAmount(Number(transaction.amount).toString());
       setCategoryId(String(transaction.category_id));
+      setSubcategoryId(transaction.subcategory_id ? String(transaction.subcategory_id) : "");
       setDescription(transaction.description ?? "");
       setPaymentMethod(transaction.payment_method ?? "");
+      setIsFixed(transaction.is_fixed ?? false);
+      setFixedType(
+        transaction.fixed_type ?? (transaction.type === "income" ? "fixed_income" : "deduction"),
+      );
+      setFrequency(transaction.frequency ?? "");
+      setDueDay(transaction.due_day ? String(transaction.due_day) : "");
+      setReminderDays(transaction.reminder_days != null ? String(transaction.reminder_days) : "3");
+      setSourceBank(transaction.source_bank ?? "");
+      setSourceAccount(transaction.source_account ?? "");
     } else {
       reset();
     }
@@ -80,8 +107,16 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
     setType("expense");
     setAmount("");
     setCategoryId("");
+    setSubcategoryId("");
     setDescription("");
     setPaymentMethod("");
+    setIsFixed(false);
+    setFixedType("deduction");
+    setFrequency("");
+    setDueDay("");
+    setReminderDays("3");
+    setSourceBank("");
+    setSourceAccount("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -92,8 +127,18 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
       type,
       amount: parseCurrency(amount),
       category_id: Number(categoryId),
+      subcategory_id: subcategoryId ? Number(subcategoryId) : undefined,
       description: description || undefined,
       payment_method: (paymentMethod as PaymentMethod) || undefined,
+      is_fixed: isFixed,
+      fixed_type: isFixed
+        ? (fixedType ?? (type === "income" ? "fixed_income" : "deduction"))
+        : undefined,
+      frequency: isFixed ? frequency || undefined : undefined,
+      due_day: isFixed && dueDay ? Number(dueDay) : undefined,
+      reminder_days: isFixed && reminderDays ? Number(reminderDays) : undefined,
+      source_bank: isFixed && type !== "income" && sourceBank ? sourceBank : undefined,
+      source_account: isFixed && type !== "income" && sourceAccount ? sourceAccount : undefined,
     };
 
     if (isEditing) {
@@ -128,7 +173,7 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
         onOpenChange(v);
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Transacción" : "Nueva Transacción"}</DialogTitle>
           <DialogDescription>
@@ -136,22 +181,20 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
           </DialogDescription>
         </DialogHeader>
 
-        {loadingSubs ? (
+        {loadingCategories ? (
           <div className="flex h-24 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : !hasSubcategories ? (
+        ) : !hasCategories ? (
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                 <FolderOpen className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  Sin subcategorías configuradas
-                </p>
+                <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
                 <p className="text-xs text-muted-foreground">
-                  Debes crear subcategorías antes de registrar transacciones.
+                  Debes crear categorías antes de registrar transacciones.
                 </p>
               </div>
             </div>
@@ -173,8 +216,8 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-surface p-1">
-              {(["expense", "income"] as const).map((t) => (
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface p-1">
+              {(["expense", "income", "investment"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -183,60 +226,182 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
                     type === t
                       ? t === "expense"
                         ? "bg-destructive/15 text-destructive"
-                        : "bg-success/15 text-success"
+                        : t === "income"
+                          ? "bg-success/15 text-success"
+                          : "bg-primary/15 text-primary"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {t === "expense" ? "Gasto" : "Ingreso"}
+                  {t === "expense" ? "Gasto" : t === "income" ? "Ingreso" : "Inversión"}
                 </button>
               ))}
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Monto</Label>
-              <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Monto</Label>
+                <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Categoría</Label>
+                <Select
+                  value={categoryId}
+                  onValueChange={(v) => {
+                    setCategoryId(v);
+                    setSubcategoryId("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {subcategories.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Subcategoría</Label>
+                  <Select value={subcategoryId} onValueChange={setSubcategoryId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Opcional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategories.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>Descripción</Label>
+                <Input
+                  placeholder="Ej. Almuerzo"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Método de pago</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Opcional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((pm) => (
+                      <SelectItem key={pm.value} value={pm.value}>
+                        {pm.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Transacción fija</p>
+                  <p className="text-xs text-muted-foreground">
+                    Deducción fija o ingreso fijo con periodicidad.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={isFixed}
+                  onCheckedChange={(v) => setIsFixed(v === true)}
+                  aria-label="Marcar como transacción fija"
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Categoría</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isFixed && (
+              <div className="grid grid-cols-1 gap-4 rounded-xl bg-surface p-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Tipo fijo</Label>
+                  <Select value={fixedType} onValueChange={(v) => setFixedType(v as FixedType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="deduction">Deducción fija</SelectItem>
+                      <SelectItem value="fixed_income">Ingreso fijo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Periodicidad</Label>
+                  <Select
+                    value={frequency}
+                    onValueChange={(v) => setFrequency(v as FixedFrequency)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="biweekly">Quincenal</SelectItem>
+                      <SelectItem value="monthly">Mensual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Día de vencimiento</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    placeholder="Ej. 15"
+                    value={dueDay}
+                    onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Anticipación (días)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={30}
+                    placeholder="Ej. 3"
+                    value={reminderDays}
+                    onChange={(e) =>
+                      setReminderDays(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
-            <div className="space-y-1.5">
-              <Label>Descripción</Label>
-              <Input
-                placeholder="Ej. Almuerzo"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Método de pago</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Opcional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.value} value={pm.value}>
-                      {pm.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isFixed && type !== "income" && (
+              <div className="space-y-2 rounded-xl bg-surface p-3">
+                <p className="text-xs font-medium text-muted-foreground">Entidad de origen</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Banco / entidad</Label>
+                    <Input
+                      placeholder="Ej. Banco Lulo"
+                      value={sourceBank}
+                      onChange={(e) => setSourceBank(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Cuenta / referencia</Label>
+                    <Input
+                      placeholder="Ej. Cuenta de ahorros 1234"
+                      value={sourceAccount}
+                      onChange={(e) => setSourceAccount(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <DialogFooter>
               <Button
