@@ -20,13 +20,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateCategory, useUpdateCategory } from "@/lib/hooks/use-api";
-import type { Category } from "@/lib/api/catalog";
+import type { Category, GroupType, ProfileBucket } from "@/lib/api/catalog";
+import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
 interface CategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category?: Category | null;
 }
+
+const profileBuckets = Object.entries(PROFILE_BUCKET_LABELS) as [ProfileBucket, string][];
 
 export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogProps) {
   const createCategory = useCreateCategory();
@@ -36,12 +39,14 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
   const isPending = createCategory.isPending || updateCategory.isPending;
 
   const [name, setName] = useState("");
-  const [groupType, setGroupType] = useState<"income" | "expense">("expense");
+  const [groupType, setGroupType] = useState<GroupType>("expense");
+  const [profileBucket, setProfileBucket] = useState<string>("");
 
   useEffect(() => {
     if (category) {
       setName(category.name);
       setGroupType(category.group_type);
+      setProfileBucket(category.profile_bucket ?? "");
     } else {
       reset();
     }
@@ -50,18 +55,23 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
   function reset() {
     setName("");
     setGroupType("expense");
+    setProfileBucket("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
 
+    const dto = {
+      name: name.trim(),
+      group_type: groupType,
+      profile_bucket: (profileBucket as ProfileBucket) || undefined,
+    };
+
     if (isEditing) {
       const id = toast.loading("Actualizando categoría...");
       try {
-        await updateCategory.mutateAsync(
-          { id: category.id, dto: { name: name.trim(), group_type: groupType } },
-        );
+        await updateCategory.mutateAsync({ id: category.id, dto });
         toast.success("Categoría actualizada", { id });
         reset();
         onOpenChange(false);
@@ -71,9 +81,7 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
     } else {
       const id = toast.loading("Creando categoría...");
       try {
-        await createCategory.mutateAsync(
-          { name: name.trim(), group_type: groupType },
-        );
+        await createCategory.mutateAsync(dto);
         toast.success("Categoría creada", { id });
         reset();
         onOpenChange(false);
@@ -115,13 +123,30 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
 
           <div className="space-y-1.5">
             <Label>Tipo</Label>
-            <Select value={groupType} onValueChange={(v) => setGroupType(v as "income" | "expense")}>
+            <Select value={groupType} onValueChange={(v) => setGroupType(v as GroupType)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="expense">Gasto</SelectItem>
                 <SelectItem value="income">Ingreso</SelectItem>
+                <SelectItem value="investment">Inversión</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Rango del perfil financiero</Label>
+            <Select value={profileBucket} onValueChange={(v) => setProfileBucket(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sin clasificar" />
+              </SelectTrigger>
+              <SelectContent>
+                {profileBuckets.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

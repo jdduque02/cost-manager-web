@@ -1,5 +1,19 @@
 import { useState, useMemo } from "react";
-import { Loader2, Plus, X, Tag, ShoppingBag, Coffee, Home, Car, Zap, TrendingUp, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  X,
+  Tag,
+  ShoppingBag,
+  Coffee,
+  Home,
+  Car,
+  Zap,
+  TrendingUp,
+  FolderOpen,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,15 +38,40 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { toast } from "sonner";
-import type { Category } from "@/lib/api/catalog";
+import type { Category, GroupType } from "@/lib/api/catalog";
+import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName?.toLowerCase() ?? "";
-  if (c.includes("aliment") || c.includes("supermercado") || c.includes("groceries") || c.includes("shopping")) return ShoppingBag;
-  if (c.includes("restaurant") || c.includes("dining") || c.includes("cafe") || c.includes("coffee")) return Coffee;
-  if (c.includes("vivienda") || c.includes("arriendo") || c.includes("housing") || c.includes("rent")) return Home;
-  if (c.includes("transporte") || c.includes("carro") || c.includes("transport") || c.includes("car")) return Car;
+  if (
+    c.includes("aliment") ||
+    c.includes("supermercado") ||
+    c.includes("groceries") ||
+    c.includes("shopping")
+  )
+    return ShoppingBag;
+  if (
+    c.includes("restaurant") ||
+    c.includes("dining") ||
+    c.includes("cafe") ||
+    c.includes("coffee")
+  )
+    return Coffee;
+  if (
+    c.includes("vivienda") ||
+    c.includes("arriendo") ||
+    c.includes("housing") ||
+    c.includes("rent")
+  )
+    return Home;
+  if (
+    c.includes("transporte") ||
+    c.includes("carro") ||
+    c.includes("transport") ||
+    c.includes("car")
+  )
+    return Car;
   if (c.includes("servicio") || c.includes("utilities") || c.includes("bills")) return Zap;
   if (c.includes("salario") || c.includes("income") || c.includes("ingreso")) return TrendingUp;
   return Tag;
@@ -91,7 +130,16 @@ function CategoryCard({
             {subcategories.length} subcategoría{subcategories.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Badge tone="muted">{category.group_type === "income" ? "Ingreso" : "Gasto"}</Badge>
+        <Badge tone="muted">
+          {category.group_type === "income"
+            ? "Ingreso"
+            : category.group_type === "investment"
+              ? "Inversión"
+              : "Gasto"}
+        </Badge>
+        {category.profile_bucket && (
+          <Badge tone="primary">{PROFILE_BUCKET_LABELS[category.profile_bucket]}</Badge>
+        )}
         <div className="flex gap-1">
           <button
             onClick={() => onEditCategory(category)}
@@ -137,11 +185,7 @@ function CategoryCard({
                     disabled={!editingSubName.trim() || isUpdatingSub}
                     className="h-7 px-2"
                   >
-                    {isUpdatingSub ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      "Guardar"
-                    )}
+                    {isUpdatingSub ? <Loader2 className="h-3 w-3 animate-spin" /> : "Guardar"}
                   </Button>
                   <Button
                     size="sm"
@@ -221,7 +265,7 @@ export function Categories() {
 
   const ITEMS_PER_PAGE = 9;
 
-  const [groupFilter, setGroupFilter] = useState<"expense" | "income">("expense");
+  const [groupFilter, setGroupFilter] = useState<GroupType>("expense");
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<Category | null>(null);
@@ -233,7 +277,7 @@ export function Categories() {
   const totalPages = Math.ceil(filteredCategories.length / ITEMS_PER_PAGE);
   const paginatedCategories = filteredCategories.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   const paginationPages = useMemo(() => {
@@ -257,46 +301,54 @@ export function Categories() {
 
   function handleCreateSub(categoryId: number, name: string) {
     const id = toast.loading("Creando subcategoría...");
-    createSub.mutateAsync(
-      { category_id: categoryId, name },
-    ).then(() => {
-      toast.success("Subcategoría creada", { id });
-    }).catch(() => {
-      toast.error("Error al crear subcategoría", { id });
-    });
+    createSub
+      .mutateAsync({ category_id: categoryId, name })
+      .then(() => {
+        toast.success("Subcategoría creada", { id });
+      })
+      .catch(() => {
+        toast.error("Error al crear subcategoría", { id });
+      });
   }
 
   function handleUpdateSub(id: number, name: string) {
     const toastId = toast.loading("Actualizando subcategoría...");
-    updateSub.mutateAsync(
-      { id, dto: { name } },
-    ).then(() => {
-      toast.success("Subcategoría actualizada", { id: toastId });
-    }).catch(() => {
-      toast.error("Error al actualizar subcategoría", { id: toastId });
-    });
+    updateSub
+      .mutateAsync({ id, dto: { name } })
+      .then(() => {
+        toast.success("Subcategoría actualizada", { id: toastId });
+      })
+      .catch(() => {
+        toast.error("Error al actualizar subcategoría", { id: toastId });
+      });
   }
 
   function handleDeleteSubConfirm() {
     if (!deleteTarget) return;
     const toastId = toast.loading("Eliminando subcategoría...");
-    deleteSub.mutateAsync(deleteTarget.id).then(() => {
-      toast.success("Subcategoría eliminada", { id: toastId });
-      setDeleteTarget(null);
-    }).catch(() => {
-      toast.error("Error al eliminar subcategoría", { id: toastId });
-    });
+    deleteSub
+      .mutateAsync(deleteTarget.id)
+      .then(() => {
+        toast.success("Subcategoría eliminada", { id: toastId });
+        setDeleteTarget(null);
+      })
+      .catch(() => {
+        toast.error("Error al eliminar subcategoría", { id: toastId });
+      });
   }
 
   function handleDeleteCategoryConfirm() {
     if (!deleteCategoryTarget) return;
     const toastId = toast.loading("Eliminando categoría...");
-    deleteCat.mutateAsync(deleteCategoryTarget.id).then(() => {
-      toast.success("Categoría eliminada", { id: toastId });
-      setDeleteCategoryTarget(null);
-    }).catch(() => {
-      toast.error("Error al eliminar la categoría", { id: toastId });
-    });
+    deleteCat
+      .mutateAsync(deleteCategoryTarget.id)
+      .then(() => {
+        toast.success("Categoría eliminada", { id: toastId });
+        setDeleteCategoryTarget(null);
+      })
+      .catch(() => {
+        toast.error("Error al eliminar la categoría", { id: toastId });
+      });
   }
 
   function handleEditCategory(cat: Category) {
@@ -317,7 +369,9 @@ export function Categories() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Organización</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Categorías y Subcategorías</h1>
+          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">
+            Categorías y Subcategorías
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Administra las categorías y subcategorías para clasificar tus transacciones.
           </p>
@@ -332,21 +386,26 @@ export function Categories() {
       </div>
 
       {/* Group toggle */}
-      <div className="grid w-fit grid-cols-2 gap-1 rounded-xl bg-surface p-1">
-        {(["expense", "income"] as const).map((g) => (
+      <div className="grid w-fit grid-cols-3 gap-1 rounded-xl bg-surface p-1">
+        {(["expense", "income", "investment"] as const).map((g) => (
           <button
             key={g}
-            onClick={() => { setGroupFilter(g); setCurrentPage(1); }}
+            onClick={() => {
+              setGroupFilter(g);
+              setCurrentPage(1);
+            }}
             className={cn(
               "rounded-lg px-4 py-2 text-sm font-medium transition",
               groupFilter === g
                 ? g === "expense"
                   ? "bg-destructive/15 text-destructive"
-                  : "bg-success/15 text-success"
-                : "text-muted-foreground hover:text-foreground"
+                  : g === "income"
+                    ? "bg-success/15 text-success"
+                    : "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {g === "expense" ? "Gastos" : "Ingresos"}
+            {g === "expense" ? "Gastos" : g === "income" ? "Ingresos" : "Inversiones"}
           </button>
         ))}
       </div>
@@ -392,7 +451,9 @@ export function Categories() {
               <PaginationItem>
                 <PaginationPrevious
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  className={
+                    currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
+                  }
                 />
               </PaginationItem>
               {paginationPages.map((page, i) =>
@@ -410,12 +471,14 @@ export function Categories() {
                       {page}
                     </PaginationLink>
                   </PaginationItem>
-                )
+                ),
               )}
               <PaginationItem>
                 <PaginationNext
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  className={
+                    currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"
+                  }
                 />
               </PaginationItem>
             </PaginationContent>
@@ -434,10 +497,12 @@ export function Categories() {
             <div>
               <Badge tone="primary">Configuración inicial</Badge>
               <p className="mt-2 text-base font-medium text-foreground">
-                Agrega subcategorías para comenzar a registrar transacciones
+                Agrega subcategorías para organizar mejor tus transacciones
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Usa el campo de texto en cada categoría para crear subcategorías como "Almuerzo", "Transporte", "Servicios", etc.
+                Ya puedes registrar transacciones con las categorías existentes. Usa el campo de
+                texto en cada categoría para crear subcategorías como "Almuerzo", "Transporte",
+                "Servicios", etc.
               </p>
             </div>
           </div>
@@ -457,7 +522,9 @@ export function Categories() {
       {/* Delete subcategory confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
-        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+        onOpenChange={(v) => {
+          if (!v) setDeleteTarget(null);
+        }}
         title="Eliminar subcategoría"
         description={`¿Estás seguro de eliminar "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer.`}
         onConfirm={handleDeleteSubConfirm}
@@ -467,7 +534,9 @@ export function Categories() {
       {/* Delete category confirm */}
       <ConfirmDialog
         open={!!deleteCategoryTarget}
-        onOpenChange={(v) => { if (!v) setDeleteCategoryTarget(null); }}
+        onOpenChange={(v) => {
+          if (!v) setDeleteCategoryTarget(null);
+        }}
         title="Eliminar categoría"
         description={`¿Estás seguro de eliminar "${deleteCategoryTarget?.name ?? ""}"? Esta acción eliminará también todas sus subcategorías y no se puede deshacer.`}
         onConfirm={handleDeleteCategoryConfirm}
