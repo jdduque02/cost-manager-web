@@ -20,6 +20,7 @@ import {
   useDeleteBankAccount,
   useDeleteFinancialAsset,
   useDeleteFinancialLiability,
+  useRefreshAssetQuotes,
 } from "@/lib/hooks/use-api";
 import { WealthDialog } from "./WealthDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -35,6 +36,10 @@ const COLORS = [
 
 type EntityType = "account" | "asset" | "liability";
 
+function humanizeType(t: string): string {
+  return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 interface DeleteTarget {
   type: EntityType;
   id: string;
@@ -45,6 +50,9 @@ function Row({
   name,
   value,
   type,
+  currency,
+  symbol,
+  yieldPct,
   debt,
   onEdit,
   onDelete,
@@ -53,6 +61,9 @@ function Row({
   name: string;
   value: number;
   type: string;
+  currency?: string;
+  symbol?: string | null;
+  yieldPct?: number | null;
   debt?: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -62,7 +73,20 @@ function Row({
     <div className="group flex items-center justify-between rounded-xl border border-border bg-surface/40 p-4">
       <div>
         <p className="text-sm font-medium">{name}</p>
-        <p className="text-xs text-muted-foreground">{type}</p>
+        <p className="text-xs text-muted-foreground">
+          {type}
+          {currency && currency !== "COP" ? (
+            <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
+              ({currency})
+            </span>
+          ) : null}
+          {symbol ? (
+            <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">{symbol}</span>
+          ) : null}
+          {yieldPct != null ? (
+            <span className="ml-1.5 font-mono text-[10px] text-success/80">{yieldPct}%</span>
+          ) : null}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <span
@@ -97,6 +121,7 @@ export function Wealth() {
   const deleteAccount = useDeleteBankAccount();
   const deleteAsset = useDeleteFinancialAsset();
   const deleteLiability = useDeleteFinancialLiability();
+  const refreshQuotes = useRefreshAssetQuotes();
   const fmtAmount = useFormattedAmount();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -108,46 +133,55 @@ export function Wealth() {
 
   const totalAssets = useMemo(() => {
     const accTotal = accounts.reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
-    const astTotal = assets.reduce((sum, a) => sum + (a.current_value ?? 0), 0);
+    const astTotal = assets.reduce((sum, a) => sum + Number(a.current_value ?? 0), 0);
     return accTotal + astTotal;
   }, [accounts, assets]);
 
-  const totalLiab = liabilities.reduce((sum, l) => sum + (l.current_balance ?? 0), 0);
+  const totalLiab = liabilities.reduce((sum, l) => sum + Number(l.current_balance ?? 0), 0);
   const net = totalAssets - totalLiab;
 
   const isLoading = loadAcc || loadAst || loadLia;
 
-  const activeAccountsCount = accounts.filter((a) => a.is_primary).length;
+  const activeAccountsCount = accounts.length;
   const cashOnHand = accounts
     .filter((a) => a.account_type === "ahorros" || a.account_type === "corriente")
     .reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
-  const investments = assets
-    .filter(
-      (a) =>
-        a.asset_type === "acciones" ||
-        a.asset_type === "fondos_inversion" ||
-        a.asset_type === "cryptomonedas",
-    )
-    .reduce((sum, a) => sum + (a.current_value ?? 0), 0);
+  const investmentAssetTypes = [
+    "acciones",
+    "acciones_fraccion",
+    "fondos_inversion",
+    "cryptomonedas",
+    "ahorro_alto_rendimiento",
+  ];
+  const investmentAccountTypes = ["inversion", "fna", "aporte_pension_voluntaria"];
+  const investments =
+    assets
+      .filter((a) => investmentAssetTypes.includes(a.asset_type))
+      .reduce((sum, a) => sum + Number(a.current_value ?? 0), 0) +
+    accounts
+      .filter((a) => investmentAccountTypes.includes(a.account_type))
+      .reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
 
   const wealthComposition = useMemo(() => {
-    const comp: { name: string; value: number }[] = [];
-    const accGroup: Record<string, number> = {};
-    accounts.forEach((a) => {
-      const t = a.account_type || "otro";
-      accGroup[t] = (accGroup[t] || 0) + Number(a.display_balance ?? 0);
-    });
-    Object.entries(accGroup).forEach(([type, value]) => {
-      if (value > 0) comp.push({ name: type.replace(/_/g, " "), value });
-    });
-    const astGroup: Record<string, number> = {};
-    assets.forEach((a) => {
-      const t = a.asset_type || "otro";
-      astGroup[t] = (astGroup[t] || 0) + (a.current_value ?? 0);
-    });
-    Object.entries(astGroup).forEach(([type, value]) => {
-      if (value > 0) comp.push({ name: type.replace(/_/g, " "), value });
-    });
+    const comp: { name: string; currency: string; value: number }[] = [];
+    const groups: Record<string, { name: string; currency: string; value: number }> = {};
+    const add = (type: string, currency: string, value: number) => {
+      if (value <= 0) return;
+      const key = `${type}|${currency || "COP"}`;
+      const existing = groups[key];
+      if (existing) existing.value += value;
+      else {
+        const entry = { name: type.replace(/_/g, " "), currency: currency || "COP", value };
+        groups[key] = entry;
+        comp.push(entry);
+      }
+    };
+    accounts.forEach((a) =>
+      add(a.account_type || "otro", a.currency || "COP", Number(a.display_balance ?? 0)),
+    );
+    assets.forEach((a) =>
+      add(a.asset_type || "otro", a.currency || "COP", Number(a.current_value ?? 0)),
+    );
     return comp.sort((a, b) => b.value - a.value);
   }, [accounts, assets]);
 
@@ -176,6 +210,18 @@ export function Wealth() {
     else if (type === "asset") deleteAsset.mutate(id, { onSuccess, onError });
     else deleteLiability.mutate(id, { onSuccess, onError });
   }
+
+  function handleRefreshQuotes() {
+    refreshQuotes.mutate(undefined, {
+      onSuccess: (quotes) => {
+        const ok = quotes.filter((q) => q.success).length;
+        toast.success(`Valores actualizados (${ok}/${quotes.length})`);
+      },
+      onError: () => toast.error("Error al consultar los valores en línea"),
+    });
+  }
+
+  const hasSymbolizedAssets = assets.some((a) => !!a.symbol);
 
   if (isLoading) {
     return (
@@ -242,6 +288,19 @@ export function Wealth() {
                   <Landmark className="h-4.5 w-4.5 text-success" size={18} />
                 </div>
                 <h3 className="font-display text-lg font-semibold">Activos</h3>
+                <button
+                  onClick={handleRefreshQuotes}
+                  disabled={!hasSymbolizedAssets || refreshQuotes.isPending}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Consultar el valor en línea de los activos con símbolo"
+                >
+                  {refreshQuotes.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <TrendingUp className="h-3.5 w-3.5" />
+                  )}
+                  Consultar valores en línea
+                </button>
               </div>
               <div className="space-y-2.5">
                 {assets.length === 0 && accounts.length === 0 && (
@@ -250,9 +309,10 @@ export function Wealth() {
                 {accounts.map((a) => (
                   <Row
                     key={`acc-${a.id}`}
-                    name={`${a.bank_name} - ${a.account_type}`}
+                    name={`${a.bank_name} - ${humanizeType(a.account_type)}`}
                     value={Number(a.display_balance ?? 0)}
-                    type={a.account_type}
+                    type={humanizeType(a.account_type)}
+                    currency={a.currency}
                     onEdit={() => openEdit("account", a)}
                     onDelete={() =>
                       setDeleteTarget({ type: "account", id: String(a.id), name: a.bank_name })
@@ -264,8 +324,11 @@ export function Wealth() {
                   <Row
                     key={`ast-${a.id}`}
                     name={a.name}
-                    value={a.current_value}
-                    type={a.asset_type}
+                    value={Number(a.current_value)}
+                    type={humanizeType(a.asset_type)}
+                    currency={a.currency}
+                    symbol={a.symbol}
+                    yieldPct={a.current_yield}
                     onEdit={() => openEdit("asset", a)}
                     onDelete={() =>
                       setDeleteTarget({ type: "asset", id: String(a.id), name: a.name })
@@ -290,8 +353,9 @@ export function Wealth() {
                   <Row
                     key={`lia-${l.id}`}
                     name={l.name}
-                    value={l.current_balance}
-                    type={l.liability_type}
+                    value={Number(l.current_balance)}
+                    type={humanizeType(l.liability_type)}
+                    currency={l.currency}
                     debt
                     onEdit={() => openEdit("liability", l)}
                     onDelete={() =>
@@ -338,7 +402,10 @@ export function Wealth() {
               </div>
               <ul className="mt-2 space-y-2">
                 {wealthComposition.map((c, i) => (
-                  <li key={c.name} className="flex items-center justify-between text-sm">
+                  <li
+                    key={`${c.name}-${c.currency}`}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="flex items-center gap-2 text-muted-foreground capitalize">
                       <span
                         className="h-2.5 w-2.5 rounded-sm"
@@ -346,7 +413,12 @@ export function Wealth() {
                       />
                       {c.name.toLowerCase()}
                     </span>
-                    <span className="font-medium tabular-nums">{fmtAmount(c.value)}</span>
+                    <span className="font-medium tabular-nums">
+                      {fmtAmount(c.value)}
+                      <span className="ml-1 font-mono text-[10px] uppercase text-muted-foreground/60">
+                        ({c.currency})
+                      </span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -366,7 +438,7 @@ export function Wealth() {
           <p className="font-display text-xl font-semibold">
             {fmtAmount(accounts.reduce((s, a) => s + Number(a.display_balance ?? 0), 0))}
           </p>
-          <Badge tone="success">{activeAccountsCount} activa(s)</Badge>
+          <Badge tone="success">{activeAccountsCount} cuenta(s)</Badge>
         </Card>
         <Card>
           <TrendingUp className="h-5 w-5 text-primary" />

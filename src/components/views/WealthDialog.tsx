@@ -50,12 +50,21 @@ const accountTypes: { value: AccountType; label: string }[] = [
   { value: "ahorros", label: "Ahorros" },
   { value: "corriente", label: "Corriente" },
   { value: "inversion", label: "Inversión" },
+  { value: "fna", label: "FNA - Fondo Nacional del Ahorro" },
+  { value: "aporte_pension_voluntaria", label: "Aporte Pensión Voluntaria" },
   { value: "otro", label: "Otro" },
 ];
 
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: "acciones", label: "Acciones" },
+  { value: "acciones_fraccion", label: "Acciones / Fracciones" },
+  { value: "ahorro_alto_rendimiento", label: "Cuenta de ahorro de alto rendimiento" },
   { value: "bienes_raices", label: "Bienes raíces" },
+  { value: "bienes_materiales", label: "Bienes materiales" },
+  { value: "vehiculos", label: "Vehículos" },
+  { value: "joyas_metales", label: "Joyas y metales" },
+  { value: "arte_colecciones", label: "Arte y colecciones" },
+  { value: "propiedad_intelectual", label: "Propiedad intelectual" },
   { value: "fondos_inversion", label: "Fondos de inversión" },
   { value: "cryptomonedas", label: "Criptomonedas" },
   { value: "efectivo", label: "Efectivo" },
@@ -68,6 +77,13 @@ const liabilityTypes: { value: LiabilityType; label: string }[] = [
   { value: "tarjeta_credito", label: "Tarjeta de crédito" },
   { value: "prestamo_personal", label: "Préstamo personal" },
   { value: "otro", label: "Otro" },
+];
+
+const currencies: { value: string; label: string }[] = [
+  { value: "COP", label: "COP - Peso colombiano" },
+  { value: "USD", label: "USD - Dólar" },
+  { value: "EUR", label: "EUR - Euro" },
+  { value: "MXN", label: "MXN - Peso mexicano" },
 ];
 
 const entityLabels: Record<EntityType, { create: string; edit: string; title: string }> = {
@@ -104,6 +120,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
   const [amount, setAmount] = useState("");
   const [interestRate, setInterestRate] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
+  const [currency, setCurrency] = useState("COP");
+  const [symbol, setSymbol] = useState("");
+  const [quoteSource, setQuoteSource] = useState("yahoo");
+  const [currentYield, setCurrentYield] = useState("");
 
   useEffect(() => {
     if (entity) {
@@ -113,18 +133,24 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         setAccountType(a.account_type);
         setAccountNumber("");
         setAmount(String(Number(a.display_balance ?? 0)));
+        setCurrency(a.currency ?? "COP");
         setIsPrimary(a.is_primary);
       } else if (entityType === "asset") {
         const a = entity as FinancialAsset;
         setName(a.name);
         setAssetType(a.asset_type);
         setAmount(String(a.current_value));
+        setCurrency(a.currency ?? "COP");
+        setSymbol(a.symbol ?? "");
+        setQuoteSource(a.quote_source ?? "yahoo");
+        setCurrentYield(a.current_yield != null ? String(a.current_yield) : "");
       } else {
         const l = entity as FinancialLiability;
         setName(l.name);
         setLiabilityType(l.liability_type);
         setAmount(String(l.current_balance));
         setInterestRate(String(l.interest_rate ?? ""));
+        setCurrency(l.currency ?? "COP");
       }
     } else {
       reset();
@@ -141,6 +167,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
     setAmount("");
     setInterestRate("");
     setIsPrimary(false);
+    setCurrency("COP");
+    setSymbol("");
+    setQuoteSource("yahoo");
+    setCurrentYield("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -152,6 +182,7 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         account_type: accountType as AccountType,
         account_number: accountNumber || "0000",
         balance: Number(amount) || 0,
+        currency: currency !== "COP" ? currency : undefined,
         is_primary: isPrimary,
       };
       if (isEditing) {
@@ -181,6 +212,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         asset_type: assetType as AssetType,
         name: name.trim(),
         current_value: Number(amount) || 0,
+        current_yield: currentYield ? Number(currentYield) : undefined,
+        currency: currency !== "COP" ? currency : undefined,
+        symbol: symbol.trim() || undefined,
+        quote_source: symbol.trim() ? (quoteSource as "yahoo" | "coingecko") : undefined,
       };
       if (isEditing) {
         await updateAsset.mutateAsync(
@@ -210,6 +245,7 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         name: name.trim(),
         current_balance: Number(amount) || 0,
         interest_rate: interestRate ? Number(interestRate) : undefined,
+        currency: currency !== "COP" ? currency : undefined,
       };
       if (isEditing) {
         await updateLiability.mutateAsync(
@@ -265,6 +301,9 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                   onChange={(e) => setBankName(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Nombre de la entidad bancaria donde tienes la cuenta.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de cuenta</Label>
@@ -280,6 +319,9 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona el tipo de cuenta que deseas registrar.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Número de cuenta</Label>
@@ -288,10 +330,32 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">Opcional. Solo visible para ti.</p>
               </div>
               <div className="space-y-1.5">
                 <Label>Saldo</Label>
                 <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                <p className="text-xs text-muted-foreground">
+                  Saldo actual disponible en la cuenta.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Moneda</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda en la que está denominada la cuenta.
+                </p>
               </div>
             </>
           )}
@@ -305,6 +369,9 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Nombre descriptivo para identificar este activo.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de activo</Label>
@@ -320,10 +387,76 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Clasifica tu activo para mejor organización.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Valor actual</Label>
                 <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                <p className="text-xs text-muted-foreground">
+                  Valor estimado actual del activo en el mercado.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Moneda</Label>
+                  <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencies.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Moneda en la que está denominado el activo.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Rendimiento actual %</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0"
+                    value={currentYield}
+                    onChange={(e) => setCurrentYield(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Rentabilidad anual que genera el activo.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Símbolo (opcional)</Label>
+                  <Input
+                    placeholder="Ej. NU, AAPL, USDT"
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ticker para consultar su valor en línea.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fuente</Label>
+                  <Select value={quoteSource} onValueChange={setQuoteSource}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yahoo">Yahoo (acciones)</SelectItem>
+                      <SelectItem value="coingecko">CoinGecko (cripto)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Origen del precio al consultar.</p>
+                </div>
               </div>
             </>
           )}
@@ -337,6 +470,9 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Nombre descriptivo para identificar esta deuda.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Tipo de deuda</Label>
@@ -352,11 +488,15 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Clasifica tu deuda para mejor organización.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Saldo actual</Label>
                   <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                  <p className="text-xs text-muted-foreground">Saldo pendiente por pagar.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Tasa de interés %</Label>
@@ -368,7 +508,28 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                     value={interestRate}
                     onChange={(e) => setInterestRate(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Porcentaje de interés anual que genera la deuda.
+                  </p>
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Moneda</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda en la que está denominada la deuda.
+                </p>
               </div>
             </>
           )}
