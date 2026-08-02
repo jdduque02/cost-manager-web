@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Card, Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { useAuth } from "@/lib/auth";
-import { useFinancialBudgetProfile, useUpdateFinancialBudgetProfile, useCreateFinancialBudgetProfile } from "@/lib/hooks/use-api";
+import {
+  useFinancialBudgetProfile,
+  useUpdateFinancialBudgetProfile,
+  useCreateFinancialBudgetProfile,
+} from "@/lib/hooks/use-api";
 import {
   User,
   Bell,
@@ -54,13 +61,13 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-surface-2"
+        checked ? "bg-primary" : "bg-surface-2",
       )}
     >
       <span
         className={cn(
           "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-          checked ? "translate-x-6" : "translate-x-1"
+          checked ? "translate-x-6" : "translate-x-1",
         )}
       />
     </button>
@@ -105,13 +112,13 @@ export function Settings() {
                     "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all text-left",
                     active === s.id
                       ? "bg-surface-2 text-foreground"
-                      : "text-muted-foreground hover:bg-surface hover:text-foreground"
+                      : "text-muted-foreground hover:bg-surface hover:text-foreground",
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-4 w-4 flex-shrink-0",
-                      active === s.id ? "text-primary" : "text-muted-foreground"
+                      active === s.id ? "text-primary" : "text-muted-foreground",
                     )}
                   />
                   {s.label}
@@ -136,7 +143,9 @@ export function Settings() {
                 <div>
                   <p className="font-medium">{name}</p>
                   <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
-                  <Badge tone="primary" className="mt-1.5">Premium</Badge>
+                  <Badge tone="primary" className="mt-1.5">
+                    Premium
+                  </Badge>
                 </div>
               </div>
               <div className="space-y-0">
@@ -144,7 +153,10 @@ export function Settings() {
                   { label: "Nombre completo", value: name },
                   { label: "Correo electronico", value: user?.email || "" },
                   { label: "Usuario", value: user?.username ? `@${user.username}` : "" },
-                  { label: "Pais", value: user?.locale === "es" ? "Colombia" : user?.locale || "N/A" },
+                  {
+                    label: "Pais",
+                    value: user?.locale === "es" ? "Colombia" : user?.locale || "N/A",
+                  },
                   { label: "Zona horaria", value: user?.timezone || "America/Bogota" },
                 ].map((row) => (
                   <SettingRow key={row.label} label={row.label} value={row.value} />
@@ -153,9 +165,7 @@ export function Settings() {
             </Card>
           )}
 
-          {active === "financial" && (
-            <FinancialProfileSettings />
-          )}
+          {active === "financial" && <FinancialProfileSettings />}
 
           {active === "notifications" && (
             <Card>
@@ -169,7 +179,10 @@ export function Settings() {
               <SettingRow label="Notificaciones push" value="Alertas en tu dispositivo">
                 <Toggle checked={notifPush} onChange={setNotifPush} />
               </SettingRow>
-              <SettingRow label="Alertas de presupuesto" value="Notificar cuando el gasto exceda el 80%">
+              <SettingRow
+                label="Alertas de presupuesto"
+                value="Notificar cuando el gasto exceda el 80%"
+              >
                 <Toggle checked={notifBudget} onChange={setNotifBudget} />
               </SettingRow>
             </Card>
@@ -181,7 +194,10 @@ export function Settings() {
               <p className="text-sm text-muted-foreground mb-6">
                 Protege tu cuenta con opciones avanzadas de seguridad.
               </p>
-              <SettingRow label="Autenticacion de dos factores" value="Anade una capa extra de seguridad">
+              <SettingRow
+                label="Autenticacion de dos factores"
+                value="Anade una capa extra de seguridad"
+              >
                 <Toggle checked={twoFa} onChange={setTwoFa} />
               </SettingRow>
               <SettingRow label="Cambiar contrasena" value="Ultimo cambio hace 30 dias" />
@@ -204,9 +220,13 @@ export function Settings() {
                 <Badge tone="success">Premium activo</Badge>
               </div>
               <div className="rounded-xl border border-border bg-surface/40 p-4 mb-4">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Plan actual</p>
+                <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Plan actual
+                </p>
                 <p className="mt-1 font-display text-2xl font-semibold">Mindful Spend Mate Pro</p>
-                <p className="text-sm text-muted-foreground mt-1">$9.99 / month · Renews Jun 1, 2026</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  $9.99 / month · Renews Jun 1, 2026
+                </p>
               </div>
               <SettingRow label="Metodo de pago" value="Visa terminada en 4242" />
               <SettingRow label="Historial de facturacion" value="Ver facturas anteriores" />
@@ -242,11 +262,13 @@ export function Settings() {
                         "flex flex-1 cursor-pointer items-center justify-between rounded-xl border p-4 transition",
                         t === "Oscuro (Predeterminado)"
                           ? "border-primary bg-primary/5"
-                          : "border-border bg-surface/40 hover:border-muted-foreground"
+                          : "border-border bg-surface/40 hover:border-muted-foreground",
                       )}
                     >
                       <span className="text-sm font-medium">{t}</span>
-                      {t === "Oscuro (Predeterminado)" && <Check className="h-4 w-4 text-primary" />}
+                      {t === "Oscuro (Predeterminado)" && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -259,11 +281,13 @@ export function Settings() {
               onClick={handleSave}
               className={cn(
                 "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all",
-                saved ? "bg-success" : "bg-gradient-primary hover:opacity-90"
+                saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
               )}
             >
               {saved ? (
-                <><Check className="h-4 w-4" /> Guardado!</>
+                <>
+                  <Check className="h-4 w-4" /> Guardado!
+                </>
               ) : (
                 "Guardar cambios"
               )}
@@ -284,7 +308,9 @@ function FinancialProfileSettings() {
   const [needsRatio, setNeedsRatio] = useState(50);
   const [wantsRatio, setWantsRatio] = useState(30);
   const [savingsRatio, setSavingsRatio] = useState(20);
+  const [investmentRatio, setInvestmentRatio] = useState(10);
   const [maxDebtRatio, setMaxDebtRatio] = useState(40);
+  const [salary, setSalary] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -293,29 +319,38 @@ function FinancialProfileSettings() {
       setNeedsRatio(profile.needs_ratio);
       setWantsRatio(profile.wants_ratio);
       setSavingsRatio(profile.savings_ratio);
+      setInvestmentRatio(profile.investment_ratio);
       setMaxDebtRatio(profile.max_debt_ratio);
+      setSalary(profile.monthly_income != null ? String(profile.monthly_income) : "");
     }
   }, [profile]);
 
   const handleSave = async () => {
     if (!userId) return;
+
+    const totalRatio = needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio;
+    if (totalRatio > 100) {
+      toast.error(
+        `La suma de los porcentajes supera el 100% (${totalRatio}%). Revisa los valores.`,
+      );
+      return;
+    }
+
     setSaving(true);
     try {
+      const monthlyIncome = salary ? Number(salary.replace(/[^0-9]/g, "")) || undefined : undefined;
+      const dto = {
+        needs_ratio: needsRatio,
+        wants_ratio: wantsRatio,
+        savings_ratio: savingsRatio,
+        investment_ratio: investmentRatio,
+        max_debt_ratio: maxDebtRatio,
+        monthly_income: monthlyIncome,
+      };
       if (!profile) {
-        await createProfile.mutateAsync({
-          user_id: userId,
-          needs_ratio: needsRatio,
-          wants_ratio: wantsRatio,
-          savings_ratio: savingsRatio,
-          max_debt_ratio: maxDebtRatio,
-        });
+        await createProfile.mutateAsync({ user_id: userId, ...dto });
       } else {
-        await updateProfile.mutateAsync({
-          needs_ratio: needsRatio,
-          wants_ratio: wantsRatio,
-          savings_ratio: savingsRatio,
-          max_debt_ratio: maxDebtRatio,
-        });
+        await updateProfile.mutateAsync(dto);
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -357,10 +392,54 @@ function FinancialProfileSettings() {
       )}
 
       <div className="space-y-4">
-        <RatioSlider label="Necesidades" value={needsRatio} onChange={setNeedsRatio} color="primary" />
+        <div className="space-y-1.5">
+          <Label>Salario mensual (COP)</Label>
+          <CurrencyInput value={salary} onChange={setSalary} placeholder="Ej. 3.500.000" />
+          <p className="text-xs text-muted-foreground">
+            Se almacena cifrado. Se usa para calcular tus límites por rango.
+          </p>
+        </div>
+        <RatioSlider
+          label="Necesidades"
+          value={needsRatio}
+          onChange={setNeedsRatio}
+          color="primary"
+        />
         <RatioSlider label="Deseos" value={wantsRatio} onChange={setWantsRatio} color="warning" />
-        <RatioSlider label="Ahorros" value={savingsRatio} onChange={setSavingsRatio} color="success" />
-        <RatioSlider label="Deuda maxima" value={maxDebtRatio} onChange={setMaxDebtRatio} color="destructive" />
+        <RatioSlider
+          label="Ahorros"
+          value={savingsRatio}
+          onChange={setSavingsRatio}
+          color="success"
+        />
+        <RatioSlider
+          label="Inversión"
+          value={investmentRatio}
+          onChange={setInvestmentRatio}
+          color="info"
+        />
+        <RatioSlider
+          label="Deuda maxima"
+          value={maxDebtRatio}
+          onChange={setMaxDebtRatio}
+          color="destructive"
+        />
+
+        <div
+          className={cn(
+            "flex items-center justify-between rounded-xl border p-3 text-sm",
+            needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio > 100
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-border bg-surface text-muted-foreground",
+          )}
+        >
+          <span className="font-medium">Total asignado</span>
+          <span className="font-semibold">
+            {needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio}%
+            {needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio > 100 &&
+              " · supera el 100%"}
+          </span>
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end">
@@ -373,9 +452,13 @@ function FinancialProfileSettings() {
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : saved ? (
-            <><Check className="h-4 w-4" /> Guardado!</>
+            <>
+              <Check className="h-4 w-4" /> Guardado!
+            </>
+          ) : hasProfile ? (
+            "Guardar cambios"
           ) : (
-            hasProfile ? "Guardar cambios" : "Crear perfil"
+            "Crear perfil"
           )}
         </button>
       </div>
@@ -398,6 +481,7 @@ function RatioSlider({
     primary: "bg-primary",
     warning: "bg-warning",
     success: "bg-success",
+    info: "bg-info",
     destructive: "bg-destructive",
   };
 
