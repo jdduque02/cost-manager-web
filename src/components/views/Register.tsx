@@ -112,7 +112,9 @@ export function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Nombre completo *</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Nombre completo *
+            </label>
             <input
               type="text"
               value={fullName}
@@ -136,7 +138,9 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Correo electronico *</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Correo electronico *
+            </label>
             <input
               type="email"
               value={email}
@@ -148,7 +152,9 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Documento de identidad</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Documento de identidad
+            </label>
             <input
               type="text"
               value={documentId}
@@ -196,7 +202,9 @@ export function Register() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Confirmar contrasena *</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Confirmar contrasena *
+            </label>
             <input
               type="password"
               value={confirmPassword}
@@ -207,9 +215,7 @@ export function Register() {
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive text-center font-medium">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
 
           <button
             type="submit"
@@ -221,7 +227,10 @@ export function Register() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Ya tienes cuenta? <a href="/login" className="font-medium text-primary hover:underline">Iniciar sesion</a>
+          Ya tienes cuenta?{" "}
+          <a href="/login" className="font-medium text-primary hover:underline">
+            Iniciar sesion
+          </a>
         </p>
       </div>
     </div>

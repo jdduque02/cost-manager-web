@@ -45,13 +45,17 @@ export function Login() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
             <CircleDollarSign className="h-6 w-6 text-primary-foreground" strokeWidth={2.5} />
           </div>
-          <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">Bienvenido de nuevo</h1>
+          <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">
+            Bienvenido de nuevo
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">Ingresa a tu cuenta de Cost Manager</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Usuario / Correo</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Usuario / Correo
+            </label>
             <input
               type="text"
               value={username}
@@ -65,7 +69,9 @@ export function Login() {
           <div>
             <label className="mb-1.5 flex items-center justify-between text-sm font-medium text-foreground">
               Contraseña
-              <a href="#" className="text-xs text-primary hover:underline">¿Olvidaste?</a>
+              <a href="#" className="text-xs text-primary hover:underline">
+                ¿Olvidaste?
+              </a>
             </label>
             <input
               type="password"
@@ -77,9 +83,7 @@ export function Login() {
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive text-center font-medium">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
 
           <button
             type="submit"
@@ -91,7 +95,10 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          No tienes cuenta? <a href="/register" className="font-medium text-primary hover:underline">Registrate aqui</a>
+          No tienes cuenta?{" "}
+          <a href="/register" className="font-medium text-primary hover:underline">
+            Registrate aqui
+          </a>
         </p>
       </div>
     </div>
