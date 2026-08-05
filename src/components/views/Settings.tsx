@@ -3,12 +3,21 @@ import { toast } from "sonner";
 import { Card, Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { useAuth } from "@/lib/auth";
 import {
   useFinancialBudgetProfile,
   useUpdateFinancialBudgetProfile,
   useCreateFinancialBudgetProfile,
+  useUpdateUser,
 } from "@/lib/hooks/use-api";
 import {
   User,
@@ -75,7 +84,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export function Settings() {
-  const { user } = useAuth();
   const [active, setActive] = useState("profile");
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
@@ -87,9 +95,6 @@ export function Settings() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
-
-  const name = user?.username ?? "Cost Manager User";
-  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
 
   return (
     <div className="space-y-7">
@@ -130,40 +135,7 @@ export function Settings() {
 
         {/* Content */}
         <div className="lg:col-span-3 space-y-5">
-          {active === "profile" && (
-            <Card>
-              <h3 className="font-display text-lg font-semibold mb-2">Perfil</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Administra tu informacion personal y detalles de la cuenta.
-              </p>
-              <div className="flex items-center gap-5 mb-6">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-xl font-semibold text-primary-foreground shadow-glow">
-                  {initials}
-                </div>
-                <div>
-                  <p className="font-medium">{name}</p>
-                  <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
-                  <Badge tone="primary" className="mt-1.5">
-                    Premium
-                  </Badge>
-                </div>
-              </div>
-              <div className="space-y-0">
-                {[
-                  { label: "Nombre completo", value: name },
-                  { label: "Correo electronico", value: user?.email || "" },
-                  { label: "Usuario", value: user?.username ? `@${user.username}` : "" },
-                  {
-                    label: "Pais",
-                    value: user?.locale === "es" ? "Colombia" : user?.locale || "N/A",
-                  },
-                  { label: "Zona horaria", value: user?.timezone || "America/Bogota" },
-                ].map((row) => (
-                  <SettingRow key={row.label} label={row.label} value={row.value} />
-                ))}
-              </div>
-            </Card>
-          )}
+          {active === "profile" && <ProfileSettings />}
 
           {active === "financial" && <FinancialProfileSettings />}
 
@@ -296,6 +268,174 @@ export function Settings() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProfileSettings() {
+  const { user, userId, refreshUser } = useAuth();
+  const updateUser = useUpdateUser();
+
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [documentId, setDocumentId] = useState("");
+  const [address, setAddress] = useState("");
+  const [locale, setLocale] = useState("es");
+  const [timezone, setTimezone] = useState("America/Bogota");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setFullName(user.full_name ?? "");
+    setPhone(user.phone ?? "");
+    setDocumentId(user.document_id ?? "");
+    setAddress(user.address ?? "");
+    setLocale(user.locale ?? "es");
+    setTimezone(user.timezone ?? "America/Bogota");
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!userId) return;
+    setSaving(true);
+    try {
+      await updateUser.mutateAsync({
+        full_name: fullName.trim() || null,
+        phone: phone.trim() || null,
+        document_id: documentId.trim() || null,
+        address: address.trim() || null,
+        locale,
+        timezone,
+      });
+      await refreshUser();
+      setSaved(true);
+      toast.success("Perfil actualizado correctamente");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo actualizar el perfil");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Perfil</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Administra tu informacion personal y detalles de la cuenta.
+      </p>
+
+      <div className="flex items-center gap-5 mb-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-xl font-semibold text-primary-foreground shadow-glow">
+          {initials}
+        </div>
+        <div>
+          <p className="font-medium">{user?.full_name || user?.username || "Cost Manager User"}</p>
+          <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
+        </div>
+      </div>
+
+      <div className="space-y-0 mb-6">
+        <SettingRow label="Usuario" value={user?.username ? `@${user.username}` : ""} />
+        <SettingRow label="Correo electronico" value={user?.email || ""} />
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="full-name">Nombre completo</Label>
+          <Input
+            id="full-name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Tu nombre completo"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="document-id">Documento de identidad</Label>
+          <Input
+            id="document-id"
+            value={documentId}
+            onChange={(e) => setDocumentId(e.target.value)}
+            placeholder="Cedula / Pasaporte"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Telefono</Label>
+          <Input
+            id="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+57 300 123 4567"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="address">Direccion</Label>
+          <Input
+            id="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Direccion de residencia"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Pais / Idioma</Label>
+            <Select value={locale} onValueChange={setLocale}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="es">Colombia</SelectItem>
+                <SelectItem value="en">Estados Unidos</SelectItem>
+                <SelectItem value="fr">Francia</SelectItem>
+                <SelectItem value="pt">Brasil</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Zona horaria</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="America/Bogota">America/Bogota (UTC-5)</SelectItem>
+                <SelectItem value="America/New_York">America/New_York (UTC-5)</SelectItem>
+                <SelectItem value="America/Mexico_City">America/Mexico_City (UTC-6)</SelectItem>
+                <SelectItem value="Europe/Madrid">Europe/Madrid (UTC+1)</SelectItem>
+                <SelectItem value="Etc/UTC">UTC</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all",
+            saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
+            saving && "opacity-70",
+          )}
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Guardando...
+            </>
+          ) : saved ? (
+            <>
+              <Check className="h-4 w-4" /> Guardado!
+            </>
+          ) : (
+            "Guardar cambios"
+          )}
+        </button>
+      </div>
+    </Card>
   );
 }
 
