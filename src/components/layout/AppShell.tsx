@@ -17,6 +17,7 @@ import {
   Unlock,
   EyeOff,
   Newspaper,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -28,6 +29,7 @@ import { NotificationBell } from "@/components/ui/notification-bell";
 const nav = [
   { to: "/", label: "Panel", icon: LayoutDashboard, exact: true },
   { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight },
+  { to: "/reports", label: "Reportes", icon: BarChart3 },
   { to: "/wealth", label: "Patrimonio", icon: Wallet },
   { to: "/goals", label: "Metas", icon: Target },
   { to: "/categories", label: "Categorías", icon: Tag },
@@ -116,7 +118,6 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-display text-lg font-semibold tracking-tight">Cost Manager</p>
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Premium</p>
         </div>
         <NotificationBell />
       </div>
