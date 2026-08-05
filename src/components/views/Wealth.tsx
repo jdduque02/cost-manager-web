@@ -21,11 +21,15 @@ import {
   useDeleteFinancialAsset,
   useDeleteFinancialLiability,
   useRefreshAssetQuotes,
+  useTransactions,
+  useCategories,
 } from "@/lib/hooks/use-api";
 import { WealthDialog } from "./WealthDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/banking";
+import type { TransactionRecord } from "@/lib/api/finance";
 
 const COLORS = [
   "oklch(0.78 0.17 165)",
@@ -46,6 +50,48 @@ interface DeleteTarget {
   name: string;
 }
 
+function LinkedSection({
+  transactions,
+  categoryMap,
+  fmtAmount,
+}: {
+  transactions: TransactionRecord[];
+  categoryMap: Map<number, string>;
+  fmtAmount: (v: number) => string;
+}) {
+  if (transactions.length === 0) return null;
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2">
+      <p className="text-xs font-medium text-muted-foreground">
+        Transacciones vinculadas ({transactions.length})
+      </p>
+      {transactions.slice(0, 3).map((t) => (
+        <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
+          <span className="truncate text-muted-foreground">
+            {t.description ?? categoryMap.get(t.category_id) ?? "Sin descripción"}
+          </span>
+          <span
+            className={cn(
+              "shrink-0 tabular-nums font-medium",
+              t.type === "income"
+                ? "text-success"
+                : t.type === "investment"
+                  ? "text-primary"
+                  : "text-destructive",
+            )}
+          >
+            {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
+            {fmtAmount(t.amount)}
+          </span>
+        </div>
+      ))}
+      {transactions.length > 3 && (
+        <p className="text-xs text-muted-foreground/70">+{transactions.length - 3} más</p>
+      )}
+    </div>
+  );
+}
+
 function Row({
   name,
   value,
@@ -57,6 +103,7 @@ function Row({
   onEdit,
   onDelete,
   fmtAmount,
+  links,
 }: {
   name: string;
   value: number;
@@ -68,48 +115,60 @@ function Row({
   onEdit: () => void;
   onDelete: () => void;
   fmtAmount: (v: number) => string;
+  links?: { transactions: TransactionRecord[]; categoryMap: Map<number, string> };
 }) {
   return (
-    <div className="group flex items-center justify-between rounded-xl border border-border bg-surface/40 p-4">
-      <div>
-        <p className="text-sm font-medium">{name}</p>
-        <p className="text-xs text-muted-foreground">
-          {type}
-          {currency && currency !== "COP" ? (
-            <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
-              ({currency})
-            </span>
-          ) : null}
-          {symbol ? (
-            <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">{symbol}</span>
-          ) : null}
-          {yieldPct != null ? (
-            <span className="ml-1.5 font-mono text-[10px] text-success/80">{yieldPct}%</span>
-          ) : null}
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <span
-          className={`font-display text-base font-semibold tabular-nums ${debt ? "text-destructive" : "text-success"}`}
-        >
-          {debt ? "-" : ""}
-          {fmtAmount(value)}
-        </span>
-        <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100">
-          <button
-            onClick={onEdit}
-            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+    <div className="group rounded-xl border border-border bg-surface/40 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">{name}</p>
+          <p className="text-xs text-muted-foreground">
+            {type}
+            {currency && currency !== "COP" ? (
+              <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
+                ({currency})
+              </span>
+            ) : null}
+            {symbol ? (
+              <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">
+                {symbol}
+              </span>
+            ) : null}
+            {yieldPct != null ? (
+              <span className="ml-1.5 font-mono text-[10px] text-success/80">{yieldPct}%</span>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={`font-display text-base font-semibold tabular-nums ${debt ? "text-destructive" : "text-success"}`}
           >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+            {debt ? "-" : ""}
+            {fmtAmount(value)}
+          </span>
+          <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100">
+            <button
+              onClick={onEdit}
+              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
+      {links ? (
+        <LinkedSection
+          transactions={links.transactions}
+          categoryMap={links.categoryMap}
+          fmtAmount={fmtAmount}
+        />
+      ) : null}
     </div>
   );
 }
@@ -118,11 +177,40 @@ export function Wealth() {
   const { data: accounts = [], isLoading: loadAcc } = useBankAccounts();
   const { data: assets = [], isLoading: loadAst } = useFinancialAssets();
   const { data: liabilities = [], isLoading: loadLia } = useFinancialLiabilities();
+  const { data: transactions = [] } = useTransactions({ limit: 500 });
+  const { data: categories = [] } = useCategories();
   const deleteAccount = useDeleteBankAccount();
   const deleteAsset = useDeleteFinancialAsset();
   const deleteLiability = useDeleteFinancialLiability();
   const refreshQuotes = useRefreshAssetQuotes();
   const fmtAmount = useFormattedAmount();
+
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+
+  const linked = useMemo(() => {
+    const byAccount = new Map<number, TransactionRecord[]>();
+    const byAsset = new Map<number, TransactionRecord[]>();
+    const byLiability = new Map<number, TransactionRecord[]>();
+    for (const t of transactions) {
+      const target = t.account_id
+        ? { map: byAccount, id: t.account_id }
+        : t.asset_id
+          ? { map: byAsset, id: t.asset_id }
+          : t.liability_id
+            ? { map: byLiability, id: t.liability_id }
+            : null;
+      if (!target) continue;
+      const list = target.map.get(target.id) ?? [];
+      list.push(t);
+      target.map.set(target.id, list);
+    }
+    [byAccount, byAsset, byLiability].forEach((m) =>
+      m.forEach((list) =>
+        list.sort((a, b) => (b.transaction_date ?? "").localeCompare(a.transaction_date ?? "")),
+      ),
+    );
+    return { byAccount, byAsset, byLiability };
+  }, [transactions]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [entityType, setEntityType] = useState<EntityType>("account");
@@ -318,6 +406,10 @@ export function Wealth() {
                       setDeleteTarget({ type: "account", id: String(a.id), name: a.bank_name })
                     }
                     fmtAmount={fmtAmount}
+                    links={{
+                      transactions: linked.byAccount.get(a.id) ?? [],
+                      categoryMap,
+                    }}
                   />
                 ))}
                 {assets.map((a) => (
@@ -334,6 +426,10 @@ export function Wealth() {
                       setDeleteTarget({ type: "asset", id: String(a.id), name: a.name })
                     }
                     fmtAmount={fmtAmount}
+                    links={{
+                      transactions: linked.byAsset.get(a.id) ?? [],
+                      categoryMap,
+                    }}
                   />
                 ))}
               </div>
@@ -362,6 +458,10 @@ export function Wealth() {
                       setDeleteTarget({ type: "liability", id: String(l.id), name: l.name })
                     }
                     fmtAmount={fmtAmount}
+                    links={{
+                      transactions: linked.byLiability.get(l.id) ?? [],
+                      categoryMap,
+                    }}
                   />
                 ))}
               </div>
