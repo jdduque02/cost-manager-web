@@ -125,10 +125,16 @@ export function Dashboard() {
     return map;
   }, [categories]);
 
+  function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
+    const iso = t.transaction_date ?? t.created_at ?? "";
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
   // Calculate this month's income and expenses
   const now = useMemo(() => new Date(), []);
   const currentMonthTxs = txs.filter((t) => {
-    const d = new Date(t.created_at);
+    const d = txDate(t);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
@@ -148,7 +154,7 @@ export function Dashboard() {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const label = d.toLocaleDateString("es-CO", { month: "short" });
       const monthTxs = txs.filter((t) => {
-        const td = new Date(t.created_at);
+        const td = txDate(t);
         return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
       });
       months.push({
@@ -373,7 +379,7 @@ export function Dashboard() {
                         {t.description ?? "Sin descripcion"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {categoryName} · {new Date(t.created_at).toLocaleDateString("es-CO")}
+                        {categoryName} · {txDate(t).toLocaleDateString("es-CO")}
                       </p>
                     </div>
                     <span

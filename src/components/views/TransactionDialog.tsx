@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, FolderOpen } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -15,12 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { parseCurrency } from "@/lib/format";
 import { Badge } from "@/components/ui/primitives";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -29,6 +33,10 @@ import {
   useUpdateTransaction,
   useCategories,
   useSubcategories,
+  useObjectives,
+  useBankAccounts,
+  useFinancialAssets,
+  useFinancialLiabilities,
 } from "@/lib/hooks/use-api";
 import type {
   TransactionType,
@@ -42,6 +50,14 @@ interface TransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: TransactionRecord | null;
+  defaultDate?: Date | null;
+}
+
+function toLocalDate(iso?: string | null): Date | undefined {
+  if (!iso) return undefined;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d);
 }
 
 const paymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -53,8 +69,17 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: "mobile_payment", label: "Pago móvil" },
 ];
 
-export function TransactionDialog({ open, onOpenChange, transaction }: TransactionDialogProps) {
+export function TransactionDialog({
+  open,
+  onOpenChange,
+  transaction,
+  defaultDate,
+}: TransactionDialogProps) {
   const { data: categories = [], isLoading: loadingCategories } = useCategories();
+  const { data: objectives = [] } = useObjectives();
+  const { data: bankAccounts = [] } = useBankAccounts();
+  const { data: assets = [] } = useFinancialAssets();
+  const { data: liabilities = [] } = useFinancialLiabilities();
   const createTx = useCreateTransaction();
   const updateTx = useUpdateTransaction();
   const navigate = useNavigate();
@@ -74,6 +99,9 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
   const [reminderDays, setReminderDays] = useState("3");
   const [sourceBank, setSourceBank] = useState("");
   const [sourceAccount, setSourceAccount] = useState("");
+  const [date, setDate] = useState<Date>(new Date());
+  const [objectiveId, setObjectiveId] = useState<string>("");
+  const [patrimony, setPatrimony] = useState<string>("");
 
   const selectedCategoryId = categoryId ? Number(categoryId) : undefined;
   const { data: subcategories = [] } = useSubcategories(selectedCategoryId);
@@ -98,6 +126,17 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
       setReminderDays(transaction.reminder_days != null ? String(transaction.reminder_days) : "3");
       setSourceBank(transaction.source_bank ?? "");
       setSourceAccount(transaction.source_account ?? "");
+      setDate(toLocalDate(transaction.transaction_date) ?? new Date());
+      setObjectiveId(transaction.objective_id ? String(transaction.objective_id) : "");
+      setPatrimony(
+        transaction.account_id
+          ? `account:${transaction.account_id}`
+          : transaction.asset_id
+            ? `asset:${transaction.asset_id}`
+            : transaction.liability_id
+              ? `liability:${transaction.liability_id}`
+              : "",
+      );
     } else {
       reset();
     }
@@ -117,12 +156,27 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
     setReminderDays("3");
     setSourceBank("");
     setSourceAccount("");
+    setDate(defaultDate ? new Date(defaultDate) : new Date());
+    setObjectiveId("");
+    setPatrimony("");
+  }
+
+  function parsePatrimony(value: string) {
+    if (!value) return {};
+    const [kind, id] = value.split(":");
+    const numId = Number(id);
+    if (!kind || !numId) return {};
+    if (kind === "account") return { account_id: numId };
+    if (kind === "asset") return { asset_id: numId };
+    if (kind === "liability") return { liability_id: numId };
+    return {};
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!categoryId || !amount || parseCurrency(amount) <= 0) return;
 
+    const p = parsePatrimony(patrimony);
     const payload = {
       type,
       amount: parseCurrency(amount),
@@ -130,6 +184,7 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
       subcategory_id: subcategoryId ? Number(subcategoryId) : undefined,
       description: description || undefined,
       payment_method: (paymentMethod as PaymentMethod) || undefined,
+      transaction_date: format(date, "yyyy-MM-dd"),
       is_fixed: isFixed,
       fixed_type: isFixed
         ? (fixedType ?? (type === "income" ? "fixed_income" : "deduction"))
@@ -139,6 +194,10 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
       reminder_days: isFixed && reminderDays ? Number(reminderDays) : undefined,
       source_bank: isFixed && type !== "income" && sourceBank ? sourceBank : undefined,
       source_account: isFixed && type !== "income" && sourceAccount ? sourceAccount : undefined,
+      objective_id: objectiveId ? Number(objectiveId) : undefined,
+      account_id: p.account_id ?? undefined,
+      asset_id: p.asset_id ?? undefined,
+      liability_id: p.liability_id ?? undefined,
     };
 
     if (isEditing) {
@@ -304,6 +363,62 @@ export function TransactionDialog({ open, onOpenChange, transaction }: Transacti
                         {pm.label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Fecha de la transacción</Label>
+                <DatePicker value={date} onChange={(d) => d && setDate(d)} disabled={isPending} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Meta asociada</Label>
+                <Select value={objectiveId} onValueChange={setObjectiveId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Opcional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {objectives.map((o) => (
+                      <SelectItem key={o.id} value={String(o.id)}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Patrimonio asociado</Label>
+                <Select value={patrimony} onValueChange={setPatrimony}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Opcional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Cuentas</SelectLabel>
+                      {bankAccounts.map((a) => (
+                        <SelectItem key={a.id} value={`account:${a.id}`}>
+                          {a.bank_name} · {a.masked_account_number}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Activos</SelectLabel>
+                      {assets.map((a) => (
+                        <SelectItem key={a.id} value={`asset:${a.id}`}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Pasivos</SelectLabel>
+                      {liabilities.map((l) => (
+                        <SelectItem key={l.id} value={`liability:${l.id}`}>
+                          {l.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
