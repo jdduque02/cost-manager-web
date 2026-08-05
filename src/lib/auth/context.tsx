@@ -10,6 +10,7 @@ export interface AuthState {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<AuthTokens>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
@@ -58,6 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const token = getAccessToken();
+    const id = getStoredUserId();
+    if (!token || !id) return;
+    const u = await identityApi.getUser(id, token);
+    if (u) setUser(u);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -67,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}

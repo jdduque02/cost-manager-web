@@ -36,8 +36,27 @@ export interface TransactionRecord {
   source_bank?: string;
   destination_bank?: string;
   addressee?: string;
+  transaction_date: string;
   created_at: string;
   updated_at: string | null;
+  objective_id?: number | null;
+  account_id?: number | null;
+  asset_id?: number | null;
+  liability_id?: number | null;
+}
+
+export interface TransactionQuery {
+  date_from?: string;
+  date_to?: string;
+  type?: TransactionType;
+  category_id?: number;
+  subcategory_id?: number;
+  objective_id?: number;
+  account_id?: number;
+  asset_id?: number;
+  liability_id?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateTransactionDto {
@@ -59,7 +78,12 @@ export interface CreateTransactionDto {
   source_bank?: string;
   destination_bank?: string;
   addressee?: string;
+  transaction_date?: string;
   created_at?: string;
+  objective_id?: number;
+  account_id?: number;
+  asset_id?: number;
+  liability_id?: number;
 }
 
 export type FinancialObjectiveType = "loan" | "savings" | "goal";
@@ -157,11 +181,95 @@ export interface CalculateQuotaResponse {
   recommendations?: string[];
 }
 
+export type TransactionGroupBy = "day" | "week" | "month";
+
+export interface TransactionSummaryTotals {
+  income: number;
+  expenses: number;
+  investments: number;
+  count: number;
+}
+
+export interface TransactionSummaryCategory {
+  category_id: number;
+  income: number;
+  expenses: number;
+  investments: number;
+  count: number;
+}
+
+export interface TransactionSummarySeriesItem {
+  key: string;
+  label: string;
+  income: number;
+  expenses: number;
+  investments: number;
+  count: number;
+}
+
+export interface TransactionSummary {
+  date_from?: string;
+  date_to?: string;
+  group_by: TransactionGroupBy;
+  totals: TransactionSummaryTotals;
+  by_category: TransactionSummaryCategory[];
+  series: TransactionSummarySeriesItem[];
+}
+
+export interface TransactionSummaryQuery {
+  date_from: string;
+  date_to: string;
+  group_by?: TransactionGroupBy;
+  type?: TransactionType;
+}
+
+function buildQueryString(params?: object): string {
+  if (!params) return "";
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
 export const financeApi = {
-  getTransactions: (userId: string) =>
+  getTransactions: (userId: string, params?: TransactionQuery) =>
     api
-      .get<TransactionRecord[]>(`users/${userId}/transactions`)
+      .get<TransactionRecord[]>(`users/${userId}/transactions${buildQueryString(params)}`)
       .then((txs) => txs.map((t) => ({ ...t, amount: Number(t.amount ?? 0) }))),
+  getTransactionSummary: (userId: string, params: TransactionSummaryQuery) =>
+    api
+      .get<TransactionSummary>(`users/${userId}/transactions/summary${buildQueryString(params)}`)
+      .then((result) => {
+        const s = Array.isArray(result) ? (result[0] as TransactionSummary) : result;
+        return {
+          ...s,
+          totals: {
+            ...s.totals,
+            income: Number(s.totals?.income ?? 0),
+            expenses: Number(s.totals?.expenses ?? 0),
+            investments: Number(s.totals?.investments ?? 0),
+            count: Number(s.totals?.count ?? 0),
+          },
+          by_category: (s.by_category ?? []).map((c) => ({
+            ...c,
+            income: Number(c.income ?? 0),
+            expenses: Number(c.expenses ?? 0),
+            investments: Number(c.investments ?? 0),
+            count: Number(c.count ?? 0),
+          })),
+          series: (s.series ?? []).map((i) => ({
+            ...i,
+            income: Number(i.income ?? 0),
+            expenses: Number(i.expenses ?? 0),
+            investments: Number(i.investments ?? 0),
+            count: Number(i.count ?? 0),
+          })),
+        };
+      }),
   createTransaction: (userId: string, dto: CreateTransactionDto) =>
     api.post<TransactionRecord>(`users/${userId}/transactions`, dto),
   updateTransaction: (userId: string, id: string, dto: Partial<CreateTransactionDto>) =>

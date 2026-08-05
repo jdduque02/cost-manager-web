@@ -7,6 +7,10 @@ export interface User {
   email: string;
   locale?: string;
   timezone?: string;
+  full_name?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  document_id?: string | null;
   metadata?: Record<string, unknown>;
   is_active: boolean;
   created_at: string;
@@ -54,6 +58,21 @@ export interface UpdateFinancialBudgetProfileDto {
   monthly_income?: number;
   metadata?: Record<string, unknown>;
 }
+
+export type UpdateUserDto = Partial<
+  Pick<
+    User,
+    | "username"
+    | "email"
+    | "locale"
+    | "timezone"
+    | "full_name"
+    | "phone"
+    | "address"
+    | "document_id"
+    | "metadata"
+  >
+>;
 
 function normalizeProfile(p: FinancialProfile): FinancialProfile {
   return {

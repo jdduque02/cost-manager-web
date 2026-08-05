@@ -6,6 +6,8 @@ import {
   type CreateObjectiveDto,
   type CalculateQuotaRequest,
   type CalculateQuotaResponse,
+  type TransactionQuery,
+  type TransactionSummaryQuery,
 } from "@/lib/api/finance";
 import {
   bankingApi,
@@ -17,6 +19,7 @@ import {
   identityApi,
   type CreateFinancialBudgetProfileDto,
   type UpdateFinancialBudgetProfileDto,
+  type UpdateUserDto,
 } from "@/lib/api/identity";
 import {
   catalogApi,
@@ -32,7 +35,17 @@ import { getSocket, NEWS_EVENTS } from "@/lib/socket";
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
 export const qk = {
-  transactions: (userId: string) => ["transactions", userId] as const,
+  transactions: (userId: string, params?: TransactionQuery) =>
+    ["transactions", userId, params ?? {}] as const,
+  transactionSummary: (userId: string, params: TransactionSummaryQuery) =>
+    [
+      "transaction-summary",
+      userId,
+      params.date_from,
+      params.date_to,
+      params.group_by ?? "day",
+      params.type ?? "",
+    ] as const,
   objectives: (userId: string) => ["objectives", userId] as const,
   periods: (userId: string) => ["periods", userId] as const,
   accounts: (userId: string) => ["bank-accounts", userId] as const,
@@ -49,15 +62,24 @@ export const qk = {
 
 // ─── Finance Hooks ────────────────────────────────────────────────────────────
 
-export function useTransactions() {
+export function useTransactions(params?: TransactionQuery) {
   const { userId } = useAuth();
   return useQuery({
-    queryKey: qk.transactions(userId ?? ""),
+    queryKey: qk.transactions(userId ?? "", params),
     queryFn: async () => {
-      const data = await financeApi.getTransactions(userId!);
+      const data = await financeApi.getTransactions(userId!, params);
       return data.map((t) => ({ ...t, amount: Number(t.amount) }));
     },
     enabled: !!userId,
+  });
+}
+
+export function useTransactionSummary(params: TransactionSummaryQuery) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.transactionSummary(userId ?? "", params),
+    queryFn: () => financeApi.getTransactionSummary(userId!, params),
+    enabled: !!userId && !!params.date_from && !!params.date_to,
   });
 }
 
@@ -68,6 +90,7 @@ export function useCreateTransaction() {
     mutationFn: (dto: CreateTransactionDto) => financeApi.createTransaction(userId!, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
     },
   });
 }
@@ -79,6 +102,7 @@ export function useDeleteTransaction() {
     mutationFn: (id: string) => financeApi.deleteTransaction(userId!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
     },
   });
 }
@@ -91,6 +115,7 @@ export function useUpdateTransaction() {
       financeApi.updateTransaction(userId!, id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
     },
   });
 }
@@ -344,6 +369,17 @@ export function useNetWorth() {
 }
 
 // ─── Identity Hooks - Financial Budget Profile ────────────────────────────────
+
+export function useUpdateUser() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: UpdateUserDto) => identityApi.updateUser(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["user", userId ?? ""] });
+    },
+  });
+}
 
 export function useFinancialBudgetProfile() {
   const { userId } = useAuth();
