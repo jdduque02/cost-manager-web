@@ -1,11 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { Plane, Home, GraduationCap, Car, Tag, Loader2, Plus, Pencil, Trash2 } from "lucide-react";
-import { useObjectives, useDeleteObjective } from "@/lib/hooks/use-api";
+import {
+  useObjectives,
+  useDeleteObjective,
+  useTransactions,
+  useCategories,
+} from "@/lib/hooks/use-api";
 import { GoalDialog } from "./GoalDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { FinancialObjective } from "@/lib/api/finance";
 
 function getGoalIcon(name?: string) {
@@ -22,8 +28,26 @@ function getGoalIcon(name?: string) {
 
 export function Goals() {
   const { data: objectives = [], isLoading } = useObjectives();
+  const { data: transactions = [] } = useTransactions({ limit: 500 });
+  const { data: categories = [] } = useCategories();
   const deleteObj = useDeleteObjective();
   const fmtAmount = useFormattedAmount();
+
+  const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+
+  const linkedByGoal = useMemo(() => {
+    const map = new Map<number, typeof transactions>();
+    for (const t of transactions) {
+      if (t.objective_id == null) continue;
+      const list = map.get(t.objective_id) ?? [];
+      list.push(t);
+      map.set(t.objective_id, list);
+    }
+    map.forEach((list) =>
+      list.sort((a, b) => (b.transaction_date ?? "").localeCompare(a.transaction_date ?? "")),
+    );
+    return map;
+  }, [transactions]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<FinancialObjective | null>(null);
@@ -132,6 +156,44 @@ export function Goals() {
                   <span className="text-sm text-muted-foreground">
                     de {fmtAmount(g.target_amount)}
                   </span>
+                </div>
+
+                <div className="mt-4 border-t border-border/60 pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Transacciones vinculadas ({linkedByGoal.get(g.id)?.length ?? 0})
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {(linkedByGoal.get(g.id) ?? []).slice(0, 3).map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="truncate text-muted-foreground">
+                          {t.description ?? categoryMap.get(t.category_id) ?? "Sin descripción"}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 tabular-nums font-medium",
+                            t.type === "income"
+                              ? "text-success"
+                              : t.type === "investment"
+                                ? "text-primary"
+                                : "text-destructive",
+                          )}
+                        >
+                          {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
+                          {fmtAmount(t.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    {(linkedByGoal.get(g.id)?.length ?? 0) === 0 && (
+                      <p className="text-xs text-muted-foreground/70">
+                        Sin transacciones vinculadas
+                      </p>
+                    )}
+                    {(linkedByGoal.get(g.id)?.length ?? 0) > 3 && (
+                      <p className="text-xs text-muted-foreground/70">
+                        +{(linkedByGoal.get(g.id)?.length ?? 0) - 3} más
+                      </p>
+                    )}
+                  </div>
                 </div>
               </Card>
             );
