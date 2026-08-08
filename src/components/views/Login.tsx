@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2, CircleDollarSign } from "lucide-react";
 
 export function Login() {
@@ -69,9 +69,9 @@ export function Login() {
           <div>
             <label className="mb-1.5 flex items-center justify-between text-sm font-medium text-foreground">
               Contraseña
-              <a href="#" className="text-xs text-primary hover:underline">
+              <Link to="/forgot-password" className="text-xs text-primary hover:underline">
                 ¿Olvidaste?
-              </a>
+              </Link>
             </label>
             <input
               type="password"

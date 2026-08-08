@@ -12,12 +12,15 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WealthRouteImport } from './routes/wealth'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as EmailsRouteImport } from './routes/emails'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -34,6 +37,11 @@ const TransactionsRoute = TransactionsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -66,6 +74,16 @@ const GoalsRoute = GoalsRouteImport.update({
   path: '/goals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailsRoute = EmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -80,12 +98,15 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/emails': typeof EmailsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
   '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
@@ -93,12 +114,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/emails': typeof EmailsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
   '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
@@ -107,12 +131,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/emails': typeof EmailsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
   '/login': typeof LoginRoute
   '/news': typeof NewsRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
@@ -122,12 +149,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/categories'
+    | '/emails'
+    | '/forgot-password'
     | '/goals'
     | '/intelligence'
     | '/login'
     | '/news'
     | '/register'
     | '/reports'
+    | '/reset-password'
     | '/settings'
     | '/transactions'
     | '/wealth'
@@ -135,12 +165,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/categories'
+    | '/emails'
+    | '/forgot-password'
     | '/goals'
     | '/intelligence'
     | '/login'
     | '/news'
     | '/register'
     | '/reports'
+    | '/reset-password'
     | '/settings'
     | '/transactions'
     | '/wealth'
@@ -148,12 +181,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/categories'
+    | '/emails'
+    | '/forgot-password'
     | '/goals'
     | '/intelligence'
     | '/login'
     | '/news'
     | '/register'
     | '/reports'
+    | '/reset-password'
     | '/settings'
     | '/transactions'
     | '/wealth'
@@ -162,12 +198,15 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CategoriesRoute: typeof CategoriesRoute
+  EmailsRoute: typeof EmailsRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   GoalsRoute: typeof GoalsRoute
   IntelligenceRoute: typeof IntelligenceRoute
   LoginRoute: typeof LoginRoute
   NewsRoute: typeof NewsRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   TransactionsRoute: typeof TransactionsRoute
   WealthRoute: typeof WealthRoute
@@ -194,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -238,6 +284,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GoalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/emails': {
+      id: '/emails'
+      path: '/emails'
+      fullPath: '/emails'
+      preLoaderRoute: typeof EmailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/categories': {
       id: '/categories'
       path: '/categories'
@@ -258,12 +318,15 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriesRoute: CategoriesRoute,
+  EmailsRoute: EmailsRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   GoalsRoute: GoalsRoute,
   IntelligenceRoute: IntelligenceRoute,
   LoginRoute: LoginRoute,
   NewsRoute: NewsRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   TransactionsRoute: TransactionsRoute,
   WealthRoute: WealthRoute,

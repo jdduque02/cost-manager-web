@@ -58,4 +58,17 @@ export const authApi = {
 
   forgotPassword: (email: string) =>
     api.post<{ message: string }>("auth/forgot-password", { email }),
+
+  verifyOtp: (email: string, code: string) =>
+    api.post<{ reset_token: string; expires_in_seconds: number }>(
+      "auth/verify-otp",
+      { email, code }
+    ),
+
+  resetPassword: (email: string, resetToken: string, newPassword: string) =>
+    api.post<{ message: string }>("auth/reset-password", {
+      email,
+      reset_token: resetToken,
+      new_password: newPassword,
+    }),
 };
