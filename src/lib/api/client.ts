@@ -67,6 +67,8 @@ export function setTokens(access: string, refresh: string, userId?: number | str
   localStorage.setItem("cm_access_token", access);
   localStorage.setItem("cm_refresh_token", refresh);
   if (userId !== undefined) localStorage.setItem("cm_user_id", String(userId));
+  // Avisa al socket para que reconecte con el access token fresco.
+  window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
 }
 
 export function clearTokens() {
@@ -200,13 +202,72 @@ export const api = {
   get: <T>(path: string, token?: string | null) => apiFetch<T>(path, { method: "GET", token }),
   post: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "POST", body: JSON.stringify(body), token }),
+  put: <T>(path: string, body: unknown, token?: string | null) =>
+    apiFetch<T>(path, { method: "PUT", body: JSON.stringify(body), token }),
   patch: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body), token }),
   delete: <T>(path: string, token?: string | null) =>
     apiFetch<T>(path, { method: "DELETE", token }),
+  /** DELETE con cuerpo (p. ej. borrado masivo con { ids }). */
+  deleteWithBody: <T>(path: string, body: unknown, token?: string | null) =>
+    apiFetch<T>(path, {
+      method: "DELETE",
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+      token,
+    }),
   /** Like get, but extracts the first element from the response array */
   getOne: async <T>(path: string, token?: string | null): Promise<T> => {
     const result = await apiFetch<T[]>(path, { method: "GET", token });
     return Array.isArray(result) ? result[0] : (result as unknown as T);
   },
 };
+
+async function parseResponseError(res: Response): Promise<string> {
+  let message = `API error ${res.status}`;
+  try {
+    const err = await res.json();
+    message = err.message ?? err.error ?? message;
+  } catch {
+    // ignore JSON parse errors
+  }
+  return message;
+}
+
+/**
+ * Multipart upload (POST). NO establece Content-Type: el navegador genera el
+ * boundary correcto para FormData. Maneja refresh en 401 y desenvuelve el
+ * ApiResponseDto igual que apiFetch.
+ */
+export async function apiPostForm<T = unknown>(
+  path: string,
+  formData: FormData,
+  token?: string | null,
+): Promise<T> {
+  const authToken = token ?? getAccessToken();
+
+  const headers: HeadersInit = {
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  };
+
+  const url = `${BASE_URL}${path}`;
+  let res = await fetch(url, { method: "POST", headers, body: formData });
+
+  if (res.status === 401 && authToken) {
+    res = await refreshAndRetry(url, { method: "POST", headers, body: formData });
+  }
+
+  if (!res.ok) {
+    throw new Error(await parseResponseError(res));
+  }
+
+  if (res.status === 204) return undefined as T;
+
+  const json = await res.json();
+
+  if (isApiResponseEnvelope(json)) {
+    return unwrapEnvelope<T>(json);
+  }
+
+  return json as T;
+}

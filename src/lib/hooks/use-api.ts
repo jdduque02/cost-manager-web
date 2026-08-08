@@ -1,19 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   financeApi,
   type CreateTransactionDto,
+  type UpdateTransactionDto,
   type CreateObjectiveDto,
   type CalculateQuotaRequest,
   type CalculateQuotaResponse,
   type TransactionQuery,
   type TransactionSummaryQuery,
+  type CreateTransferDto,
 } from "@/lib/api/finance";
 import {
   bankingApi,
   type CreateBankAccountDto,
   type CreateFinancialAssetDto,
   type CreateFinancialLiabilityDto,
+  type FxRates,
 } from "@/lib/api/banking";
 import {
   identityApi,
@@ -29,8 +32,9 @@ import {
   type UpdateSubcategoryDto,
 } from "@/lib/api/catalog";
 import { newsApi, type NewsItem } from "@/lib/api/news";
+import { statementImportApi, type StatementImportProgress } from "@/lib/api/statement-imports";
 import { useAuth } from "@/lib/auth";
-import { getSocket, NEWS_EVENTS } from "@/lib/socket";
+import { getSocket, NEWS_EVENTS, STATEMENT_IMPORT_PROGRESS } from "@/lib/socket";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -58,6 +62,9 @@ export const qk = {
   financialSummary: (userId: string) => ["financialSummary", userId] as const,
   taxSummary: (userId: string, year?: number) => ["taxSummary", userId, year] as const,
   news: ["news"] as const,
+  statementImports: (userId: string) => ["statement-imports", userId] as const,
+  statementImportJob: (userId: string, id: number | null) =>
+    ["statement-import", userId, id] as const,
 };
 
 // ─── Finance Hooks ────────────────────────────────────────────────────────────
@@ -91,6 +98,10 @@ export function useCreateTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
   });
 }
@@ -103,6 +114,26 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useBulkDeleteTransactions() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => financeApi.bulkDeleteTransactions(userId!, ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
   });
 }
@@ -111,13 +142,21 @@ export function useUpdateTransaction() {
   const { userId } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateTransactionDto> }) =>
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateTransactionDto }) =>
       financeApi.updateTransaction(userId!, id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
   });
+}
+
+export function useGoalTransactions(goalId: number | undefined | null) {
+  return useTransactions(goalId ? { objective_id: goalId, limit: 500 } : undefined);
 }
 
 export function useObjectives() {
@@ -199,6 +238,149 @@ export function usePeriods() {
   });
 }
 
+// ─── Statement Imports (extractos bancarios) ──────────────────────────────────
+
+const TERMINAL_STATUSES = new Set(["completed", "partial", "failed"]);
+
+export function useStatementImports() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statementImports(userId ?? ""),
+    queryFn: () => statementImportApi.list(userId!),
+    enabled: !!userId,
+    refetchInterval: (query) => {
+      const jobs = query.state.data;
+      const hasActive = jobs?.some((j) => !TERMINAL_STATUSES.has(j.status));
+      return hasActive ? 3000 : false;
+    },
+  });
+}
+
+/**
+ * Pollea el lote de importación mientras no esté en estado terminal, de modo que
+ * el frontend avanza aunque se pierdan los eventos de WebSocket. También se
+ * actualiza en tiempo real con los eventos cuando el socket está operativo.
+ */
+export function useStatementImportJob(id: number | null) {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: qk.statementImportJob(userId ?? "", id),
+    queryFn: () => statementImportApi.get(userId!, id!),
+    enabled: !!userId && !!id,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && !TERMINAL_STATUSES.has(status) ? 2000 : false;
+    },
+  });
+
+  useEffect(() => {
+    if (query.data && TERMINAL_STATUSES.has(query.data.status)) {
+      queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    }
+  }, [query.data, queryClient, userId]);
+
+  return query;
+}
+
+export function useCreateStatementImport() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (formData: FormData) => statementImportApi.create(userId!, formData),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    },
+  });
+}
+
+export function useRetryStatementImport() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password }: { id: number; password?: string }) =>
+      statementImportApi.retry(userId!, id, password),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    },
+  });
+}
+
+/**
+ * Escucha el progreso de cargas de extractos por WebSocket. Cuando el lote
+ * termina, invalida transacciones/resumen/saldos/imports para refrescar la UI.
+ */
+export function useStatementImportProgress(onProgress?: (p: StatementImportProgress) => void) {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleProgress = (payload: StatementImportProgress) => {
+      onProgressRef.current?.(payload);
+      if (TERMINAL_STATUSES.has(payload.status)) {
+        queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+        queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+      }
+    };
+    socket.on(STATEMENT_IMPORT_PROGRESS, handleProgress);
+    return () => {
+      socket.off(STATEMENT_IMPORT_PROGRESS, handleProgress);
+    };
+  }, [queryClient, userId]);
+}
+
+// ─── Transfers ───────────────────────────────────────────────────────────────
+
+export function useTransfers() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: ["transfers", userId ?? ""],
+    queryFn: () => financeApi.getTransfers(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateTransferDto) => financeApi.createTransfer(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transfers"] });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => financeApi.deleteTransfer(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transfers"] });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
 // ─── Quota Calculation ────────────────────────────────────────────────────────
 
 export function useCalculateQuota() {
@@ -253,6 +435,48 @@ export function useDeleteBankAccount() {
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
     },
   });
+}
+
+const FX_CACHE_KEY = "cost-manager.fx-rates.v1";
+const FX_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+
+function readFxCache(): { data: FxRates; cachedAt: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FX_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: FxRates; cachedAt: number };
+    if (!parsed?.data || typeof parsed.cachedAt !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeFxCache(data: FxRates): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FX_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() }));
+  } catch {
+    // Sin acceso a localStorage (modo privado, cuota llena): ignorar.
+  }
+}
+
+export function useExchangeRate() {
+  const cached = useMemo(() => readFxCache(), []);
+  const isFresh = cached && Date.now() - cached.cachedAt < FX_CACHE_MAX_AGE;
+  const query = useQuery<FxRates, Error>({
+    queryKey: ["currency-rates"],
+    queryFn: () => bankingApi.getCurrencyRates(),
+    initialData: isFresh ? cached.data : undefined,
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: 6 * 60 * 60 * 1000,
+    retry: 1,
+  });
+  useEffect(() => {
+    if (query.data) writeFxCache(query.data);
+  }, [query.data]);
+  return query;
 }
 
 export function useFinancialAssets() {

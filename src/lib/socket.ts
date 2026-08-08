@@ -5,6 +5,12 @@ const SOCKET_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace("/api/v1", "")
   : "http://localhost:3000";
 
+// El gateway de notificaciones está expuesto en el namespace `/notifications`.
+const SOCKET_NAMESPACE = `${SOCKET_URL}/notifications`;
+
+/** Se dispara desde setTokens() cuando el access token rota (refresh HTTP). */
+const TOKEN_UPDATED_EVENT = "cm:tokens-updated";
+
 export interface NotificationPayload {
   id: number;
   user_id: number;
@@ -25,23 +31,49 @@ export const NOTIFICATION_EVENTS = {
   UNSUBSCRIBE: "notification:unsubscribe",
   MARK_AS_READ: "notification:mark_read",
   MARK_ALL_AS_READ: "notification:mark_all_read",
+  STATEMENT_IMPORT_PROGRESS: "statement-import:progress",
 } as const;
 
 export const NEWS_EVENTS = {
   NEW_NEWS: "news:new",
 } as const;
 
+export const STATEMENT_IMPORT_PROGRESS = NOTIFICATION_EVENTS.STATEMENT_IMPORT_PROGRESS;
+
 let socket: Socket | null = null;
+let tokenListenerAttached = false;
 
 export function getSocket(): Socket {
   if (socket) return socket;
 
-  const token = getAccessToken();
-  socket = io(SOCKET_URL, {
-    auth: { token },
+  socket = io(SOCKET_NAMESPACE, {
+    // auth como callback: se re-evalúa con el token vigente en cada (re)conexión,
+    // así los reintentos usan el token refrescado tras un 401.
+    auth: (cb) => cb({ token: getAccessToken() }),
     transports: ["websocket", "polling"],
     autoConnect: false,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 10000,
   });
+
+  socket.on("connect_error", (err) => {
+    // Token vencido/rechazado: socket.io reintenta con el auth callback, que ya
+    // entrega el token actualizado cuando el cliente refresca la sesión.
+    console.warn("[socket] connect_error:", err.message);
+  });
+
+  if (typeof window !== "undefined" && !tokenListenerAttached) {
+    tokenListenerAttached = true;
+    window.addEventListener(TOKEN_UPDATED_EVENT, () => {
+      const s = socket;
+      if (s && s.connected) {
+        s.disconnect();
+        s.connect();
+      }
+    });
+  }
 
   return socket;
 }
