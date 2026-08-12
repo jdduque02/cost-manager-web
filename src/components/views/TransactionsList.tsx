@@ -13,12 +13,14 @@ import {
   Plus,
   Pencil,
   Trash2,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useTransactions,
   useCategories,
   useDeleteTransaction,
+  useBulkDeleteTransactions,
   useObjectives,
   useBankAccounts,
   useFinancialAssets,
@@ -27,7 +29,11 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionDialog } from "./TransactionDialog";
 import { TransactionCalendar } from "./TransactionCalendar";
+import { CurrencyConverter } from "./CurrencyConverter";
+import { GmfCalculator } from "./GmfCalculator";
+import { StatementImportDialog } from "./StatementImportDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { TransactionRecord } from "@/lib/api/finance";
 
@@ -87,15 +93,20 @@ export function TransactionsList() {
   const { data: assets = [] } = useFinancialAssets();
   const { data: liabilities = [] } = useFinancialLiabilities();
   const deleteTx = useDeleteTransaction();
+  const bulkDelete = useBulkDeleteTransactions();
   const fmtAmount = useFormattedAmount();
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "investment">("all");
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionRecord | null>(null);
   const [defaultDate, setDefaultDate] = useState<Date | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionRecord | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -150,15 +161,21 @@ export function TransactionsList() {
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       if (typeFilter !== "all" && t.type !== typeFilter) return false;
+      if (uncategorizedOnly && t.category_status !== "pending") return false;
       if (search) {
         const q = search.toLowerCase();
-        const catName = (categoryMap[t.category_id] ?? "").toLowerCase();
+        const catName = (categoryMap[t.category_id ?? -1] ?? "").toLowerCase();
         const desc = (t.description ?? "").toLowerCase();
         if (!desc.includes(q) && !catName.includes(q)) return false;
       }
       return true;
     });
-  }, [transactions, typeFilter, search, categoryMap]);
+  }, [transactions, typeFilter, uncategorizedOnly, search, categoryMap]);
+
+  const pendingCount = useMemo(
+    () => transactions.filter((t) => t.category_status === "pending").length,
+    [transactions],
+  );
 
   const groupedByMonth = useMemo(() => {
     const map = new Map<string, MonthGroup>();
@@ -192,6 +209,35 @@ export function TransactionsList() {
         setDeletingTx(null);
       },
       onError: () => toast.error("Error al eliminar la transacción"),
+    });
+  }
+
+  function toggleSelected(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllFiltered() {
+    const ids = filtered.map((t) => t.id);
+    setSelectedIds((prev) => {
+      if (prev.size > 0 && ids.every((id) => prev.has(id))) return new Set();
+      return new Set(ids);
+    });
+  }
+
+  function handleBulkDeleteConfirm() {
+    if (selectedIds.size === 0) return;
+    bulkDelete.mutate([...selectedIds], {
+      onSuccess: () => {
+        toast.success(`${selectedIds.size} transacciones eliminadas`);
+        setSelectedIds(new Set());
+        setBulkConfirmOpen(false);
+      },
+      onError: () => toast.error("Error al eliminar las transacciones"),
     });
   }
 
@@ -249,13 +295,89 @@ export function TransactionsList() {
             ))}
           </div>
           <button
+            onClick={() => setUncategorizedOnly((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition",
+              uncategorizedOnly
+                ? "border-warning bg-warning/15 text-warning"
+                : "border-border bg-surface text-foreground hover:border-warning/50",
+            )}
+          >
+            <Tag className="h-4 w-4" />
+            Por editar
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-warning/20 px-1.5 text-xs font-bold tabular-nums">
+                {pendingCount}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => openNew()}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
             Nueva
           </button>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/50"
+          >
+            <FileUp className="h-4 w-4" />
+            Importar extracto
+          </button>
         </div>
+      </div>
+
+      {pendingCount > 0 && !uncategorizedOnly && (
+        <button
+          onClick={() => setUncategorizedOnly(true)}
+          className="flex w-full items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-left transition hover:bg-warning/15"
+        >
+          <Tag className="h-4 w-4 shrink-0 text-warning" />
+          <span className="text-sm">
+            <span className="font-semibold text-warning">{pendingCount}</span> transacción
+            {pendingCount === 1 ? "" : "es"} sin clasificar importada
+            {pendingCount === 1 ? "" : "s"}. Revisa su categoría para tener reportes exactos.
+          </span>
+          <span className="ml-auto text-xs font-semibold text-warning">Ver ahora</span>
+        </button>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="sticky top-20 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 backdrop-blur">
+          <span className="text-sm font-semibold text-foreground">
+            {selectedIds.size} seleccionad{selectedIds.size === 1 ? "o" : "os"}
+          </span>
+          <button
+            onClick={toggleAllFiltered}
+            className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+          >
+            {filtered.length > 0 && filtered.every((t) => selectedIds.has(t.id))
+              ? "Quitar todos"
+              : "Seleccionar todos los visibles"}
+          </button>
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkDelete.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground transition hover:opacity-90"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {bulkDelete.isPending ? "Eliminando…" : "Eliminar"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CurrencyConverter />
+        <GmfCalculator />
       </div>
 
       <Tabs value={view} onValueChange={(v) => setView(v as "list" | "calendar")}>
@@ -301,21 +423,33 @@ export function TransactionsList() {
                   <Card className="p-0">
                     <ul className="divide-y divide-border">
                       {month.items.map((t) => {
-                        const categoryName = categoryMap[t.category_id] ?? "General";
+                        const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
+                        const isPendingTx = t.category_status === "pending";
                         const Icon = getCategoryIcon(categoryName);
                         return (
                           <li
                             key={t.id}
-                            className="group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60"
+                            className={cn(
+                              "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
+                              isPendingTx && "bg-warning/[0.03]",
+                            )}
                           >
+                            <Checkbox
+                              checked={selectedIds.has(t.id)}
+                              onCheckedChange={() => toggleSelected(t.id)}
+                              aria-label="Seleccionar transacción"
+                              className="shrink-0"
+                            />
                             <div
                               className={cn(
                                 "flex h-10 w-10 items-center justify-center rounded-xl",
-                                t.type === "income"
-                                  ? "bg-success/10 text-success"
-                                  : t.type === "investment"
-                                    ? "bg-primary/10 text-primary"
-                                    : "bg-surface-2 text-muted-foreground",
+                                isPendingTx
+                                  ? "bg-warning/15 text-warning"
+                                  : t.type === "income"
+                                    ? "bg-success/10 text-success"
+                                    : t.type === "investment"
+                                      ? "bg-primary/10 text-primary"
+                                      : "bg-surface-2 text-muted-foreground",
                               )}
                             >
                               <Icon className="h-4.5 w-4.5" size={18} />
@@ -325,7 +459,11 @@ export function TransactionsList() {
                                 {t.description ?? "Sin descripcion"}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {categoryName} ·{" "}
+                                {categoryName}
+                                {t.installments && t.installments > 1
+                                  ? ` · ${t.installments} cuotas`
+                                  : ""}
+                                {" · "}
                                 {t.transaction_date
                                   ? new Date(
                                       t.transaction_date.slice(0, 10) + "T00:00:00",
@@ -336,7 +474,11 @@ export function TransactionsList() {
                                   : "Sin fecha"}
                               </p>
                             </div>
-                            <Badge tone="muted">{categoryName}</Badge>
+                            {isPendingTx ? (
+                              <Badge tone="warning">Por editar</Badge>
+                            ) : (
+                              <Badge tone="muted">{categoryName}</Badge>
+                            )}
                             {linkedLabel(t) && <Badge tone="primary">{linkedLabel(t)}</Badge>}
                             {t.is_fixed && (
                               <Badge tone="primary">
@@ -416,6 +558,8 @@ export function TransactionsList() {
         defaultDate={defaultDate}
       />
 
+      <StatementImportDialog open={importOpen} onOpenChange={setImportOpen} />
+
       <ConfirmDialog
         open={!!deletingTx}
         onOpenChange={(v) => {
@@ -425,6 +569,17 @@ export function TransactionsList() {
         description={`¿Estás seguro de eliminar esta transacción? Esta acción no se puede deshacer.`}
         onConfirm={handleDeleteConfirm}
         loading={deleteTx.isPending}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onOpenChange={(v) => {
+          if (!v) setBulkConfirmOpen(false);
+        }}
+        title="Eliminar transacciones"
+        description={`¿Estás seguro de eliminar ${selectedIds.size} transacciones? Se recalculan los saldos de las cuentas, activos y pasivos asociados. Esta acción no se puede deshacer.`}
+        onConfirm={handleBulkDeleteConfirm}
+        loading={bulkDelete.isPending}
       />
     </div>
   );

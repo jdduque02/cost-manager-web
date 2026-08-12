@@ -276,6 +276,7 @@ function ProfileSettings() {
   const updateUser = useUpdateUser();
 
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [documentId, setDocumentId] = useState("");
   const [address, setAddress] = useState("");
@@ -287,6 +288,7 @@ function ProfileSettings() {
   useEffect(() => {
     if (!user) return;
     setFullName(user.full_name ?? "");
+    setEmail(user.email ?? "");
     setPhone(user.phone ?? "");
     setDocumentId(user.document_id ?? "");
     setAddress(user.address ?? "");
@@ -300,6 +302,7 @@ function ProfileSettings() {
     try {
       await updateUser.mutateAsync({
         full_name: fullName.trim() || null,
+        email: email.trim() || undefined,
         phone: phone.trim() || null,
         document_id: documentId.trim() || null,
         address: address.trim() || null,
@@ -338,7 +341,6 @@ function ProfileSettings() {
 
       <div className="space-y-0 mb-6">
         <SettingRow label="Usuario" value={user?.username ? `@${user.username}` : ""} />
-        <SettingRow label="Correo electronico" value={user?.email || ""} />
       </div>
 
       <div className="space-y-4">
@@ -350,6 +352,19 @@ function ProfileSettings() {
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Tu nombre completo"
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Correo electronico</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@correo.com"
+          />
+          <p className="text-xs text-muted-foreground">
+            El correo se sincroniza con tu cuenta de acceso (Keycloak).
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="document-id">Documento de identidad</Label>

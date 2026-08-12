@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -44,12 +45,15 @@ interface WealthDialogProps {
   onOpenChange: (open: boolean) => void;
   entityType: EntityType;
   entity?: BankAccount | FinancialAsset | FinancialLiability | null;
+  onCreated?: (entity: BankAccount | FinancialAsset | FinancialLiability) => void;
 }
 
 const accountTypes: { value: AccountType; label: string }[] = [
   { value: "ahorros", label: "Ahorros" },
   { value: "corriente", label: "Corriente" },
   { value: "inversion", label: "Inversión" },
+  { value: "cdt", label: "CDT / Inversión" },
+  { value: "ahorro_alto_rendimiento", label: "Cuenta de ahorro de alto rendimiento" },
   { value: "fna", label: "FNA - Fondo Nacional del Ahorro" },
   { value: "aporte_pension_voluntaria", label: "Aporte Pensión Voluntaria" },
   { value: "otro", label: "Otro" },
@@ -92,7 +96,13 @@ const entityLabels: Record<EntityType, { create: string; edit: string; title: st
   liability: { create: "Nueva Deuda", edit: "Editar Deuda", title: "Pasivo financiero" },
 };
 
-export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthDialogProps) {
+export function WealthDialog({
+  open,
+  onOpenChange,
+  entityType,
+  entity,
+  onCreated,
+}: WealthDialogProps) {
   const createAccount = useCreateBankAccount();
   const updateAccount = useUpdateBankAccount();
   const createAsset = useCreateFinancialAsset();
@@ -119,7 +129,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
   const [liabilityType, setLiabilityType] = useState<string>("tarjeta_credito");
   const [amount, setAmount] = useState("");
   const [interestRate, setInterestRate] = useState("");
+  const [annualRate, setAnnualRate] = useState("");
+  const [yieldFrequency, setYieldFrequency] = useState("monthly");
   const [isPrimary, setIsPrimary] = useState(false);
+  const [exempt4x1000, setExempt4x1000] = useState(false);
   const [currency, setCurrency] = useState("COP");
   const [symbol, setSymbol] = useState("");
   const [quoteSource, setQuoteSource] = useState("yahoo");
@@ -135,6 +148,9 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         setAmount(String(Number(a.display_balance ?? 0)));
         setCurrency(a.currency ?? "COP");
         setIsPrimary(a.is_primary);
+        setExempt4x1000(a.exempt_4x1000);
+        setAnnualRate(a.annual_interest_rate != null ? String(a.annual_interest_rate) : "");
+        setYieldFrequency(a.yield_frequency ?? "monthly");
       } else if (entityType === "asset") {
         const a = entity as FinancialAsset;
         setName(a.name);
@@ -166,7 +182,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
     setLiabilityType("tarjeta_credito");
     setAmount("");
     setInterestRate("");
+    setAnnualRate("");
+    setYieldFrequency("monthly");
     setIsPrimary(false);
+    setExempt4x1000(false);
     setCurrency("COP");
     setSymbol("");
     setQuoteSource("yahoo");
@@ -183,7 +202,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         account_number: accountNumber || "0000",
         balance: Number(amount) || 0,
         currency: currency !== "COP" ? currency : undefined,
+        annual_interest_rate: annualRate ? Number(annualRate) : undefined,
+        yield_frequency: yieldFrequency,
         is_primary: isPrimary,
+        exempt_4x1000: exempt4x1000,
       };
       if (isEditing) {
         await updateAccount.mutateAsync(
@@ -199,9 +221,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         );
       } else {
         await createAccount.mutateAsync(dto, {
-          onSuccess: () => {
+          onSuccess: (created) => {
             toast.success("Cuenta creada");
             reset();
+            onCreated?.(created);
             onOpenChange(false);
           },
           onError: () => toast.error("Error al crear la cuenta"),
@@ -231,9 +254,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         );
       } else {
         await createAsset.mutateAsync(dto, {
-          onSuccess: () => {
+          onSuccess: (created) => {
             toast.success("Activo creado");
             reset();
+            onCreated?.(created);
             onOpenChange(false);
           },
           onError: () => toast.error("Error al crear el activo"),
@@ -261,9 +285,10 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
         );
       } else {
         await createLiability.mutateAsync(dto, {
-          onSuccess: () => {
+          onSuccess: (created) => {
             toast.success("Deuda creada");
             reset();
+            onCreated?.(created);
             onOpenChange(false);
           },
           onError: () => toast.error("Error al crear la deuda"),
@@ -340,6 +365,37 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                 </p>
               </div>
               <div className="space-y-1.5">
+                <Label>Tasa de interés anual %</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max="100"
+                  placeholder="0"
+                  value={annualRate}
+                  onChange={(e) => setAnnualRate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Rentabilidad anual que genera la cuenta (para proyecciones).
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Frecuencia del rendimiento</Label>
+                <Select value={yieldFrequency} onValueChange={setYieldFrequency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Diaria</SelectItem>
+                    <SelectItem value="monthly">Mensual</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Cada cuanto se entrega el rendimiento en la cuenta.
+                </p>
+              </div>
+              <div className="space-y-1.5">
                 <Label>Moneda</Label>
                 <Select value={currency} onValueChange={setCurrency}>
                   <SelectTrigger>
@@ -356,6 +412,32 @@ export function WealthDialog({ open, onOpenChange, entityType, entity }: WealthD
                 <p className="text-xs text-muted-foreground">
                   Moneda en la que está denominada la cuenta.
                 </p>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Cuenta principal</p>
+                  <p className="text-xs text-muted-foreground">
+                    Marca esta cuenta como tu cuenta principal.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={isPrimary}
+                  onCheckedChange={(v) => setIsPrimary(v === true)}
+                  aria-label="Marcar como cuenta principal"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Exenta del 4x1000</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cuenta exenta del impuesto a los movimientos financieros (GMF).
+                  </p>
+                </div>
+                <Checkbox
+                  checked={exempt4x1000}
+                  onCheckedChange={(v) => setExempt4x1000(v === true)}
+                  aria-label="Marcar como exenta del 4x1000"
+                />
               </div>
             </>
           )}

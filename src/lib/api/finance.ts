@@ -1,6 +1,8 @@
 import { api } from "./client";
 
-export type TransactionType = "income" | "expense" | "investment";
+export type TransactionType = "income" | "expense" | "investment" | "transfer";
+
+export type CategoryStatus = "categorized" | "pending";
 
 export type FixedType = "deduction" | "fixed_income";
 export type FixedFrequency = "biweekly" | "monthly";
@@ -18,7 +20,10 @@ export type PaymentMethod =
 export interface TransactionRecord {
   id: number;
   user_id: number;
-  category_id: number;
+  category_id: number | null;
+  category_status: CategoryStatus;
+  installments?: number | null;
+  installment_value?: number | null;
   subcategory_id?: number;
   type: TransactionType;
   amount: number;
@@ -50,6 +55,8 @@ export interface TransactionQuery {
   date_to?: string;
   type?: TransactionType;
   category_id?: number;
+  category_status?: CategoryStatus;
+  uncategorized?: boolean;
   subcategory_id?: number;
   objective_id?: number;
   account_id?: number;
@@ -60,7 +67,7 @@ export interface TransactionQuery {
 }
 
 export interface CreateTransactionDto {
-  category_id: number;
+  category_id?: number;
   subcategory_id?: number;
   type: TransactionType;
   amount: number;
@@ -70,6 +77,8 @@ export interface CreateTransactionDto {
   due_day?: number;
   reminder_days?: number;
   payment_method?: PaymentMethod;
+  installments?: number;
+  installment_value?: number;
   description?: string;
   reference_code?: string;
   attachments?: string[];
@@ -103,10 +112,14 @@ export interface FinancialObjective {
   fees?: number;
   monthly_payment?: number;
   owner?: string;
+  bank?: string | null;
+  current_profitability?: number | null;
+  account_id?: number | null;
   frequency?: Frequency;
   due_day?: number;
   start_date?: string;
   end_date?: string;
+  quota_calculation?: Record<string, unknown> | null;
   is_completed: boolean;
   completed_at?: string | null;
   created_at: string;
@@ -124,10 +137,18 @@ export interface CreateObjectiveDto {
   fees?: number;
   monthly_payment?: number;
   owner?: string;
+  bank?: string;
+  current_profitability?: number;
+  account_id?: number;
   frequency?: Frequency;
   due_day?: number;
   start_date?: string;
   end_date?: string;
+  quota_calculation?: Record<string, unknown>;
+}
+
+export interface UpdateTransactionDto extends Partial<CreateTransactionDto> {
+  apply_to_similar?: boolean;
 }
 
 export interface FinancialPeriod {
@@ -156,6 +177,8 @@ export interface CalculateQuotaRequest {
   start_date?: string;
   end_date?: string;
   frequency: QuotaFrequency;
+  account_id?: number;
+  interest_rate?: number;
 }
 
 export interface CalculateQuotaResponse {
@@ -272,10 +295,12 @@ export const financeApi = {
       }),
   createTransaction: (userId: string, dto: CreateTransactionDto) =>
     api.post<TransactionRecord>(`users/${userId}/transactions`, dto),
-  updateTransaction: (userId: string, id: string, dto: Partial<CreateTransactionDto>) =>
+  updateTransaction: (userId: string, id: string, dto: UpdateTransactionDto) =>
     api.patch<TransactionRecord>(`users/${userId}/transactions/${id}`, dto),
   deleteTransaction: (userId: string, id: string) =>
     api.delete<void>(`users/${userId}/transactions/${id}`),
+  bulkDeleteTransactions: (userId: string, ids: number[]) =>
+    api.deleteWithBody<void>(`users/${userId}/transactions`, { ids }),
 
   getObjectives: (userId: string) =>
     api.get<FinancialObjective[]>(`users/${userId}/financial-objectives`).then((objs) =>
@@ -286,6 +311,8 @@ export const financeApi = {
         interest_rate: o.interest_rate != null ? Number(o.interest_rate) : undefined,
         fees: o.fees != null ? Number(o.fees) : undefined,
         monthly_payment: o.monthly_payment != null ? Number(o.monthly_payment) : undefined,
+        current_profitability:
+          o.current_profitability != null ? Number(o.current_profitability) : null,
       })),
     ),
   createObjective: (userId: string, dto: CreateObjectiveDto) =>
@@ -336,4 +363,54 @@ export const financeApi = {
         q.projected_final_balance != null ? Number(q.projected_final_balance) : null,
     };
   },
+
+  // ── Transferencias ────────────────────────────────────────────
+  getTransfers: (userId: string, page = 1, limit = 20) =>
+    api.get<TransferResponse[]>(
+      `users/${userId}/transfers?page=${page}&limit=${limit}`,
+    ),
+  getTransfer: (userId: string, id: string) =>
+    api.getOne<TransferResponse>(`users/${userId}/transfers/${id}`),
+  createTransfer: (userId: string, dto: CreateTransferDto) =>
+    api.post<TransferResponse>(`users/${userId}/transfers`, dto),
+  updateTransfer: (userId: string, id: string, dto: Partial<CreateTransferDto>) =>
+    api.patch<TransferResponse>(`users/${userId}/transfers/${id}`, dto),
+  deleteTransfer: (userId: string, id: string) =>
+    api.delete<void>(`users/${userId}/transfers/${id}`),
 };
+
+// ── Tipos de transferencia ─────────────────────────────────────
+
+export interface TransferMovement {
+  id: number;
+  account_id: number;
+  side: "source" | "destination";
+  bank_name: string | null;
+  account_type: string | null;
+  amount: number;
+  transaction_date: string;
+  description: string | null;
+  reference_code: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface TransferResponse {
+  transfer_group_id: string;
+  amount: number;
+  transaction_date: string;
+  description: string | null;
+  reference_code: string | null;
+  source: TransferMovement;
+  destination: TransferMovement;
+}
+
+export interface CreateTransferDto {
+  source_account_id: number;
+  destination_account_id: number;
+  amount: number;
+  transaction_date?: string;
+  description?: string;
+  reference_code?: string;
+  is_fixed?: boolean;
+}

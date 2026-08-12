@@ -25,6 +25,9 @@ import {
   Bar,
   BarChart,
   Legend,
+  Pie,
+  PieChart,
+  Cell,
 } from "recharts";
 import { Card, Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -172,13 +175,23 @@ export function Dashboard() {
     currentMonthTxs
       .filter((t) => t.type === "expense")
       .forEach((t) => {
-        map[t.category_id] = (map[t.category_id] ?? 0) + t.amount;
+        const catId = t.category_id ?? -1;
+        map[catId] = (map[catId] ?? 0) + t.amount;
       });
     return Object.entries(map)
-      .map(([catId, amt]) => ({ cat: categoryMap[Number(catId)] ?? `Cat ${catId}`, amt }))
+      .map(([catId, amt]) => ({ cat: categoryMap[Number(catId)] ?? "Por editar", amt }))
       .sort((a, b) => b.amt - a.amt)
       .slice(0, 6);
   }, [currentMonthTxs, categoryMap]);
+
+  const PIE_COLORS = [
+    "oklch(0.78 0.17 165)",
+    "oklch(0.68 0.20 18)",
+    "oklch(0.62 0.19 250)",
+    "oklch(0.80 0.15 85)",
+    "oklch(0.65 0.22 310)",
+    "oklch(0.55 0.20 20)",
+  ];
 
   return (
     <div className="space-y-7">
@@ -355,7 +368,7 @@ export function Dashboard() {
               </li>
             ) : (
               txs.slice(0, 5).map((t) => {
-                const categoryName = categoryMap[t.category_id] ?? "General";
+                const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
                 const Icon = getCategoryIcon(categoryName);
                 return (
                   <li
@@ -411,47 +424,84 @@ export function Dashboard() {
             <p className="text-sm text-muted-foreground">Principales categorias este periodo</p>
           </div>
         </div>
-        <div className="mt-6 h-64">
-          {categorySpending.length > 0 ? (
-            <ResponsiveContainer>
-              <BarChart data={categorySpending}>
-                <CartesianGrid
-                  stroke="oklch(0.30 0.014 260)"
-                  strokeDasharray="3 6"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="cat"
-                  stroke="oklch(0.68 0.02 260)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="oklch(0.68 0.02 260)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `$${v}`}
-                />
-                <Tooltip
-                  cursor={{ fill: "oklch(0.25 0.016 260 / 0.5)" }}
-                  contentStyle={{
-                    background: "oklch(0.21 0.014 260)",
-                    border: "1px solid oklch(0.30 0.014 260)",
-                    borderRadius: 12,
-                  }}
-                  formatter={(v: number) => fmtAmount(v)}
-                />
-                <Bar dataKey="amt" fill="oklch(0.78 0.17 165)" radius={[8, 8, 0, 0]} />
-                <Legend wrapperStyle={{ display: "none" }} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No hay datos de gastos para mostrar.
-            </div>
-          )}
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="h-64">
+            {categorySpending.length > 0 ? (
+              <ResponsiveContainer>
+                <BarChart data={categorySpending}>
+                  <CartesianGrid
+                    stroke="oklch(0.30 0.014 260)"
+                    strokeDasharray="3 6"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="cat"
+                    stroke="oklch(0.68 0.02 260)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="oklch(0.68 0.02 260)"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `$${v}`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "oklch(0.25 0.016 260 / 0.5)" }}
+                    contentStyle={{
+                      background: "oklch(0.21 0.014 260)",
+                      border: "1px solid oklch(0.30 0.014 260)",
+                      borderRadius: 12,
+                    }}
+                    formatter={(v: number) => fmtAmount(v)}
+                  />
+                  <Bar dataKey="amt" fill="oklch(0.78 0.17 165)" radius={[8, 8, 0, 0]} />
+                  <Legend wrapperStyle={{ display: "none" }} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No hay datos de gastos para mostrar.
+              </div>
+            )}
+          </div>
+          <div className="h-64">
+            {categorySpending.length > 0 ? (
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={categorySpending}
+                    dataKey="amt"
+                    nameKey="cat"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    strokeWidth={0}
+                  >
+                    {categorySpending.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "oklch(0.21 0.014 260)",
+                      border: "1px solid oklch(0.30 0.014 260)",
+                      borderRadius: 12,
+                    }}
+                    formatter={(v: number) => fmtAmount(v)}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No hay datos de gastos para mostrar.
+              </div>
+            )}
+          </div>
         </div>
       </Card>
 

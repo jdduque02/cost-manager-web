@@ -10,6 +10,8 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Star,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
@@ -20,15 +22,19 @@ import {
   useDeleteBankAccount,
   useDeleteFinancialAsset,
   useDeleteFinancialLiability,
+  useUpdateBankAccount,
   useRefreshAssetQuotes,
   useTransactions,
   useCategories,
 } from "@/lib/hooks/use-api";
 import { WealthDialog } from "./WealthDialog";
+import { TransactionsDetailModal } from "./TransactionsDetailModal";
+import { CurrencyConverter } from "./CurrencyConverter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/banking";
+import { accountTypeLabel } from "@/lib/api/banking";
 import type { TransactionRecord } from "@/lib/api/finance";
 
 const COLORS = [
@@ -50,48 +56,6 @@ interface DeleteTarget {
   name: string;
 }
 
-function LinkedSection({
-  transactions,
-  categoryMap,
-  fmtAmount,
-}: {
-  transactions: TransactionRecord[];
-  categoryMap: Map<number, string>;
-  fmtAmount: (v: number) => string;
-}) {
-  if (transactions.length === 0) return null;
-  return (
-    <div className="mt-2 space-y-1.5 border-t border-border/60 pt-2">
-      <p className="text-xs font-medium text-muted-foreground">
-        Transacciones vinculadas ({transactions.length})
-      </p>
-      {transactions.slice(0, 3).map((t) => (
-        <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
-          <span className="truncate text-muted-foreground">
-            {t.description ?? categoryMap.get(t.category_id) ?? "Sin descripción"}
-          </span>
-          <span
-            className={cn(
-              "shrink-0 tabular-nums font-medium",
-              t.type === "income"
-                ? "text-success"
-                : t.type === "investment"
-                  ? "text-primary"
-                  : "text-destructive",
-            )}
-          >
-            {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
-            {fmtAmount(t.amount)}
-          </span>
-        </div>
-      ))}
-      {transactions.length > 3 && (
-        <p className="text-xs text-muted-foreground/70">+{transactions.length - 3} más</p>
-      )}
-    </div>
-  );
-}
-
 function Row({
   name,
   value,
@@ -99,11 +63,17 @@ function Row({
   currency,
   symbol,
   yieldPct,
+  yieldFrequency,
   debt,
   onEdit,
   onDelete,
+  onShowDetails,
   fmtAmount,
-  links,
+  transactionCount,
+  isPrimary,
+  exempt4x1000,
+  onTogglePrimary,
+  onToggleExempt,
 }: {
   name: string;
   value: number;
@@ -111,12 +81,19 @@ function Row({
   currency?: string;
   symbol?: string | null;
   yieldPct?: number | null;
+  yieldFrequency?: string;
   debt?: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onShowDetails: () => void;
   fmtAmount: (v: number) => string;
-  links?: { transactions: TransactionRecord[]; categoryMap: Map<number, string> };
+  transactionCount: number;
+  isPrimary?: boolean;
+  exempt4x1000?: boolean;
+  onTogglePrimary?: () => void;
+  onToggleExempt?: () => void;
 }) {
+  const isAccount = onTogglePrimary !== undefined || onToggleExempt !== undefined;
   return (
     <div className="group rounded-xl border border-border bg-surface/40 p-4">
       <div className="flex items-center justify-between">
@@ -124,7 +101,7 @@ function Row({
           <p className="text-sm font-medium">{name}</p>
           <p className="text-xs text-muted-foreground">
             {type}
-            {currency && currency !== "COP" ? (
+            {currency ? (
               <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
                 ({currency})
               </span>
@@ -135,7 +112,12 @@ function Row({
               </span>
             ) : null}
             {yieldPct != null ? (
-              <span className="ml-1.5 font-mono text-[10px] text-success/80">{yieldPct}%</span>
+              <span className="ml-1.5 font-mono text-[10px] text-success/80">
+                {yieldPct}%
+                {yieldFrequency
+                  ? ` ${yieldFrequency === "daily" ? "diario" : yieldFrequency === "monthly" ? "mensual" : "anual"}`
+                  : ""}
+              </span>
             ) : null}
           </p>
         </div>
@@ -162,13 +144,40 @@ function Row({
           </div>
         </div>
       </div>
-      {links ? (
-        <LinkedSection
-          transactions={links.transactions}
-          categoryMap={links.categoryMap}
-          fmtAmount={fmtAmount}
-        />
-      ) : null}
+      {isAccount && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={onTogglePrimary}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+              isPrimary
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+            )}
+          >
+            <Star className="h-3.5 w-3.5" />
+            {isPrimary ? "Principal" : "Marcar principal"}
+          </button>
+          <button
+            onClick={onToggleExempt}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+              exempt4x1000
+                ? "border-success/40 bg-success/10 text-success"
+                : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+            )}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {exempt4x1000 ? "Exenta 4x1000" : "Marcar exenta 4x1000"}
+          </button>
+        </div>
+      )}
+      <button
+        onClick={onShowDetails}
+        className="mt-3 w-full rounded-lg border border-border/60 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+      >
+        Ver detalles ({transactionCount})
+      </button>
     </div>
   );
 }
@@ -182,6 +191,7 @@ export function Wealth() {
   const deleteAccount = useDeleteBankAccount();
   const deleteAsset = useDeleteFinancialAsset();
   const deleteLiability = useDeleteFinancialLiability();
+  const updateAccount = useUpdateBankAccount();
   const refreshQuotes = useRefreshAssetQuotes();
   const fmtAmount = useFormattedAmount();
 
@@ -218,6 +228,11 @@ export function Wealth() {
     BankAccount | FinancialAsset | FinancialLiability | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [detailsTarget, setDetailsTarget] = useState<{
+    title: string;
+    subtitle?: string;
+    transactions: TransactionRecord[];
+  } | null>(null);
 
   const totalAssets = useMemo(() => {
     const accTotal = accounts.reduce((sum, a) => sum + Number(a.display_balance ?? 0), 0);
@@ -227,6 +242,27 @@ export function Wealth() {
 
   const totalLiab = liabilities.reduce((sum, l) => sum + Number(l.current_balance ?? 0), 0);
   const net = totalAssets - totalLiab;
+
+  const projection = useMemo(() => {
+    const rateItems = [
+      ...accounts.map((a) => ({
+        v: Number(a.display_balance ?? 0),
+        r: Number(a.annual_interest_rate ?? 0),
+      })),
+      ...assets.map((a) => ({
+        v: Number(a.current_value ?? 0),
+        r: Number(a.current_yield ?? 0),
+      })),
+    ].filter((x) => x.v > 0 && x.r > 0);
+    const ratedValue = rateItems.reduce((s, x) => s + x.v, 0);
+    const blendedRate =
+      ratedValue > 0 ? rateItems.reduce((s, x) => s + (x.v * x.r) / ratedValue, 0) : 0;
+    const projected = (years: number) =>
+      blendedRate > 0
+        ? Math.round(totalAssets * Math.pow(1 + blendedRate / 100, years) * 100) / 100
+        : null;
+    return { blendedRate, ratedValue, projected5y: projected(5), projected10y: projected(10) };
+  }, [accounts, assets, totalAssets]);
 
   const isLoading = loadAcc || loadAst || loadLia;
 
@@ -241,7 +277,13 @@ export function Wealth() {
     "cryptomonedas",
     "ahorro_alto_rendimiento",
   ];
-  const investmentAccountTypes = ["inversion", "fna", "aporte_pension_voluntaria"];
+  const investmentAccountTypes = [
+    "inversion",
+    "cdt",
+    "ahorro_alto_rendimiento",
+    "fna",
+    "aporte_pension_voluntaria",
+  ];
   const investments =
     assets
       .filter((a) => investmentAssetTypes.includes(a.asset_type))
@@ -309,6 +351,37 @@ export function Wealth() {
     });
   }
 
+  function handleTogglePrimary(account: BankAccount) {
+    const next = !account.is_primary;
+    const updates = accounts.map((a) =>
+      a.id === account.id ? { id: String(a.id), dto: { is_primary: next } } : null,
+    );
+    if (next) {
+      accounts.forEach((a) => {
+        if (a.id !== account.id && a.is_primary) {
+          updates.push({ id: String(a.id), dto: { is_primary: false } });
+        }
+      });
+    }
+    Promise.all(updates.filter(Boolean).map((u) => updateAccount.mutateAsync(u!)))
+      .then(() => toast.success(next ? "Cuenta principal actualizada" : "Ya no es principal"))
+      .catch(() => toast.error("Error al actualizar la cuenta principal"));
+  }
+
+  function handleToggleExempt(account: BankAccount) {
+    const next = !account.exempt_4x1000;
+    const updates = accounts.map((a) =>
+      a.id === account.id
+        ? { id: String(a.id), dto: { exempt_4x1000: next } }
+        : next && a.exempt_4x1000
+          ? { id: String(a.id), dto: { exempt_4x1000: false } }
+          : null,
+    );
+    Promise.all(updates.filter(Boolean).map((u) => updateAccount.mutateAsync(u!)))
+      .then(() => toast.success(next ? "Cuenta exenta del 4x1000" : "Cuenta ya no exenta"))
+      .catch(() => toast.error("Error al actualizar la exención 4x1000"));
+  }
+
   const hasSymbolizedAssets = assets.some((a) => !!a.symbol);
 
   if (isLoading) {
@@ -348,7 +421,7 @@ export function Wealth() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Total Activos</p>
           <p className="mt-2 font-display text-2xl font-semibold text-success">
@@ -365,7 +438,28 @@ export function Wealth() {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Patrimonio Neto</p>
           <p className="mt-2 font-display text-2xl font-semibold">{fmtAmount(net)}</p>
         </Card>
+        <Card>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Proyeccion 10 anos
+          </p>
+          {projection.projected10y != null ? (
+            <>
+              <p className="mt-2 font-display text-2xl font-semibold text-primary">
+                {fmtAmount(projection.projected10y)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {projection.blendedRate.toFixed(2)}% anual ponderado · interes compuesto
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Define tasas/rentabilidad en cuentas y activos para proyectar.
+            </p>
+          )}
+        </Card>
       </div>
+
+      <CurrencyConverter />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -390,48 +484,188 @@ export function Wealth() {
                   Consultar valores en línea
                 </button>
               </div>
-              <div className="space-y-2.5">
+              <div className="space-y-4">
                 {assets.length === 0 && accounts.length === 0 && (
                   <p className="text-sm text-muted-foreground">No se encontraron activos.</p>
                 )}
-                {accounts.map((a) => (
-                  <Row
-                    key={`acc-${a.id}`}
-                    name={`${a.bank_name} - ${humanizeType(a.account_type)}`}
-                    value={Number(a.display_balance ?? 0)}
-                    type={humanizeType(a.account_type)}
-                    currency={a.currency}
-                    onEdit={() => openEdit("account", a)}
-                    onDelete={() =>
-                      setDeleteTarget({ type: "account", id: String(a.id), name: a.bank_name })
-                    }
-                    fmtAmount={fmtAmount}
-                    links={{
-                      transactions: linked.byAccount.get(a.id) ?? [],
-                      categoryMap,
-                    }}
-                  />
-                ))}
-                {assets.map((a) => (
-                  <Row
-                    key={`ast-${a.id}`}
-                    name={a.name}
-                    value={Number(a.current_value)}
-                    type={humanizeType(a.asset_type)}
-                    currency={a.currency}
-                    symbol={a.symbol}
-                    yieldPct={a.current_yield}
-                    onEdit={() => openEdit("asset", a)}
-                    onDelete={() =>
-                      setDeleteTarget({ type: "asset", id: String(a.id), name: a.name })
-                    }
-                    fmtAmount={fmtAmount}
-                    links={{
-                      transactions: linked.byAsset.get(a.id) ?? [],
-                      categoryMap,
-                    }}
-                  />
-                ))}
+
+                {/* ── Cuentas de ahorro ── */}
+                {accounts.filter((a) => a.account_type === "ahorros").length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Cuentas de ahorro
+                    </p>
+                    <div className="space-y-2.5">
+                      {accounts
+                        .filter((a) => a.account_type === "ahorros")
+                        .map((a) => (
+                          <Row
+                            key={`acc-${a.id}`}
+                            name={`${a.bank_name} - ${accountTypeLabel(a.account_type)}`}
+                            value={Number(a.display_balance ?? 0)}
+                            type={accountTypeLabel(a.account_type)}
+                            currency={a.currency}
+                            yieldPct={a.annual_interest_rate}
+                            yieldFrequency={a.yield_frequency}
+                            onEdit={() => openEdit("account", a)}
+                            onDelete={() =>
+                              setDeleteTarget({
+                                type: "account",
+                                id: String(a.id),
+                                name: a.bank_name,
+                              })
+                            }
+                            onShowDetails={() =>
+                              setDetailsTarget({
+                                title: `${a.bank_name} - ${accountTypeLabel(a.account_type)}`,
+                                subtitle: `Saldo actual: ${fmtAmount(Number(a.display_balance ?? 0))}`,
+                                transactions: linked.byAccount.get(a.id) ?? [],
+                              })
+                            }
+                            isPrimary={a.is_primary}
+                            exempt4x1000={a.exempt_4x1000}
+                            onTogglePrimary={() => handleTogglePrimary(a)}
+                            onToggleExempt={() => handleToggleExempt(a)}
+                            fmtAmount={fmtAmount}
+                            transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Cuentas corrientes ── */}
+                {accounts.filter((a) => a.account_type === "corriente").length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Cuentas corrientes
+                    </p>
+                    <div className="space-y-2.5">
+                      {accounts
+                        .filter((a) => a.account_type === "corriente")
+                        .map((a) => (
+                          <Row
+                            key={`acc-${a.id}`}
+                            name={`${a.bank_name} - ${accountTypeLabel(a.account_type)}`}
+                            value={Number(a.display_balance ?? 0)}
+                            type={accountTypeLabel(a.account_type)}
+                            currency={a.currency}
+                            yieldPct={a.annual_interest_rate}
+                            yieldFrequency={a.yield_frequency}
+                            onEdit={() => openEdit("account", a)}
+                            onDelete={() =>
+                              setDeleteTarget({
+                                type: "account",
+                                id: String(a.id),
+                                name: a.bank_name,
+                              })
+                            }
+                            onShowDetails={() =>
+                              setDetailsTarget({
+                                title: `${a.bank_name} - ${accountTypeLabel(a.account_type)}`,
+                                subtitle: `Saldo actual: ${fmtAmount(Number(a.display_balance ?? 0))}`,
+                                transactions: linked.byAccount.get(a.id) ?? [],
+                              })
+                            }
+                            isPrimary={a.is_primary}
+                            exempt4x1000={a.exempt_4x1000}
+                            onTogglePrimary={() => handleTogglePrimary(a)}
+                            onToggleExempt={() => handleToggleExempt(a)}
+                            fmtAmount={fmtAmount}
+                            transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Inversiones (cuentas) ── */}
+                {accounts.filter(
+                  (a) =>
+                    a.account_type !== "ahorros" &&
+                    a.account_type !== "corriente",
+                ).length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Inversiones
+                    </p>
+                    <div className="space-y-2.5">
+                      {accounts
+                        .filter(
+                          (a) =>
+                            a.account_type !== "ahorros" &&
+                            a.account_type !== "corriente",
+                        )
+                        .map((a) => (
+                          <Row
+                            key={`acc-${a.id}`}
+                            name={`${a.bank_name} - ${accountTypeLabel(a.account_type)}`}
+                            value={Number(a.display_balance ?? 0)}
+                            type={accountTypeLabel(a.account_type)}
+                            currency={a.currency}
+                            yieldPct={a.annual_interest_rate}
+                            yieldFrequency={a.yield_frequency}
+                            onEdit={() => openEdit("account", a)}
+                            onDelete={() =>
+                              setDeleteTarget({
+                                type: "account",
+                                id: String(a.id),
+                                name: a.bank_name,
+                              })
+                            }
+                            onShowDetails={() =>
+                              setDetailsTarget({
+                                title: `${a.bank_name} - ${accountTypeLabel(a.account_type)}`,
+                                subtitle: `Saldo actual: ${fmtAmount(Number(a.display_balance ?? 0))}`,
+                                transactions: linked.byAccount.get(a.id) ?? [],
+                              })
+                            }
+                            isPrimary={a.is_primary}
+                            exempt4x1000={a.exempt_4x1000}
+                            onTogglePrimary={() => handleTogglePrimary(a)}
+                            onToggleExempt={() => handleToggleExempt(a)}
+                            fmtAmount={fmtAmount}
+                            transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Acciones / Activos financieros ── */}
+                {assets.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Acciones / Activos
+                    </p>
+                    <div className="space-y-2.5">
+                      {assets.map((a) => (
+                        <Row
+                          key={`ast-${a.id}`}
+                          name={a.name}
+                          value={Number(a.current_value)}
+                          type={humanizeType(a.asset_type)}
+                          currency={a.currency}
+                          symbol={a.symbol}
+                          yieldPct={a.current_yield}
+                          onEdit={() => openEdit("asset", a)}
+                          onDelete={() =>
+                            setDeleteTarget({ type: "asset", id: String(a.id), name: a.name })
+                          }
+                          onShowDetails={() =>
+                            setDetailsTarget({
+                              title: a.name,
+                              subtitle: `Valor actual: ${fmtAmount(Number(a.current_value ?? 0))}`,
+                              transactions: linked.byAsset.get(a.id) ?? [],
+                            })
+                          }
+                          fmtAmount={fmtAmount}
+                          transactionCount={linked.byAsset.get(a.id)?.length ?? 0}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
             <section>
@@ -457,11 +691,15 @@ export function Wealth() {
                     onDelete={() =>
                       setDeleteTarget({ type: "liability", id: String(l.id), name: l.name })
                     }
+                    onShowDetails={() =>
+                      setDetailsTarget({
+                        title: l.name,
+                        subtitle: `Saldo actual: ${fmtAmount(Number(l.current_balance ?? 0))}`,
+                        transactions: linked.byLiability.get(l.id) ?? [],
+                      })
+                    }
                     fmtAmount={fmtAmount}
-                    links={{
-                      transactions: linked.byLiability.get(l.id) ?? [],
-                      categoryMap,
-                    }}
+                    transactionCount={linked.byLiability.get(l.id)?.length ?? 0}
                   />
                 ))}
               </div>
@@ -573,6 +811,17 @@ export function Wealth() {
         description={`¿Estás seguro de eliminar "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer.`}
         onConfirm={handleDeleteConfirm}
         loading={deleteAccount.isPending || deleteAsset.isPending || deleteLiability.isPending}
+      />
+
+      <TransactionsDetailModal
+        open={!!detailsTarget}
+        onOpenChange={(v) => {
+          if (!v) setDetailsTarget(null);
+        }}
+        title={detailsTarget?.title ?? ""}
+        subtitle={detailsTarget?.subtitle}
+        transactions={detailsTarget?.transactions ?? []}
+        categoryMap={categoryMap}
       />
     </div>
   );

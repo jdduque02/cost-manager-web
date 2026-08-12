@@ -247,7 +247,7 @@ export function TransactionCalendar({
             </div>
           ) : (
             dayTransactions.map((t) => {
-              const categoryName = categoryMap[t.category_id] ?? "General";
+              const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
               return (
                 <div
                   key={t.id}

@@ -19,6 +19,9 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Pie,
+  PieChart,
+  Cell,
 } from "recharts";
 import { Card, Badge } from "@/components/ui/primitives";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -193,7 +196,7 @@ export function Reports() {
   }, [categories]);
 
   const totals = data?.totals;
-  const balance = (totals?.income ?? 0) - (totals?.expenses ?? 0);
+  const balance = (totals?.income ?? 0) - (totals?.expenses ?? 0) - (totals?.investments ?? 0);
 
   const chartData = useMemo(
     () =>
@@ -216,6 +219,15 @@ export function Reports() {
   const maxCategory = categoryBreakdown.length
     ? Math.max(...categoryBreakdown.map((c) => c.expenses))
     : 0;
+
+  const PIE_COLORS = [
+    "oklch(0.78 0.17 165)",
+    "oklch(0.68 0.20 18)",
+    "oklch(0.62 0.19 250)",
+    "oklch(0.80 0.15 85)",
+    "oklch(0.65 0.22 310)",
+    "oklch(0.55 0.20 20)",
+  ];
 
   return (
     <div className="space-y-7">
@@ -263,11 +275,19 @@ export function Reports() {
         <Card className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">Desde</p>
-            <DatePicker value={customFrom} onChange={(d) => setCustomFrom(d ?? undefined)} />
+            <DatePicker
+              value={customFrom}
+              onChange={(d) => setCustomFrom(d ?? undefined)}
+              placeholder="Seleccionar"
+            />
           </div>
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">Hasta</p>
-            <DatePicker value={customTo} onChange={(d) => setCustomTo(d ?? undefined)} />
+            <DatePicker
+              value={customTo}
+              onChange={(d) => setCustomTo(d ?? undefined)}
+              placeholder="Seleccionar"
+            />
           </div>
           <p className="text-xs text-muted-foreground sm:pb-2">{diffDays} días seleccionados</p>
         </Card>
@@ -311,7 +331,7 @@ export function Reports() {
             <KpiCard
               label="Balance"
               value={fmtAmount(balance)}
-              hint="Ing. - Gastos"
+              hint="Ing. - Gastos - Inv."
               tone="neutral"
               icon={Wallet}
             />
@@ -382,26 +402,60 @@ export function Reports() {
                 Sin gastos en el periodo seleccionado.
               </p>
             ) : (
-              <ul className="space-y-3">
-                {categoryBreakdown.map((c) => (
-                  <li key={c.category_id}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {fmtAmount(c.expenses)} · {c.count} mov.
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className="h-full rounded-full bg-destructive/70 transition-all"
-                        style={{
-                          width: maxCategory ? `${(c.expenses / maxCategory) * 100}%` : "0%",
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <ul className="space-y-3">
+                  {categoryBreakdown.map((c) => (
+                    <li key={c.category_id}>
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {fmtAmount(c.expenses)} · {c.count} mov.
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                        <div
+                          className="h-full rounded-full bg-destructive/70 transition-all"
+                          style={{
+                            width: maxCategory ? `${(c.expenses / maxCategory) * 100}%` : "0%",
+                          }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="h-64">
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={categoryBreakdown.map((c) => ({
+                          name: c.name,
+                          value: c.expenses,
+                        }))}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        strokeWidth={0}
+                      >
+                        {categoryBreakdown.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: "oklch(0.21 0.014 260)",
+                          border: "1px solid oklch(0.30 0.014 260)",
+                          borderRadius: 12,
                         }}
+                        formatter={(v: number) => fmtAmount(v)}
                       />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             )}
           </Card>
         </>
@@ -410,9 +464,8 @@ export function Reports() {
       <div className="flex items-start gap-3 rounded-2xl border border-border bg-surface/60 p-4 text-sm">
         <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <p className="text-muted-foreground">
-          Los reportes agrupan transacciones por su fecha de negocio (
-          <span className="font-medium text-foreground">transaction_date</span>), del primer al
-          último día del periodo seleccionado. Inversiones se muestran por separado.
+          Los reportes agrupan transacciones por su fecha de transacción, del primer al último día
+          del periodo seleccionado. Inversiones se muestran por separado.
         </p>
       </div>
     </div>

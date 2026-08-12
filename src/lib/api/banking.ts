@@ -24,9 +24,26 @@ export type AccountType =
   | "ahorros"
   | "corriente"
   | "inversion"
+  | "cdt"
+  | "ahorro_alto_rendimiento"
   | "fna"
   | "aporte_pension_voluntaria"
   | "otro";
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  ahorros: "Ahorros",
+  corriente: "Corriente",
+  inversion: "Inversión",
+  cdt: "CDT / Inversión",
+  ahorro_alto_rendimiento: "Cuenta de ahorro de alto rendimiento",
+  fna: "FNA - Fondo Nacional del Ahorro",
+  aporte_pension_voluntaria: "Aporte Pensión Voluntaria",
+  otro: "Otro",
+};
+
+export function accountTypeLabel(type: string): string {
+  return ACCOUNT_TYPE_LABELS[type as AccountType] ?? type.replace(/_/g, " ");
+}
 
 export interface BankAccount {
   id: number;
@@ -36,7 +53,10 @@ export interface BankAccount {
   masked_account_number: string;
   display_balance: string;
   currency: string;
+  annual_interest_rate?: number | null;
+  yield_frequency: string;
   is_primary: boolean;
+  exempt_4x1000: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -47,7 +67,17 @@ export interface CreateBankAccountDto {
   account_number: string;
   balance: number;
   currency?: string;
+  annual_interest_rate?: number;
+  yield_frequency?: string;
   is_primary?: boolean;
+  exempt_4x1000?: boolean;
+}
+
+export interface FxRates {
+  cop_per_usd: number;
+  usd_per_cop: number;
+  source: string;
+  updated_at: string;
 }
 
 export interface FinancialAsset {
@@ -111,6 +141,8 @@ export const bankingApi = {
     api.patch<BankAccount>(`users/${userId}/bank-accounts/${id}`, dto),
   deleteAccount: (userId: string, id: string) =>
     api.delete<void>(`users/${userId}/bank-accounts/${id}`),
+
+  getCurrencyRates: () => api.get<FxRates>(`currency/rates`),
 
   getAssets: (userId: string) =>
     api.get<FinancialAsset[]>(`users/${userId}/financial-assets`).then((assets) =>

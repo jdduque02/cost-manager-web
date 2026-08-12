@@ -9,10 +9,12 @@ import {
   useCategories,
 } from "@/lib/hooks/use-api";
 import { GoalDialog } from "./GoalDialog";
+import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { FinancialObjective } from "@/lib/api/finance";
+import type { TransactionRecord } from "@/lib/api/finance";
 
 function getGoalIcon(name?: string) {
   if (!name) return Tag;
@@ -52,6 +54,10 @@ export function Goals() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<FinancialObjective | null>(null);
   const [deletingGoal, setDeletingGoal] = useState<FinancialObjective | null>(null);
+  const [detailsTarget, setDetailsTarget] = useState<{
+    goal: FinancialObjective;
+    transactions: TransactionRecord[];
+  } | null>(null);
 
   function handleEdit(goal: FinancialObjective) {
     setEditingGoal(goal);
@@ -166,7 +172,9 @@ export function Goals() {
                     {(linkedByGoal.get(g.id) ?? []).slice(0, 3).map((t) => (
                       <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
                         <span className="truncate text-muted-foreground">
-                          {t.description ?? categoryMap.get(t.category_id) ?? "Sin descripción"}
+                          {t.description ??
+                            categoryMap.get(t.category_id ?? -1) ??
+                            "Sin descripción"}
                         </span>
                         <span
                           className={cn(
@@ -195,11 +203,38 @@ export function Goals() {
                     )}
                   </div>
                 </div>
+
+                <button
+                  onClick={() =>
+                    setDetailsTarget({
+                      goal: g,
+                      transactions: linkedByGoal.get(g.id) ?? [],
+                    })
+                  }
+                  className="mt-3 w-full rounded-lg border border-border/60 py-2 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                >
+                  Ver detalles ({linkedByGoal.get(g.id)?.length ?? 0})
+                </button>
               </Card>
             );
           })}
         </div>
       )}
+
+      <TransactionsDetailModal
+        open={!!detailsTarget}
+        onOpenChange={(v) => {
+          if (!v) setDetailsTarget(null);
+        }}
+        title={detailsTarget?.goal.name ?? ""}
+        subtitle={
+          detailsTarget
+            ? `Saldo actual: ${fmtAmount(detailsTarget.goal.current_balance ?? 0)}`
+            : undefined
+        }
+        transactions={detailsTarget?.transactions ?? []}
+        categoryMap={categoryMap}
+      />
 
       <GoalDialog open={dialogOpen} onOpenChange={handleDialogClose} goal={editingGoal} />
 

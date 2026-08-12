@@ -18,6 +18,7 @@ import {
   EyeOff,
   Newspaper,
   BarChart3,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -35,6 +36,7 @@ const nav = [
   { to: "/categories", label: "Categorías", icon: Tag },
   { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles },
   { to: "/news", label: "Noticias", icon: Newspaper },
+  { to: "/emails", label: "Emails", icon: Mail },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
