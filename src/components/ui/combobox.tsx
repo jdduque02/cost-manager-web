@@ -2,11 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Check, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
   CommandInput,
@@ -112,9 +108,7 @@ export function Combobox({
   const listRef = useRef<HTMLDivElement>(null);
 
   const hasGroups = groups && groups.length > 0;
-  const allItems = hasGroups
-    ? groups.flatMap((g) => g.items)
-    : items ?? [];
+  const allItems = hasGroups ? groups.flatMap((g) => g.items) : (items ?? []);
 
   const selectedLabel = allItems.find((i) => i.value === value)?.label;
 

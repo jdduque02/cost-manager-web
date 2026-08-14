@@ -5,7 +5,7 @@ import { getAccessToken } from "@/lib/api/client";
 export const Route = createFileRoute("/register")({
   beforeLoad: () => {
     if (getAccessToken()) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/dashboard" });
     }
   },
   component: Register,

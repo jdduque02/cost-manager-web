@@ -12,7 +12,10 @@ export interface User {
   address?: string | null;
   document_id?: string | null;
   metadata?: Record<string, unknown>;
+  roles?: string[];
   is_active: boolean;
+  last_login_at?: string | null;
+  is_online?: boolean;
   created_at: string;
   updated_at: string | null;
   financial_profile?: FinancialProfile | null;

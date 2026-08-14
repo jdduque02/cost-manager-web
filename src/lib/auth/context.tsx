@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authApi, type AuthTokens } from "@/lib/api/auth";
-import { getAccessToken, clearTokens, getStoredUserId } from "@/lib/api/client";
+import {
+  getAccessToken,
+  clearTokens,
+  getStoredUserId,
+  setStoredUserId,
+  tryRestoreSession,
+} from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 
 export interface AuthState {
@@ -8,6 +14,8 @@ export interface AuthState {
   userId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdmin: boolean;
+  roles: string[];
   login: (username: string, password: string) => Promise<AuthTokens>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -15,27 +23,60 @@ export interface AuthState {
 
 export const AuthContext = createContext<AuthState | null>(null);
 
+function resolveRoles(user: User | null): string[] {
+  if (!user) return [];
+  if (Array.isArray(user.roles) && user.roles.length) return user.roles;
+  return [];
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = getAccessToken();
-    const userId = getStoredUserId();
-    if (!token || !userId) {
-      clearTokens();
-      setIsLoading(false);
-      return;
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        let token = getAccessToken();
+        let userId = getStoredUserId();
+
+        if (!token) {
+          const restored = await tryRestoreSession();
+          if (!restored) {
+            if (!cancelled) setIsLoading(false);
+            return;
+          }
+          token = getAccessToken();
+          userId = getStoredUserId();
+        }
+
+        if (!token || !userId) {
+          clearTokens();
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+
+        const u = await identityApi.getUser(userId, token);
+        if (!cancelled) {
+          if (u) {
+            setUser(u);
+            setStoredUserId(u.id);
+          } else {
+            clearTokens();
+          }
+        }
+      } catch {
+        clearTokens();
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
 
-    identityApi
-      .getUser(userId, token)
-      .then((u) => {
-        if (u) setUser(u);
-        else clearTokens();
-      })
-      .catch(() => clearTokens())
-      .finally(() => setIsLoading(false));
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
@@ -51,7 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const u = await identityApi.getUser(String(result.userId), result.accessToken);
     setUser(u);
-    return { access_token: result.accessToken, refresh_token: result.refreshToken };
+    setStoredUserId(u.id);
+    return { access_token: result.accessToken, refresh_token: result.refreshToken ?? "" };
   }, []);
 
   const logout = useCallback(async () => {
@@ -61,11 +103,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     const token = getAccessToken();
-    const id = getStoredUserId();
+    const id = getStoredUserId() ?? user?.id ?? null;
     if (!token || !id) return;
     const u = await identityApi.getUser(id, token);
     if (u) setUser(u);
-  }, []);
+  }, [user?.id]);
+
+  const roles = resolveRoles(user);
+  const isAdmin = roles.includes("admin");
 
   return (
     <AuthContext.Provider
@@ -74,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userId: user?.id ?? null,
         isAuthenticated: !!user,
         isLoading,
+        isAdmin,
+        roles,
         login,
         logout,
         refreshUser,

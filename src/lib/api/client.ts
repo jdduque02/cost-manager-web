@@ -2,17 +2,17 @@
  * API Client — Cost Manager Backend
  * Base URL: http://localhost:3000/api/v1
  *
- * Authentication flow:
- * 1. POST /auth/login  → receives access_token + refresh_token
- * 2. All subsequent requests include Authorization: Bearer <access_token>
- * 3. On 401, call POST /auth/refresh with refresh_token
- *
- * Response envelope: All responses are wrapped in ApiResponseDto:
- * { status: boolean, message: string, data: T[], timestamp: string }
- * This client automatically unwraps the envelope.
+ * Auth hybrid:
+ * - access token en memoria (no localStorage) + cookie httpOnly del backend
+ * - refresh token solo en cookie httpOnly; el body de refresh es opcional
+ * - credentials: 'include' en todos los fetch
  */
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1") + "/";
+
+/** Access token en memoria (XSS-safe vs localStorage). */
+let memoryAccessToken: string | null = null;
+let memoryUserId: string | null = null;
 
 /** Check if response has ApiResponseDto shape */
 function isApiResponseEnvelope(json: unknown): json is {
@@ -33,16 +33,15 @@ function isApiResponseEnvelope(json: unknown): json is {
 
 /**
  * Unwrap the ApiResponseDto envelope.
- * The backend always wraps responses as { status, data: T[], message, timestamp }.
- * - Paginated: data = [{ data: [...items], total: N }] → returns the inner items array
- * - All others: data = [item1, item2, ...] → returns the array as-is
+ * - Paginated: data = [{ data: [...items], total: N }] → returns items array by default
+ * - All others: data = [item1, ...] → returns the array as-is
+ * Use `preservePaginated: true` in apiFetch to keep `{ data, total }`.
  */
-function unwrapEnvelope<T>(json: Record<string, unknown>): T {
+function unwrapEnvelope<T>(json: Record<string, unknown>, preservePaginated = false): T {
   const data = json.data as unknown[];
   if (data.length === 0) return [] as unknown as T;
   if (data.length === 1) {
     const single = data[0];
-    // Handle paginated response: { data: [...items], total: N }
     if (
       single !== null &&
       typeof single === "object" &&
@@ -50,58 +49,50 @@ function unwrapEnvelope<T>(json: Record<string, unknown>): T {
       "total" in single &&
       Array.isArray((single as Record<string, unknown>).data)
     ) {
-      return (single as Record<string, unknown>).data as T;
+      return (preservePaginated ? single : (single as Record<string, unknown>).data) as T;
     }
   }
   return data as unknown as T;
 }
 
-/** Retrieve stored token from localStorage */
 export function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("cm_access_token");
+  return memoryAccessToken;
 }
 
-export function setTokens(access: string, refresh: string, userId?: number | string) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem("cm_access_token", access);
-  localStorage.setItem("cm_refresh_token", refresh);
-  if (userId !== undefined) localStorage.setItem("cm_user_id", String(userId));
-  // Avisa al socket para que reconecte con el access token fresco.
-  window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+export function setTokens(access: string, _refresh?: string, userId?: number | string) {
+  memoryAccessToken = access;
+  if (userId !== undefined) memoryUserId = String(userId);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+  }
 }
 
 export function clearTokens() {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("cm_access_token");
-  localStorage.removeItem("cm_refresh_token");
-  localStorage.removeItem("cm_user_id");
+  memoryAccessToken = null;
+  memoryUserId = null;
 }
 
 export function getStoredUserId(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("cm_user_id");
+  return memoryUserId;
 }
 
 export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("cm_refresh_token");
+  // Refresh vive en cookie httpOnly; el cliente no lo lee.
+  return null;
 }
 
-let refreshInFlight: Promise<{ access_token: string; refresh_token: string }> | null = null;
+export function setStoredUserId(userId: string | number | null) {
+  memoryUserId = userId == null ? null : String(userId);
+}
 
-/** Exchange the stored refresh token for a fresh pair (single in-flight request). */
-async function requestNewTokens(): Promise<{ access_token: string; refresh_token: string }> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) {
-    clearTokens();
-    throw new Error("Session expired. Please log in again.");
-  }
+let refreshInFlight: Promise<{ access_token: string; refresh_token?: string }> | null = null;
 
+async function requestNewTokens(): Promise<{ access_token: string; refresh_token?: string }> {
   const refreshRes = await fetch(`${BASE_URL}auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    credentials: "include",
+    body: JSON.stringify({}),
   });
 
   if (!refreshRes.ok) {
@@ -110,21 +101,15 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
   }
 
   const refreshJson = await refreshRes.json();
-  // Backend wraps in ApiResponseDto: { data: [{ access_token, refresh_token }] }
   const tokens = isApiResponseEnvelope(refreshJson)
-    ? (refreshJson.data[0] as { access_token: string; refresh_token: string })
-    : (refreshJson as { access_token: string; refresh_token: string });
+    ? (refreshJson.data[0] as { access_token: string; refresh_token?: string; userId?: number })
+    : (refreshJson as { access_token: string; refresh_token?: string; userId?: number });
 
-  setTokens(tokens.access_token, tokens.refresh_token);
+  setTokens(tokens.access_token, tokens.refresh_token, tokens.userId ?? memoryUserId ?? undefined);
   return tokens;
 }
 
-/**
- * Single-flight refresh: when an access token expires, several requests may hit
- * 401 at the same time. Sharing one refresh promise avoids racing refresh-token
- * rotation (which would invalidate every refresh but the first) and duplicate calls.
- */
-function refreshTokens(): Promise<{ access_token: string; refresh_token: string }> {
+function refreshTokens(): Promise<{ access_token: string; refresh_token?: string }> {
   if (!refreshInFlight) {
     refreshInFlight = requestNewTokens().finally(() => {
       refreshInFlight = null;
@@ -133,12 +118,23 @@ function refreshTokens(): Promise<{ access_token: string; refresh_token: string 
   return refreshInFlight;
 }
 
-/** Refresh token and retry request on 401 */
+/** Intenta recuperar sesión vía cookie de refresh (p. ej. al recargar). */
+export async function tryRestoreSession(): Promise<boolean> {
+  try {
+    await refreshTokens();
+    return !!memoryAccessToken;
+  } catch {
+    clearTokens();
+    return false;
+  }
+}
+
 async function refreshAndRetry(url: string, options: RequestInit): Promise<Response> {
   const tokens = await refreshTokens();
 
   const retryOptions = {
     ...options,
+    credentials: "include" as RequestCredentials,
     headers: {
       ...options.headers,
       Authorization: `Bearer ${tokens.access_token}`,
@@ -149,6 +145,8 @@ async function refreshAndRetry(url: string, options: RequestInit): Promise<Respo
 
 export interface ApiFetchOptions extends RequestInit {
   token?: string | null;
+  /** Si true, las respuestas paginadas se devuelven como `{ data, total }`. */
+  preservePaginated?: boolean;
 }
 
 /**
@@ -159,7 +157,7 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<T> {
-  const { token: explicitToken, ...fetchOptions } = options;
+  const { token: explicitToken, preservePaginated = false, ...fetchOptions } = options;
   const token = explicitToken ?? getAccessToken();
 
   const headers: HeadersInit = {
@@ -169,10 +167,14 @@ export async function apiFetch<T = unknown>(
   };
 
   const url = `${BASE_URL}${path}`;
-  let res = await fetch(url, { ...fetchOptions, headers });
+  let res = await fetch(url, { ...fetchOptions, headers, credentials: "include" });
 
-  if (res.status === 401 && token) {
-    res = await refreshAndRetry(url, { ...fetchOptions, headers });
+  if (res.status === 401) {
+    try {
+      res = await refreshAndRetry(url, { ...fetchOptions, headers });
+    } catch {
+      // fall through to error handling
+    }
   }
 
   if (!res.ok) {
@@ -183,16 +185,17 @@ export async function apiFetch<T = unknown>(
     } catch {
       // ignore JSON parse errors
     }
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
 
   if (res.status === 204) return undefined as T;
 
   const json = await res.json();
 
-  // Unwrap ApiResponseDto envelope if present
   if (isApiResponseEnvelope(json)) {
-    return unwrapEnvelope<T>(json);
+    return unwrapEnvelope<T>(json, preservePaginated);
   }
 
   return json as T;
@@ -200,15 +203,16 @@ export async function apiFetch<T = unknown>(
 
 export const api = {
   get: <T>(path: string, token?: string | null) => apiFetch<T>(path, { method: "GET", token }),
+  getPaginated: <T>(path: string, token?: string | null) =>
+    apiFetch<T>(path, { method: "GET", token, preservePaginated: true }),
   post: <T>(path: string, body: unknown, token?: string | null) =>
-    apiFetch<T>(path, { method: "POST", body: JSON.stringify(body), token }),
+    apiFetch<T>(path, { method: "POST", body: JSON.stringify(body ?? {}), token }),
   put: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "PUT", body: JSON.stringify(body), token }),
   patch: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body), token }),
   delete: <T>(path: string, token?: string | null) =>
     apiFetch<T>(path, { method: "DELETE", token }),
-  /** DELETE con cuerpo (p. ej. borrado masivo con { ids }). */
   deleteWithBody: <T>(path: string, body: unknown, token?: string | null) =>
     apiFetch<T>(path, {
       method: "DELETE",
@@ -216,7 +220,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       token,
     }),
-  /** Like get, but extracts the first element from the response array */
   getOne: async <T>(path: string, token?: string | null): Promise<T> => {
     const result = await apiFetch<T[]>(path, { method: "GET", token });
     return Array.isArray(result) ? result[0] : (result as unknown as T);
@@ -234,11 +237,6 @@ async function parseResponseError(res: Response): Promise<string> {
   return message;
 }
 
-/**
- * Multipart upload (POST). NO establece Content-Type: el navegador genera el
- * boundary correcto para FormData. Maneja refresh en 401 y desenvuelve el
- * ApiResponseDto igual que apiFetch.
- */
 export async function apiPostForm<T = unknown>(
   path: string,
   formData: FormData,
@@ -251,7 +249,12 @@ export async function apiPostForm<T = unknown>(
   };
 
   const url = `${BASE_URL}${path}`;
-  let res = await fetch(url, { method: "POST", headers, body: formData });
+  let res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  });
 
   if (res.status === 401 && authToken) {
     res = await refreshAndRetry(url, { method: "POST", headers, body: formData });

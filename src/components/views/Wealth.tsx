@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import {
   useBankAccounts,
   useFinancialAssets,
@@ -36,13 +37,6 @@ import { cn } from "@/lib/utils";
 import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/banking";
 import { accountTypeLabel } from "@/lib/api/banking";
 import type { TransactionRecord } from "@/lib/api/finance";
-
-const COLORS = [
-  "oklch(0.78 0.17 165)",
-  "oklch(0.7 0.18 250)",
-  "oklch(0.78 0.17 60)",
-  "oklch(0.68 0.20 18)",
-];
 
 type EntityType = "account" | "asset" | "liability";
 
@@ -194,6 +188,8 @@ export function Wealth() {
   const updateAccount = useUpdateBankAccount();
   const refreshQuotes = useRefreshAssetQuotes();
   const fmtAmount = useFormattedAmount();
+  const colors = useChartColors();
+  const COLORS = [colors.chart1, colors.chart2, colors.chart3, colors.chart5];
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
@@ -581,9 +577,7 @@ export function Wealth() {
 
                 {/* ── Inversiones (cuentas) ── */}
                 {accounts.filter(
-                  (a) =>
-                    a.account_type !== "ahorros" &&
-                    a.account_type !== "corriente",
+                  (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
                 ).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -592,9 +586,7 @@ export function Wealth() {
                     <div className="space-y-2.5">
                       {accounts
                         .filter(
-                          (a) =>
-                            a.account_type !== "ahorros" &&
-                            a.account_type !== "corriente",
+                          (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
                         )
                         .map((a) => (
                           <Row
@@ -729,8 +721,8 @@ export function Wealth() {
                     </Pie>
                     <Tooltip
                       contentStyle={{
-                        background: "oklch(0.21 0.014 260)",
-                        border: "1px solid oklch(0.30 0.014 260)",
+                        background: colors.card,
+                        border: `1px solid ${colors.cardBorder}`,
                         borderRadius: 12,
                       }}
                       formatter={(v: number) => fmtAmount(v)}

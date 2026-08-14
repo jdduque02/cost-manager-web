@@ -3,7 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications/context";
 import { VisibilityProvider } from "@/lib/visibility-context";
+import { ThemeProvider } from "@/components/theme-provider";
 import { LoadingBar } from "@/components/ui/loading-bar";
+import { AmbientBackground } from "@/components/ui/ambient-background";
 
 import appCss from "../styles.css?url";
 
@@ -11,7 +13,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      retry: (failureCount, error) => {
+        if ((error as { status?: number } | null)?.status === 429) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
     },
   },
@@ -44,14 +49,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cost Manager — Mindful Spend Mate" },
+      { title: "Cost Manager — Tu dinero bajo control" },
       {
         name: "description",
         content:
-          "Premium personal finance dashboard with AI insights, budgeting, wealth tracking and tax projections.",
+          "Controla tus gastos, alcanza tus metas de ahorro y toma mejores decisiones financieras con reportes e inteligencia fiscal en un solo lugar.",
       },
-      { property: "og:title", content: "Cost Manager — Mindful Spend Mate" },
-      { property: "og:description", content: "Premium personal finance dashboard" },
+      { property: "og:title", content: "Cost Manager — Tu dinero bajo control" },
+      { property: "og:description", content: "Finanzas personales inteligentes" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -61,7 +66,7 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap",
       },
     ],
   }),
@@ -72,12 +77,15 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body className="bg-background text-foreground antialiased">
-        {children}
+        <ThemeProvider>
+          <AmbientBackground />
+          {children}
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>

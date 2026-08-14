@@ -6,7 +6,7 @@ export const Route = createFileRoute("/login")({
   beforeLoad: () => {
     // If the user is already authenticated, redirect them to the dashboard
     if (getAccessToken()) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/dashboard" });
     }
   },
   component: () => <Login />,

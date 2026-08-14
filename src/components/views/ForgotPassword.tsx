@@ -35,8 +35,8 @@ export function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl">
+    <div className="relative flex min-h-screen items-center justify-center px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
             <CircleDollarSign className="h-6 w-6 text-primary-foreground" strokeWidth={2.5} />
@@ -79,9 +79,7 @@ export function ForgotPassword() {
               />
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive text-center font-medium">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
 
             <button
               type="submit"

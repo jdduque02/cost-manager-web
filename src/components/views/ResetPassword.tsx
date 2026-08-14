@@ -73,8 +73,8 @@ export function ResetPassword() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl">
+    <div className="relative flex min-h-screen items-center justify-center px-4">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
             <CircleDollarSign className="h-6 w-6 text-primary-foreground" strokeWidth={2.5} />
@@ -83,9 +83,7 @@ export function ResetPassword() {
             {step === "otp" ? "Verificar código" : "Nueva contraseña"}
           </h1>
           <p className="mt-1 text-center text-sm text-muted-foreground">
-            {step === "otp"
-              ? `Código enviado a ${email}`
-              : "Ingresa tu nueva contraseña"}
+            {step === "otp" ? `Código enviado a ${email}` : "Ingresa tu nueva contraseña"}
           </p>
         </div>
 
@@ -97,9 +95,7 @@ export function ResetPassword() {
             <p className="text-sm text-foreground font-medium">
               Contraseña restablecida correctamente
             </p>
-            <p className="text-xs text-muted-foreground">
-              Redirigiendo al inicio de sesión...
-            </p>
+            <p className="text-xs text-muted-foreground">Redirigiendo al inicio de sesión...</p>
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
           </div>
         ) : step === "otp" ? (
@@ -126,9 +122,7 @@ export function ResetPassword() {
               </p>
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive text-center font-medium">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
 
             <button
               type="submit"
@@ -175,20 +169,14 @@ export function ResetPassword() {
               </div>
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive text-center font-medium">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
             >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Restablecer contraseña"
-              )}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Restablecer contraseña"}
             </button>
           </form>
         )}

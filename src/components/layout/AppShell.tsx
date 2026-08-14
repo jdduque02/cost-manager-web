@@ -9,16 +9,16 @@ import {
   Settings,
   LogOut,
   Menu,
-  X,
   CircleDollarSign,
   Loader2,
   Tag,
-  Lock,
   Unlock,
   EyeOff,
   Newspaper,
   BarChart3,
   Mail,
+  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -26,9 +26,19 @@ import { getAccessToken } from "@/lib/api/client";
 import { useVisibility } from "@/lib/visibility-context";
 import { PasswordDialog } from "@/components/ui/password-dialog";
 import { NotificationBell } from "@/components/ui/notification-bell";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
-const nav = [
-  { to: "/", label: "Panel", icon: LayoutDashboard, exact: true },
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  adminOnly?: boolean;
+};
+
+const nav: NavItem[] = [
+  { to: "/dashboard", label: "Panel", icon: LayoutDashboard, exact: true },
   { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight },
   { to: "/reports", label: "Reportes", icon: BarChart3 },
   { to: "/wealth", label: "Patrimonio", icon: Wallet },
@@ -37,6 +47,7 @@ const nav = [
   { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles },
   { to: "/news", label: "Noticias", icon: Newspaper },
   { to: "/emails", label: "Emails", icon: Mail },
+  { to: "/admin", label: "Usuarios", icon: Users, adminOnly: true },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
@@ -68,7 +79,7 @@ function VisibilityToggle({ className }: { className?: string }) {
       <button
         onClick={handleClick}
         className={cn(
-          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out",
           mode === "visible"
             ? "text-muted-foreground hover:bg-surface hover:text-foreground"
             : "bg-warning/15 text-warning hover:bg-warning/25",
@@ -101,7 +112,7 @@ function VisibilityToggle({ className }: { className?: string }) {
 }
 
 function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -111,6 +122,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
 
   const name = user?.username ? user.username : "Usuario Cost Manager";
   const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
+  const visibleNav = nav.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <div className="flex h-full flex-col">
@@ -125,7 +137,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {nav.map((item) => {
+        {visibleNav.map((item) => {
           const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
@@ -134,7 +146,7 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
               to={item.to}
               onClick={onNavigate}
               className={cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-[transform,background-color,color,box-shadow] duration-200 ease-out-soft hover:translate-x-0.5",
                 active
                   ? "bg-surface-2 text-foreground shadow-elegant"
                   : "text-muted-foreground hover:bg-surface hover:text-foreground",
@@ -168,22 +180,29 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
             <p className="truncate text-xs text-muted-foreground">{user?.email || ""}</p>
           </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
           onClick={handleLogout}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+          className="mt-3 w-full justify-center gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
           <LogOut className="h-4 w-4" /> Cerrar sesión
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  requireAdmin = false,
+}: {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !getAccessToken()) {
@@ -191,7 +210,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  if (isLoading || !isAuthenticated) {
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && requireAdmin && !isAdmin) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [isLoading, isAuthenticated, requireAdmin, isAdmin, navigate]);
+
+  if (isLoading || !isAuthenticated || (requireAdmin && !isAdmin)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -200,39 +225,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="dark min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen text-foreground">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-background/80 backdrop-blur-xl lg:block">
         <SidebarContent pathname={pathname} />
       </aside>
 
       {/* Mobile sidebar */}
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-          />
-          <aside className="relative h-full w-72 border-r border-border bg-background">
-            <button
-              className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground hover:bg-surface"
-              onClick={() => setOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} />
-          </aside>
-        </div>
-      )}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="left" className="w-72 p-0 border-r border-border bg-background">
+          <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/70 px-4 py-3 backdrop-blur-xl lg:hidden">
-          <button
-            onClick={() => setOpen(true)}
-            className="rounded-lg border border-border p-2 text-foreground"
-          >
+          <Button variant="outline" size="icon" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
-          </button>
+          </Button>
           <span className="font-display text-base font-semibold">Cost Manager</span>
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell />

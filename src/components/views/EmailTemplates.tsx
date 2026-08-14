@@ -6,20 +6,8 @@ import "@react-email/editor/themes/default.css";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import {
-  mailApi,
-  OTP_EMAIL_TEMPLATE_KEY,
-  type EmailTemplate,
-} from "@/lib/api/mail";
-import {
-  Save,
-  Eye,
-  PenLine,
-  Loader2,
-  Mail,
-  ArrowLeft,
-  FileCode2,
-} from "lucide-react";
+import { mailApi, OTP_EMAIL_TEMPLATE_KEY, type EmailTemplate } from "@/lib/api/mail";
+import { Save, Eye, PenLine, Loader2, Mail, ArrowLeft, FileCode2 } from "lucide-react";
 
 type Mode = "edit" | "preview";
 
@@ -146,7 +134,7 @@ export function EmailTemplates() {
           <button
             onClick={() => handleMode(mode === "edit" ? "preview" : "edit")}
             className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150 ease-out",
               mode === "preview"
                 ? "bg-surface-2 text-foreground"
                 : "border border-border text-muted-foreground hover:bg-surface hover:text-foreground",
@@ -165,7 +153,7 @@ export function EmailTemplates() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:opacity-90 disabled:opacity-70"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out hover:opacity-90 disabled:opacity-70"
           >
             {saving ? (
               <>
@@ -220,7 +208,10 @@ export function EmailTemplates() {
                   {(segments) => (
                     <nav className="flex flex-wrap items-center gap-1 text-xs">
                       {segments.map((segment, index) => (
-                        <span key={segment.node.nodeType + index} className="flex items-center gap-1">
+                        <span
+                          key={segment.node.nodeType + index}
+                          className="flex items-center gap-1"
+                        >
                           {index > 0 && <span className="text-muted-foreground">/</span>}
                           <button
                             onClick={segment.focus}
@@ -249,8 +240,13 @@ export function EmailTemplates() {
                                 ? findStyleValue(input.classReference, input.prop)
                                 : input.value;
                               return (
-                                <label key={input.label} className="flex items-center justify-between gap-3">
-                                  <span className="text-xs text-muted-foreground">{input.label}</span>
+                                <label
+                                  key={input.label}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="text-xs text-muted-foreground">
+                                    {input.label}
+                                  </span>
                                   <input
                                     type={input.type === "number" ? "number" : "color"}
                                     value={
@@ -260,7 +256,11 @@ export function EmailTemplates() {
                                     }
                                     onChange={(e) =>
                                       input.classReference &&
-                                      setGlobalStyle(input.classReference, input.prop, e.target.value)
+                                      setGlobalStyle(
+                                        input.classReference,
+                                        input.prop,
+                                        e.target.value,
+                                      )
                                     }
                                     className="h-8 w-16 cursor-pointer rounded-md border border-border bg-surface-2 px-1 text-xs text-foreground"
                                   />

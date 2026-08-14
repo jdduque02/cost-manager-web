@@ -242,6 +242,14 @@ export function usePeriods() {
 
 const TERMINAL_STATUSES = new Set(["completed", "partial", "failed"]);
 
+const MAX_POLL_JOB_AGE_MS = 10 * 60_000;
+
+function isStuckJob(job: { created_at?: string; status: string }): boolean {
+  if (TERMINAL_STATUSES.has(job.status)) return false;
+  if (!job.created_at) return false;
+  return Date.now() - new Date(job.created_at).getTime() > MAX_POLL_JOB_AGE_MS;
+}
+
 export function useStatementImports() {
   const { userId } = useAuth();
   return useQuery({
@@ -251,7 +259,9 @@ export function useStatementImports() {
     refetchInterval: (query) => {
       const jobs = query.state.data;
       const hasActive = jobs?.some((j) => !TERMINAL_STATUSES.has(j.status));
-      return hasActive ? 3000 : false;
+      if (!hasActive) return false;
+      if (jobs?.some((j) => !isStuckJob(j))) return 3000;
+      return false;
     },
   });
 }
@@ -270,8 +280,9 @@ export function useStatementImportJob(id: number | null) {
     queryFn: () => statementImportApi.get(userId!, id!),
     enabled: !!userId && !!id,
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status && !TERMINAL_STATUSES.has(status) ? 2000 : false;
+      const job = query.state.data;
+      if (!job || TERMINAL_STATUSES.has(job.status)) return false;
+      return isStuckJob(job) ? false : 2500;
     },
   });
 

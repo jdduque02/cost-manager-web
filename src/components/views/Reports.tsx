@@ -10,25 +10,14 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Pie,
-  PieChart,
-  Cell,
-} from "recharts";
+import Highcharts from "@/lib/highcharts";
+import HighchartsReact from "highcharts-react-official";
 import { Card, Badge } from "@/components/ui/primitives";
 import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 import { useTransactionSummary, useCategories } from "@/lib/hooks/use-api";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
-import { fmtCurrency } from "@/lib/format";
+import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import type { TransactionGroupBy } from "@/lib/api/finance";
 
 const presets = [
@@ -124,37 +113,6 @@ function KpiCard({
   );
 }
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name?: string; value?: number | string; fill?: string; color?: string }>;
-  label?: string;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  return (
-    <div className="rounded-xl border border-border bg-background p-3 text-sm shadow-elegant">
-      <p className="mb-1.5 font-medium">{label}</p>
-      <div className="space-y-1">
-        {payload.map((entry) => (
-          <div key={entry.name} className="flex items-center gap-2">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: entry.fill ?? entry.color }}
-            />
-            <span className="text-muted-foreground capitalize">{entry.name}</span>
-            <span className="ml-auto pl-4 font-semibold tabular-nums">
-              {fmtCurrency(Number(entry.value ?? 0))}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function Reports() {
   const [preset, setPreset] = useState<PresetId>("this-month");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
@@ -162,6 +120,7 @@ export function Reports() {
   const [groupBy, setGroupBy] = useState<TransactionGroupBy>("day");
   const { data: categories = [] } = useCategories();
   const fmtAmount = useFormattedAmount();
+  const chartColors = useChartColors();
 
   const range = useMemo(
     () => presetRange(preset, customFrom, customTo),
@@ -220,14 +179,149 @@ export function Reports() {
     ? Math.max(...categoryBreakdown.map((c) => c.expenses))
     : 0;
 
-  const PIE_COLORS = [
-    "oklch(0.78 0.17 165)",
-    "oklch(0.68 0.20 18)",
-    "oklch(0.62 0.19 250)",
-    "oklch(0.80 0.15 85)",
-    "oklch(0.65 0.22 310)",
-    "oklch(0.55 0.20 20)",
-  ];
+  const PIE_COLORS = useMemo(
+    () => [
+      chartColors.chart1,
+      chartColors.chart5,
+      chartColors.chart2,
+      chartColors.chart3,
+      chartColors.chart4,
+      chartColors.destructive,
+    ],
+    [chartColors],
+  );
+
+  const tooltipStyle = useMemo(
+    () => ({
+      backgroundColor: chartColors.card,
+      borderColor: chartColors.cardBorder,
+      borderRadius: 12,
+      style: { color: chartColors.foreground, fontSize: "12px" },
+    }),
+    [chartColors],
+  );
+
+  const evolutionOptions = useMemo<Highcharts.Options>(
+    () => ({
+      chart: {
+        type: "column",
+        backgroundColor: "transparent",
+        height: 288,
+        spacing: [10, 12, 6, 12],
+      },
+      title: { text: undefined },
+      credits: { enabled: false },
+      legend: {
+        itemStyle: { color: chartColors.mutedFg },
+        itemHoverStyle: { color: chartColors.foreground },
+        symbolRadius: 8,
+      },
+      xAxis: {
+        categories: chartData.map((d) => d.label),
+        lineColor: chartColors.border,
+        tickColor: chartColors.border,
+        labels: { style: { color: chartColors.mutedFg, fontSize: "11px" } },
+      },
+      yAxis: {
+        title: { text: undefined },
+        gridLineColor: chartColors.border,
+        gridLineDashStyle: "Dash",
+        labels: {
+          style: { color: chartColors.mutedFg, fontSize: "11px" },
+          formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
+            const v = Number(this.value);
+            return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+          },
+        },
+      },
+      tooltip: {
+        ...tooltipStyle,
+        shared: true,
+        useHTML: true,
+        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+          const rows = (this.points ?? [])
+            .map(
+              (p) => `
+                <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                  <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${p.color}"></span>
+                  <span style="text-transform:capitalize">${p.series.name}</span>
+                  <span style="margin-left:auto;padding-left:16px;font-weight:600">${fmtAmount(p.y ?? 0)}</span>
+                </div>`,
+            )
+            .join("");
+          return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${rows}`;
+        },
+      },
+      plotOptions: {
+        column: {
+          borderRadius: 4,
+          grouping: true,
+          pointPadding: 0.08,
+          groupPadding: 0.08,
+        },
+      },
+      series: [
+        {
+          type: "column",
+          name: "Ingresos",
+          color: chartColors.chart1,
+          data: chartData.map((d) => d.income),
+        },
+        {
+          type: "column",
+          name: "Gastos",
+          color: chartColors.chart5,
+          data: chartData.map((d) => d.expenses),
+        },
+        {
+          type: "column",
+          name: "Inversiones",
+          color: chartColors.chart2,
+          data: chartData.map((d) => d.investments),
+        },
+      ],
+    }),
+    [chartData, chartColors, tooltipStyle, fmtAmount],
+  );
+
+  const pieOptions = useMemo<Highcharts.Options>(
+    () => ({
+      chart: { type: "pie", backgroundColor: "transparent", height: 256, spacing: [8, 8, 8, 8] },
+      title: { text: undefined },
+      credits: { enabled: false },
+      legend: { enabled: false },
+      tooltip: {
+        ...tooltipStyle,
+        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+          return `<b>${this.key}</b>: ${fmtAmount(typeof this.y === "number" ? this.y : 0)}`;
+        },
+      },
+      plotOptions: {
+        pie: {
+          innerSize: "60%",
+          paddingAngle: 3,
+          borderWidth: 0,
+          dataLabels: {
+            enabled: true,
+            format: "{point.name}",
+            distance: 10,
+            style: { color: chartColors.mutedFg, fontSize: "11px", textOutline: "none" },
+          },
+        },
+      },
+      series: [
+        {
+          type: "pie",
+          data: categoryBreakdown.map((c, i) => ({
+            name: c.name,
+            y: c.expenses,
+            color: PIE_COLORS[i % PIE_COLORS.length],
+          })),
+        },
+      ],
+    }),
+    [categoryBreakdown, PIE_COLORS, tooltipStyle, fmtAmount, chartColors],
+  );
 
   return (
     <div className="space-y-7">
@@ -350,45 +444,7 @@ export function Reports() {
               <h3 className="font-display text-lg font-semibold">Evolución</h3>
             </div>
             <div className="h-72 w-full px-2 py-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  barGap={2}
-                  margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="rgba(148,163,184,0.15)"
-                  />
-                  <XAxis
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11, fill: "rgba(148,163,184,0.8)" }}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11, fill: "rgba(148,163,184,0.8)" }}
-                    tickFormatter={(v: number) =>
-                      v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)
-                    }
-                    width={48}
-                  />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(148,163,184,0.08)" }} />
-                  <Legend iconType="circle" iconSize={8} />
-                  <Bar dataKey="income" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expenses" name="Gastos" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-                  <Bar
-                    dataKey="investments"
-                    name="Inversiones"
-                    fill="#6366f1"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <HighchartsReact highcharts={Highcharts} options={evolutionOptions} />
             </div>
           </Card>
 
@@ -414,7 +470,7 @@ export function Reports() {
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
                         <div
-                          className="h-full rounded-full bg-destructive/70 transition-all"
+                          className="h-full rounded-full bg-destructive/70 transition-all duration-300 ease-out"
                           style={{
                             width: maxCategory ? `${(c.expenses / maxCategory) * 100}%` : "0%",
                           }}
@@ -424,36 +480,7 @@ export function Reports() {
                   ))}
                 </ul>
                 <div className="h-64">
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie
-                        data={categoryBreakdown.map((c) => ({
-                          name: c.name,
-                          value: c.expenses,
-                        }))}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        strokeWidth={0}
-                      >
-                        {categoryBreakdown.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          background: "oklch(0.21 0.014 260)",
-                          border: "1px solid oklch(0.30 0.014 260)",
-                          borderRadius: 12,
-                        }}
-                        formatter={(v: number) => fmtAmount(v)}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <HighchartsReact highcharts={Highcharts} options={pieOptions} />
                 </div>
               </div>
             )}

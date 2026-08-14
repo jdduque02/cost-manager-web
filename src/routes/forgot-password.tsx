@@ -5,7 +5,7 @@ import { ForgotPassword } from "@/components/views/ForgotPassword";
 export const Route = createFileRoute("/forgot-password")({
   beforeLoad: () => {
     if (getAccessToken()) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/dashboard" });
     }
   },
   component: () => <ForgotPassword />,

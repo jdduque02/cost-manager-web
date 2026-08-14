@@ -186,9 +186,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                       toast.success("Reintento iniciado. Te avisaremos al terminar.");
                     },
                     onError: (error) => {
-                      toast.error(
-                        error instanceof Error ? error.message : "Error al reintentar",
-                      );
+                      toast.error(error instanceof Error ? error.message : "Error al reintentar");
                     },
                   },
                 );
@@ -472,12 +470,7 @@ function ImportProgress({
       </div>
 
       {isDone && hasFailed && (
-        <Button
-          variant="outline"
-          onClick={onRetry}
-          disabled={isRetrying}
-          className="w-full"
-        >
+        <Button variant="outline" onClick={onRetry} disabled={isRetrying} className="w-full">
           {isRetrying ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (

@@ -366,9 +366,7 @@ export const financeApi = {
 
   // ── Transferencias ────────────────────────────────────────────
   getTransfers: (userId: string, page = 1, limit = 20) =>
-    api.get<TransferResponse[]>(
-      `users/${userId}/transfers?page=${page}&limit=${limit}`,
-    ),
+    api.get<TransferResponse[]>(`users/${userId}/transfers?page=${page}&limit=${limit}`),
   getTransfer: (userId: string, id: string) =>
     api.getOne<TransferResponse>(`users/${userId}/transfers/${id}`),
   createTransfer: (userId: string, dto: CreateTransferDto) =>

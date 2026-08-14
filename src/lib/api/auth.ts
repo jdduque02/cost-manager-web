@@ -1,4 +1,4 @@
-import { api, setTokens, clearTokens, getRefreshToken } from "./client";
+import { api, setTokens, clearTokens, setStoredUserId } from "./client";
 
 export interface LoginPayload {
   username: string;
@@ -11,14 +11,14 @@ export interface EncryptResult {
 
 export interface AuthTokens {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
   expires_in?: number;
   userId?: number;
 }
 
 export interface LoginResult {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   userId?: number;
 }
 
@@ -40,6 +40,7 @@ export const authApi = {
     });
     const t = Array.isArray(tokens) ? tokens[0] : tokens;
     setTokens(t.access_token, t.refresh_token, t.userId);
+    if (t.userId != null) setStoredUserId(t.userId);
     return {
       accessToken: t.access_token,
       refreshToken: t.refresh_token,
@@ -49,8 +50,7 @@ export const authApi = {
 
   async logout(): Promise<void> {
     try {
-      const refreshToken = getRefreshToken();
-      await api.post<void>("auth/logout", { refresh_token: refreshToken });
+      await api.post<void>("auth/logout", {});
     } finally {
       clearTokens();
     }
@@ -60,10 +60,10 @@ export const authApi = {
     api.post<{ message: string }>("auth/forgot-password", { email }),
 
   verifyOtp: (email: string, code: string) =>
-    api.post<{ reset_token: string; expires_in_seconds: number }>(
-      "auth/verify-otp",
-      { email, code }
-    ),
+    api.post<{ reset_token: string; expires_in_seconds: number }>("auth/verify-otp", {
+      email,
+      code,
+    }),
 
   resetPassword: (email: string, resetToken: string, newPassword: string) =>
     api.post<{ message: string }>("auth/reset-password", {

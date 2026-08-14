@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { Card, Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -23,13 +24,15 @@ import {
   User,
   Bell,
   Shield,
-  CreditCard,
   Globe,
   Palette,
   ChevronRight,
   Check,
   Wallet,
   Loader2,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 
 const sections = [
@@ -37,7 +40,6 @@ const sections = [
   { id: "financial", label: "Perfil Financiero", icon: Wallet },
   { id: "notifications", label: "Notificaciones", icon: Bell },
   { id: "security", label: "Seguridad", icon: Shield },
-  { id: "billing", label: "Facturacion", icon: CreditCard },
   { id: "language", label: "Idioma y Region", icon: Globe },
   { id: "appearance", label: "Apariencia", icon: Palette },
 ];
@@ -89,12 +91,6 @@ export function Settings() {
   const [notifPush, setNotifPush] = useState(true);
   const [notifBudget, setNotifBudget] = useState(true);
   const [twoFa, setTwoFa] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
 
   return (
     <div className="space-y-7">
@@ -114,7 +110,7 @@ export function Settings() {
                   key={s.id}
                   onClick={() => setActive(s.id)}
                   className={cn(
-                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all text-left",
+                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150 ease-out text-left",
                     active === s.id
                       ? "bg-surface-2 text-foreground"
                       : "text-muted-foreground hover:bg-surface hover:text-foreground",
@@ -218,53 +214,7 @@ export function Settings() {
             </Card>
           )}
 
-          {active === "appearance" && (
-            <Card>
-              <h3 className="font-display text-lg font-semibold mb-2">Apariencia</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Personaliza la apariencia de tu panel.
-              </p>
-              <div className="space-y-4">
-                <p className="text-sm font-medium">Tema</p>
-                <div className="flex gap-3">
-                  {["Oscuro (Predeterminado)", "Sistema"].map((t) => (
-                    <div
-                      key={t}
-                      className={cn(
-                        "flex flex-1 cursor-pointer items-center justify-between rounded-xl border p-4 transition",
-                        t === "Oscuro (Predeterminado)"
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-surface/40 hover:border-muted-foreground",
-                      )}
-                    >
-                      <span className="text-sm font-medium">{t}</span>
-                      {t === "Oscuro (Predeterminado)" && (
-                        <Check className="h-4 w-4 text-primary" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          <div className="flex justify-end">
-            <button
-              onClick={handleSave}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all",
-                saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
-              )}
-            >
-              {saved ? (
-                <>
-                  <Check className="h-4 w-4" /> Guardado!
-                </>
-              ) : (
-                "Guardar cambios"
-              )}
-            </button>
-          </div>
+          {active === "appearance" && <AppearanceSection />}
         </div>
       </div>
     </div>
@@ -432,7 +382,7 @@ function ProfileSettings() {
           onClick={handleSave}
           disabled={saving}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all",
+            "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out",
             saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
             saving && "opacity-70",
           )}
@@ -596,13 +546,12 @@ function FinancialProfileSettings() {
           </span>
         </div>
       </div>
-
       <div className="mt-6 flex justify-end">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all bg-gradient-primary hover:opacity-90 disabled:opacity-70"
+          className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out bg-gradient-primary hover:opacity-90 disabled:opacity-70"
         >
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -659,5 +608,73 @@ function RatioSlider({
         <span className="text-xs text-muted-foreground">100%</span>
       </div>
     </div>
+  );
+}
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const themes = [
+    { value: "light", label: "Claro", icon: Sun, description: "Tema claro para uso diurno" },
+    { value: "dark", label: "Oscuro", icon: Moon, description: "Tema oscuro (predeterminado)" },
+    {
+      value: "system",
+      label: "Sistema",
+      icon: Monitor,
+      description: "Usar preferencia del sistema",
+    },
+  ];
+
+  function handleThemeChange(value: string) {
+    document.documentElement.classList.add("theme-transitioning");
+    setTheme(value);
+    setTimeout(() => document.documentElement.classList.remove("theme-transitioning"), 300);
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Apariencia</h3>
+      <p className="text-sm text-muted-foreground mb-6">Personaliza la apariencia de tu panel.</p>
+      <div className="space-y-4">
+        <p className="text-sm font-medium">Tema</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {themes.map(({ value, label, icon: Icon, description }) => {
+            const active = mounted ? theme === value : value === "dark";
+            return (
+              <button
+                key={value}
+                onClick={() => handleThemeChange(value)}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200 ease-out",
+                  active
+                    ? "border-primary bg-primary/5 shadow-glow"
+                    : "border-border bg-surface/40 hover:border-muted-foreground hover:bg-surface/60",
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 transition-colors duration-200",
+                    active ? "text-primary" : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium",
+                    active ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
+                <span className="text-xs text-muted-foreground text-center">{description}</span>
+                {active && <Check className="h-4 w-4 text-primary mt-1" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
   );
 }

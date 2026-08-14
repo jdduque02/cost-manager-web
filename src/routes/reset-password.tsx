@@ -8,7 +8,7 @@ export const Route = createFileRoute("/reset-password")({
   }),
   beforeLoad: ({ search }) => {
     if (getAccessToken()) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: "/dashboard" });
     }
     if (!search.email) {
       throw redirect({ to: "/forgot-password" });

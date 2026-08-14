@@ -317,7 +317,7 @@ export function TransactionDialog({
                     onOpenChange(false);
                     navigate({ to: "/categories" });
                   }}
-                  className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+                  className="bg-gradient-primary text-primary-foreground hover:brightness-105"
                 >
                   Ir a Categorías
                 </Button>
@@ -579,7 +579,8 @@ export function TransactionDialog({
                             <SelectLabel>Otras cuentas</SelectLabel>
                             {bankAccounts
                               .filter(
-                                (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
+                                (a) =>
+                                  a.account_type !== "ahorros" && a.account_type !== "corriente",
                               )
                               .map((a) => (
                                 <SelectItem key={a.id} value={`account:${a.id}`}>
@@ -730,11 +731,19 @@ export function TransactionDialog({
                 )}
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancelar
+                </Button>
                 <Button
                   type="submit"
                   disabled={!amount || parseCurrency(amount) <= 0 || isPending}
-                  className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+                  className="bg-gradient-primary text-primary-foreground hover:brightness-105"
                 >
                   {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                   {isEditing ? "Actualizar" : "Guardar"}
@@ -768,10 +777,7 @@ export function TransactionDialog({
         }}
       />
 
-      <TransferDialog
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-      />
+      <TransferDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen} />
     </>
   );
 }
