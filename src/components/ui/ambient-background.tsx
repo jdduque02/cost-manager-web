@@ -8,6 +8,7 @@ export function AmbientBackground() {
         <path
           id="ambient-path"
           pathLength={1}
+          fill="none"
           d="M -80 580 C 160 500 240 660 430 540 C 600 430 700 300 880 360 C 1060 420 1200 560 1520 280"
         />
         <use href="#ambient-path" className="ambient__stroke ambient__stroke--a" />

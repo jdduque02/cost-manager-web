@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getAccessToken } from "@/lib/api/client";
+import { redirectIfAuthenticated } from "@/lib/auth/guards";
 import { ResetPassword } from "@/components/views/ResetPassword";
 
 export const Route = createFileRoute("/reset-password")({
@@ -7,9 +7,7 @@ export const Route = createFileRoute("/reset-password")({
     email: (search.email as string) || "",
   }),
   beforeLoad: ({ search }) => {
-    if (getAccessToken()) {
-      throw redirect({ to: "/dashboard" });
-    }
+    redirectIfAuthenticated();
     if (!search.email) {
       throw redirect({ to: "/forgot-password" });
     }

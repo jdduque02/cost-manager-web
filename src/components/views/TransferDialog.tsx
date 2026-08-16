@@ -28,6 +28,7 @@ import {
   useUpdateTransfer,
   useBankAccounts,
   useObjectives,
+  useEmpresas,
 } from "@/lib/hooks/use-api";
 import type { TransferResponse } from "@/lib/api/finance";
 
@@ -40,6 +41,7 @@ interface TransferDialogProps {
 export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogProps) {
   const { data: bankAccounts = [], isLoading: loadingAccounts } = useBankAccounts();
   const { data: objectives = [], isLoading: loadingObjectives } = useObjectives();
+  const { data: empresas = [] } = useEmpresas();
   const createTransfer = useCreateTransfer();
   const updateTransfer = useUpdateTransfer();
 
@@ -51,6 +53,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [objectiveId, setObjectiveId] = useState<string>("");
+  const [companyId, setCompanyId] = useState<string>("");
 
   const isPending = createTransfer.isPending || updateTransfer.isPending;
 
@@ -62,6 +65,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       setDescription("");
       setDate(new Date());
       setObjectiveId("");
+      setCompanyId("");
       return;
     }
     if (transfer) {
@@ -73,6 +77,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       setDescription(transfer.description ?? "");
       setDate(new Date(transfer.transaction_date.slice(0, 10) + "T00:00:00"));
       setObjectiveId(transfer.objective_id ? String(transfer.objective_id) : "");
+      setCompanyId(transfer.source.company_id ? String(transfer.source.company_id) : "");
     }
   }, [open, transfer]);
 
@@ -93,6 +98,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       transaction_date: format(date, "yyyy-MM-dd"),
       description: description || undefined,
       objective_id: objectiveId ? Number(objectiveId) : undefined,
+      company_id: companyId ? Number(companyId) : undefined,
     };
 
     if (isEditing && transfer) {
@@ -288,6 +294,28 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                   <p className="text-xs text-muted-foreground">
                     El monto transferido se abona al saldo de la meta.
                   </p>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Empresa destino (opcional)</Label>
+                  <Select value={companyId} onValueChange={setCompanyId}>
+                    <SelectTrigger disabled={empresas.length === 0}>
+                      <SelectValue
+                        placeholder={
+                          empresas.length === 0
+                            ? "No hay empresas disponibles"
+                            : "Seleccionar empresa..."
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {empresas.map((e) => (
+                        <SelectItem key={e.id} value={String(e.id)}>
+                          {e.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

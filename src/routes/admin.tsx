@@ -1,15 +1,11 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getAccessToken } from "@/lib/api/client";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireAuth } from "@/lib/auth/guards";
 import { AppShell } from "@/components/layout/AppShell";
 import { AdminUsers } from "@/components/views/AdminUsers";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: () => {
-    if (!getAccessToken()) {
-      throw redirect({ to: "/login" });
-    }
-  },
-  head: () => ({ meta: [{ title: "Usuarios (Admin) — Cost Manager" }] }),
+  beforeLoad: requireAuth,
+  head: () => ({ meta: [{ title: "Usuarios (Admin) — Sprig" }] }),
   component: () => (
     <AppShell requireAdmin>
       <AdminUsers />

@@ -20,6 +20,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as EmpresasRouteImport } from './routes/empresas'
 import { Route as EmailsRouteImport } from './routes/emails'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CategoriesRouteImport } from './routes/categories'
@@ -81,6 +82,11 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmpresasRoute = EmpresasRouteImport.update({
+  id: '/empresas',
+  path: '/empresas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmailsRoute = EmailsRouteImport.update({
   id: '/emails',
   path: '/emails',
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
+  '/empresas': typeof EmpresasRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
+  '/empresas': typeof EmpresasRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/categories': typeof CategoriesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
+  '/empresas': typeof EmpresasRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/intelligence': typeof IntelligenceRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/categories'
     | '/dashboard'
     | '/emails'
+    | '/empresas'
     | '/forgot-password'
     | '/goals'
     | '/intelligence'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/categories'
     | '/dashboard'
     | '/emails'
+    | '/empresas'
     | '/forgot-password'
     | '/goals'
     | '/intelligence'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/categories'
     | '/dashboard'
     | '/emails'
+    | '/empresas'
     | '/forgot-password'
     | '/goals'
     | '/intelligence'
@@ -225,6 +237,7 @@ export interface RootRouteChildren {
   CategoriesRoute: typeof CategoriesRoute
   DashboardRoute: typeof DashboardRoute
   EmailsRoute: typeof EmailsRoute
+  EmpresasRoute: typeof EmpresasRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GoalsRoute: typeof GoalsRoute
   IntelligenceRoute: typeof IntelligenceRoute
@@ -317,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/empresas': {
+      id: '/empresas'
+      path: '/empresas'
+      fullPath: '/empresas'
+      preLoaderRoute: typeof EmpresasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/emails': {
       id: '/emails'
       path: '/emails'
@@ -361,6 +381,7 @@ const rootRouteChildren: RootRouteChildren = {
   CategoriesRoute: CategoriesRoute,
   DashboardRoute: DashboardRoute,
   EmailsRoute: EmailsRoute,
+  EmpresasRoute: EmpresasRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GoalsRoute: GoalsRoute,
   IntelligenceRoute: IntelligenceRoute,

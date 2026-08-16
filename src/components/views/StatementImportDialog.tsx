@@ -29,6 +29,7 @@ import {
   useRetryStatementImport,
   useStatementImportProgress,
   useStatementImportJob,
+  useEmpresas,
 } from "@/lib/hooks/use-api";
 import { cn } from "@/lib/utils";
 import type {
@@ -90,6 +91,7 @@ function toProgress(job: StatementImport): StatementImportProgress {
 export function StatementImportDialog({ open, onOpenChange }: StatementImportDialogProps) {
   const { data: categories = [] } = useCategories();
   const { data: bankAccounts = [] } = useBankAccounts();
+  const { data: empresas = [] } = useEmpresas();
   const { data: recentImports = [] } = useStatementImports();
 
   const createImport = useCreateStatementImport();
@@ -101,6 +103,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const [accountId, setAccountId] = useState<string>("");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignCategories, setAssignCategories] = useState(true);
+  const [companyId, setCompanyId] = useState<string>("");
+  const [captureCompanies, setCaptureCompanies] = useState(true);
   const [defaultType, setDefaultType] = useState<TransactionType>("expense");
   const [progress, setProgress] = useState<StatementImportProgress | null>(null);
   const [activeImportId, setActiveImportId] = useState<number | null>(null);
@@ -127,6 +131,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
       setAccountId("");
       setSkipDuplicates(true);
       setAssignCategories(true);
+      setCompanyId("");
+      setCaptureCompanies(true);
       setDefaultType("expense");
       setProgress(null);
       setActiveImportId(null);
@@ -149,6 +155,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
     formData.append("skip_duplicates", skipDuplicates ? "true" : "false");
     formData.append("assign_categories", assignCategories ? "true" : "false");
     formData.append("default_type", defaultType);
+    if (companyId) formData.append("company_id", companyId);
+    formData.append("capture_companies", captureCompanies ? "true" : "false");
 
     try {
       const job = await createImport.mutateAsync(formData);
@@ -349,6 +357,42 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                 checked={assignCategories}
                 onCheckedChange={(v) => setAssignCategories(v === true)}
                 aria-label="Auto-categorizar movimientos"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Empresa por defecto (opcional)</Label>
+              <Select value={companyId} onValueChange={setCompanyId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Se aplica a todos los movimientos que no matcheen una empresa existente.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Capturar empresa desde extractos
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Detecta y asigna empresas automáticamente desde las descripciones de los
+                  movimientos.
+                </p>
+              </div>
+              <Checkbox
+                checked={captureCompanies}
+                onCheckedChange={(v) => setCaptureCompanies(v === true)}
+                aria-label="Capturar empresa desde extractos"
               />
             </div>
 

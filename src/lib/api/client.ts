@@ -1,5 +1,5 @@
 /**
- * API Client — Cost Manager Backend
+ * API Client — Sprig Backend
  * Base URL: http://localhost:3000/api/v1
  *
  * Auth hybrid:

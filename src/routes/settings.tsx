@@ -1,15 +1,11 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getAccessToken } from "@/lib/api/client";
+import { createFileRoute } from "@tanstack/react-router";
+import { requireAuth } from "@/lib/auth/guards";
 import { AppShell } from "@/components/layout/AppShell";
 import { Settings } from "@/components/views/Settings";
 
 export const Route = createFileRoute("/settings")({
-  beforeLoad: () => {
-    if (!getAccessToken()) {
-      throw redirect({ to: "/login" });
-    }
-  },
-  head: () => ({ meta: [{ title: "Settings — Cost Manager" }] }),
+  beforeLoad: requireAuth,
+  head: () => ({ meta: [{ title: "Settings — Sprig" }] }),
   component: () => (
     <AppShell>
       <Settings />

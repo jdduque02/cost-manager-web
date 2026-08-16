@@ -305,7 +305,12 @@ export function Dashboard() {
       },
       plotOptions: { column: { borderRadius: 8, pointPadding: 0.08, groupPadding: 0.08 } },
       series: [
-        { type: "column", name: "Gastos", color: colors.chart1, data: categorySpending.map((c) => c.amt) },
+        {
+          type: "column",
+          name: "Gastos",
+          color: colors.chart1,
+          data: categorySpending.map((c) => c.amt),
+        },
       ],
     }),
     [categorySpending, colors, tooltipStyle, fmtAmount],

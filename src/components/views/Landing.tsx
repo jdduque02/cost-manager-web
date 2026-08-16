@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   BarChart3,
-  CircleDollarSign,
   ShieldCheck,
   Sparkles,
   Target,
@@ -14,6 +13,7 @@ import {
   Check,
   type LucideIcon,
 } from "lucide-react";
+import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { RevealSection } from "@/components/ui/reveal-section";
@@ -39,10 +39,10 @@ function MiniBar({ index, color }: { index: number; color: string }) {
 function Logo({ className }: { className?: string }) {
   return (
     <Link to="/" className={cn("flex items-center gap-2.5", className)}>
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-        <CircleDollarSign className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-glow">
+        <SprigIsotipo className="h-5 w-5" />
       </span>
-      <span className="font-display text-lg font-semibold tracking-tight">Cost Manager</span>
+      <span className="font-display text-lg font-semibold tracking-tight">Sprig</span>
     </Link>
   );
 }
@@ -375,8 +375,8 @@ function Security() {
             Construido para proteger lo que más importa
           </h2>
           <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground">
-            Tu información financiera es sensible. Por eso cada capa de Cost Manager está diseñada
-            con privacidad y control de acceso desde el primer día.
+            Tu información financiera es sensible. Por eso cada capa de Sprig está diseñada con
+            privacidad y control de acceso desde el primer día.
           </p>
         </RevealSection>
 
@@ -417,7 +417,7 @@ function FinalCta() {
               Empieza a tomar el control de tus finanzas hoy
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
-              Únete a Cost Manager y convierte tus gastos en decisiones inteligentes.
+              Únete a Sprig y convierte tus gastos en decisiones inteligentes.
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
@@ -468,7 +468,7 @@ function Footer() {
           </Link>
         </nav>
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Cost Manager. Todos los derechos reservados.
+          © {new Date().getFullYear()} Sprig. Todos los derechos reservados.
         </p>
       </div>
     </footer>

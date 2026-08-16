@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireAuth } from "@/lib/auth/guards";
 import { AppShell } from "@/components/layout/AppShell";
-import { Reports } from "@/components/views/Reports";
+import { Empresas } from "@/components/views/Empresas";
 
-export const Route = createFileRoute("/reports")({
+export const Route = createFileRoute("/empresas")({
   beforeLoad: requireAuth,
-  head: () => ({ meta: [{ title: "Reportes — Sprig" }] }),
+  head: () => ({ meta: [{ title: "Empresas — Sprig" }] }),
   component: () => (
     <AppShell>
-      <Reports />
+      <Empresas />
     </AppShell>
   ),
 });

@@ -10,7 +10,9 @@ import {
   type TransactionQuery,
   type TransactionSummaryQuery,
   type CreateTransferDto,
+  type TransactionRecord,
 } from "@/lib/api/finance";
+import { empresaApi, type CreateEmpresaDto } from "@/lib/api/empresas";
 import {
   bankingApi,
   type CreateBankAccountDto,
@@ -61,6 +63,7 @@ export const qk = {
     ["subcategories", userId, categoryId] as const,
   financialSummary: (userId: string) => ["financialSummary", userId] as const,
   taxSummary: (userId: string, year?: number) => ["taxSummary", userId, year] as const,
+  empresas: (userId: string) => ["empresas", userId] as const,
   news: ["news"] as const,
   statementImports: (userId: string) => ["statement-imports", userId] as const,
   statementImportJob: (userId: string, id: number | null) =>
@@ -761,6 +764,71 @@ export function useDeleteCategory() {
     mutationFn: (id: number) => catalogApi.deleteCategory(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.categories });
+    },
+  });
+}
+
+// ─── Empresas Hooks ─────────────────────────────────────────────────────────
+
+export function useEmpresas() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.empresas(userId ?? ""),
+    queryFn: () => empresaApi.getEmpresas(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateEmpresaDto) => empresaApi.createEmpresa(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: Partial<CreateEmpresaDto> }) =>
+      empresaApi.updateEmpresa(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => empresaApi.deleteEmpresa(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+    },
+  });
+}
+
+export function useCloneTransaction() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      dto,
+    }: {
+      id: number;
+      dto?: { transaction_date?: string; amount?: number; description?: string };
+    }) => api.post<TransactionRecord>(`users/${userId}/transactions/${id}/clone`, dto ?? {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
     },
   });
 }

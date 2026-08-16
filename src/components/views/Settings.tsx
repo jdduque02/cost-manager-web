@@ -284,7 +284,7 @@ function ProfileSettings() {
           {initials}
         </div>
         <div>
-          <p className="font-medium">{user?.full_name || user?.username || "Cost Manager User"}</p>
+          <p className="font-medium">{user?.full_name || user?.username || "Sprig User"}</p>
           <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
         </div>
       </div>

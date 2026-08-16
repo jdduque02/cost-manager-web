@@ -9,7 +9,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  CircleDollarSign,
   Loader2,
   Tag,
   Unlock,
@@ -18,8 +17,10 @@ import {
   BarChart3,
   Mail,
   Users,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
+import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getAccessToken } from "@/lib/api/client";
@@ -47,6 +48,7 @@ const nav: NavItem[] = [
   { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles },
   { to: "/news", label: "Noticias", icon: Newspaper },
   { to: "/emails", label: "Emails", icon: Mail },
+  { to: "/empresas", label: "Empresas", icon: Building2 },
   { to: "/admin", label: "Usuarios", icon: Users, adminOnly: true },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
@@ -120,18 +122,18 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
     navigate({ to: "/login" });
   };
 
-  const name = user?.username ? user.username : "Usuario Cost Manager";
-  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
+  const name = user?.username ? user.username : "Usuario Sprig";
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "SP";
   const visibleNav = nav.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-6 py-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-          <CircleDollarSign className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-glow">
+          <SprigIsotipo className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-display text-lg font-semibold tracking-tight">Cost Manager</p>
+          <p className="font-display text-lg font-semibold tracking-tight">Sprig</p>
         </div>
         <NotificationBell />
       </div>
@@ -243,7 +245,7 @@ export function AppShell({
           <Button variant="outline" size="icon" onClick={() => setOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
-          <span className="font-display text-base font-semibold">Cost Manager</span>
+          <span className="font-display text-base font-semibold">Sprig</span>
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell />
             <VisibilityToggle />

@@ -1,13 +1,8 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getAccessToken } from "@/lib/api/client";
+import { createFileRoute } from "@tanstack/react-router";
+import { redirectIfAuthenticated } from "@/lib/auth/guards";
 import { Login } from "@/components/views/Login";
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: () => {
-    // If the user is already authenticated, redirect them to the dashboard
-    if (getAccessToken()) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: redirectIfAuthenticated,
   component: () => <Login />,
 });

@@ -1,12 +1,8 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { getAccessToken } from "@/lib/api/client";
+import { createFileRoute } from "@tanstack/react-router";
+import { redirectIfAuthenticated } from "@/lib/auth/guards";
 import { ForgotPassword } from "@/components/views/ForgotPassword";
 
 export const Route = createFileRoute("/forgot-password")({
-  beforeLoad: () => {
-    if (getAccessToken()) {
-      throw redirect({ to: "/dashboard" });
-    }
-  },
+  beforeLoad: redirectIfAuthenticated,
   component: () => <ForgotPassword />,
 });

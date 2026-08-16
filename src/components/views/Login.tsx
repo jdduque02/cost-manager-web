@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Loader2, CircleDollarSign } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 
 export function Login() {
   const { login, isAuthenticated } = useAuth();
@@ -42,13 +43,13 @@ export function Login() {
     <div className="relative flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         <div className="mb-8 flex flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary shadow-glow">
-            <CircleDollarSign className="h-6 w-6 text-primary-foreground" strokeWidth={2.5} />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-glow">
+            <SprigIsotipo className="h-6 w-6" />
           </div>
           <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">
             Bienvenido de nuevo
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ingresa a tu cuenta de Cost Manager</p>
+          <p className="mt-1 text-sm text-muted-foreground">Ingresa a tu cuenta de Sprig</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

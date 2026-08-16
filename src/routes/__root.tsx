@@ -6,6 +6,7 @@ import { VisibilityProvider } from "@/lib/visibility-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LoadingBar } from "@/components/ui/loading-bar";
 import { AmbientBackground } from "@/components/ui/ambient-background";
+import { getAccessToken, tryRestoreSession } from "@/lib/api/client";
 
 import appCss from "../styles.css?url";
 
@@ -45,17 +46,23 @@ function NotFoundComponent() {
 }
 
 export const Route = createRootRoute({
+  beforeLoad: async () => {
+    if (import.meta.env.SSR) return;
+    if (!getAccessToken()) {
+      await tryRestoreSession();
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cost Manager — Tu dinero bajo control" },
+      { title: "Sprig — Tu dinero bajo control" },
       {
         name: "description",
         content:
           "Controla tus gastos, alcanza tus metas de ahorro y toma mejores decisiones financieras con reportes e inteligencia fiscal en un solo lugar.",
       },
-      { property: "og:title", content: "Cost Manager — Tu dinero bajo control" },
+      { property: "og:title", content: "Sprig — Tu dinero bajo control" },
       { property: "og:description", content: "Finanzas personales inteligentes" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -68,6 +75,7 @@ export const Route = createRootRoute({
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap",
       },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
     ],
   }),
   shellComponent: RootShell,

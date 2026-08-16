@@ -48,6 +48,7 @@ export interface TransactionRecord {
   account_id?: number | null;
   asset_id?: number | null;
   liability_id?: number | null;
+  company_id?: number | null;
   transfer_group_id?: string | null;
   origin_account_id?: number | null;
   destination_account_id?: number | null;
@@ -65,6 +66,7 @@ export interface TransactionQuery {
   account_id?: number;
   asset_id?: number;
   liability_id?: number;
+  company_id?: number;
   page?: number;
   limit?: number;
 }
@@ -96,6 +98,7 @@ export interface CreateTransactionDto {
   account_id?: number;
   asset_id?: number;
   liability_id?: number;
+  company_id?: number;
 }
 
 export type FinancialObjectiveType = "loan" | "savings" | "goal";
@@ -233,12 +236,21 @@ export interface TransactionSummarySeriesItem {
   count: number;
 }
 
+export interface TransactionSummaryCompany {
+  company_id: number;
+  company_name: string;
+  expenses: number;
+  count: number;
+  percent_of_total: number;
+}
+
 export interface TransactionSummary {
   date_from?: string;
   date_to?: string;
   group_by: TransactionGroupBy;
   totals: TransactionSummaryTotals;
   by_category: TransactionSummaryCategory[];
+  by_company?: TransactionSummaryCompany[];
   series: TransactionSummarySeriesItem[];
 }
 
@@ -417,4 +429,5 @@ export interface CreateTransferDto {
   reference_code?: string;
   is_fixed?: boolean;
   objective_id?: number;
+  company_id?: number;
 }

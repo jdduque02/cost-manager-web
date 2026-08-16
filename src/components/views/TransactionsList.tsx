@@ -15,6 +15,8 @@ import {
   Trash2,
   FileUp,
   ArrowLeftRight,
+  Copy,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -27,6 +29,8 @@ import {
   useBankAccounts,
   useFinancialAssets,
   useFinancialLiabilities,
+  useEmpresas,
+  useCloneTransaction,
 } from "@/lib/hooks/use-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionDialog } from "./TransactionDialog";
@@ -129,13 +133,16 @@ export function TransactionsList() {
   const { data: bankAccounts = [] } = useBankAccounts();
   const { data: assets = [] } = useFinancialAssets();
   const { data: liabilities = [] } = useFinancialLiabilities();
+  const { data: empresas = [] } = useEmpresas();
   const deleteTx = useDeleteTransaction();
   const deleteTransfer = useDeleteTransfer();
   const bulkDelete = useBulkDeleteTransactions();
+  const cloneTx = useCloneTransaction();
   const fmtAmount = useFormattedAmount();
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "investment">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -199,24 +206,38 @@ export function TransactionsList() {
     return null;
   }
 
-  const filtered = useMemo(() => {
-    return transactions.filter((t) => {
-      if (typeFilter !== "all" && t.type !== typeFilter) return false;
-      if (uncategorizedOnly && t.category_status !== "pending") return false;
-      if (search) {
-        const q = search.toLowerCase();
-        const catName = (categoryMap[t.category_id ?? -1] ?? "").toLowerCase();
-        const desc = (t.description ?? "").toLowerCase();
-        if (!desc.includes(q) && !catName.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [transactions, typeFilter, uncategorizedOnly, search, categoryMap]);
+  const matchesFilters = (t: TransactionRecord): boolean => {
+    if (typeFilter !== "all" && t.type !== typeFilter) return false;
+    if (uncategorizedOnly && t.category_status !== "pending") return false;
+    if (companyFilter !== "all") {
+      if (companyFilter === "none" && t.company_id != null) return false;
+      if (companyFilter !== "none" && String(t.company_id) !== companyFilter) return false;
+    }
+    return true;
+  };
+
+  const matchesSearch = (t: TransactionRecord): boolean => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const haystacks = [
+      t.description ?? "",
+      t.reference_code ?? "",
+      t.source_bank ?? "",
+      t.destination_bank ?? "",
+      t.source_account ?? "",
+      t.destination_account ?? "",
+      t.addressee ?? "",
+      categoryMap[t.category_id ?? -1] ?? "",
+      accountMap[t.account_id ?? -1] ?? "",
+      String(t.amount ?? ""),
+    ];
+    return haystacks.some((h) => h.toLowerCase().includes(q));
+  };
 
   const { displayItems, groupMemberIds, transferPairs } = useMemo(() => {
     const groups = new Map<string, TransactionRecord[]>();
     const singles: TransactionRecord[] = [];
-    for (const t of filtered) {
+    for (const t of transactions) {
       if (t.transfer_group_id) {
         const list = groups.get(t.transfer_group_id) ?? [];
         list.push(t);
@@ -228,17 +249,21 @@ export function TransactionsList() {
     const memberIds = new Map<number, number[]>();
     const items: TransactionRecord[] = [];
     for (const pair of groups.values()) {
+      if (!pair.some((r) => matchesFilters(r) && matchesSearch(r))) continue;
       const representative = pair.find((r) => r.destination_account_id != null) ?? pair[0];
       const ids = pair.map((r) => r.id);
       for (const r of pair) memberIds.set(r.id, ids);
       items.push(representative);
     }
+    for (const t of singles) {
+      if (matchesFilters(t) && matchesSearch(t)) items.push(t);
+    }
     return {
-      displayItems: [...items, ...singles],
+      displayItems: items,
       groupMemberIds: memberIds,
       transferPairs: groups,
     };
-  }, [filtered]);
+  }, [transactions, typeFilter, uncategorizedOnly, companyFilter, search, categoryMap, accountMap]);
 
   const pendingCount = useMemo(
     () => transactions.filter((t) => t.category_status === "pending").length,
@@ -417,6 +442,22 @@ export function TransactionsList() {
               </span>
             )}
           </button>
+          <div className="relative">
+            <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-border bg-surface py-2.5 pl-10 pr-8 text-sm outline-none focus:border-primary lg:w-48"
+            >
+              <option value="all">Todas las empresas</option>
+              {empresas.map((e) => (
+                <option key={e.id} value={String(e.id)}>
+                  {e.name}
+                </option>
+              ))}
+              <option value="none">Sin empresa</option>
+            </select>
+          </div>
           <button
             onClick={() => openNew()}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
@@ -623,6 +664,25 @@ export function TransactionsList() {
                               {fmtAmount(t.amount)}
                             </span>
                             <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                              {!isTransfer && (
+                                <button
+                                  onClick={() => {
+                                    cloneTx.mutate(
+                                      { id: t.id },
+                                      {
+                                        onSuccess: () => toast.success("Transacción clonada"),
+                                        onError: () =>
+                                          toast.error("Error al clonar la transacción"),
+                                      },
+                                    );
+                                  }}
+                                  disabled={cloneTx.isPending}
+                                  className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+                                  title="Clonar transacción"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleEdit(t)}
                                 className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"

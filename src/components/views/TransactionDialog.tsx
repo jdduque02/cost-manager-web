@@ -40,10 +40,12 @@ import {
   useBankAccounts,
   useFinancialAssets,
   useFinancialLiabilities,
+  useEmpresas,
 } from "@/lib/hooks/use-api";
 import { GoalDialog } from "./GoalDialog";
 import { WealthDialog } from "./WealthDialog";
 import { TransferDialog } from "./TransferDialog";
+import { EmpresaDialog } from "./EmpresaDialog";
 import type {
   TransactionType,
   PaymentMethod,
@@ -86,6 +88,7 @@ export function TransactionDialog({
   const { data: bankAccounts = [] } = useBankAccounts();
   const { data: assets = [] } = useFinancialAssets();
   const { data: liabilities = [] } = useFinancialLiabilities();
+  const { data: empresas = [] } = useEmpresas();
   const createTx = useCreateTransaction();
   const updateTx = useUpdateTransaction();
   const navigate = useNavigate();
@@ -111,7 +114,9 @@ export function TransactionDialog({
   const [date, setDate] = useState<Date>(new Date());
   const [objectiveId, setObjectiveId] = useState<string>("");
   const [patrimony, setPatrimony] = useState<string>("");
+  const [companyId, setCompanyId] = useState<string>("");
   const [quickMetaOpen, setQuickMetaOpen] = useState(false);
+  const [quickEmpresaOpen, setQuickEmpresaOpen] = useState(false);
   const [quickWealthType, setQuickWealthType] = useState<"account" | "asset" | "liability" | null>(
     null,
   );
@@ -167,6 +172,7 @@ export function TransactionDialog({
       setSourceAccount(transaction.source_account ?? "");
       setDate(toLocalDate(transaction.transaction_date) ?? new Date());
       setObjectiveId(transaction.objective_id ? String(transaction.objective_id) : "");
+      setCompanyId(transaction.company_id ? String(transaction.company_id) : "");
       setPatrimony(
         transaction.account_id
           ? `account:${transaction.account_id}`
@@ -200,6 +206,7 @@ export function TransactionDialog({
     setSourceAccount("");
     setDate(defaultDate ? new Date(defaultDate) : new Date());
     setObjectiveId("");
+    setCompanyId("");
     setPatrimony("");
   }
 
@@ -242,6 +249,7 @@ export function TransactionDialog({
       account_id: p.account_id ?? undefined,
       asset_id: p.asset_id ?? undefined,
       liability_id: p.liability_id ?? undefined,
+      company_id: companyId ? Number(companyId) : undefined,
     };
 
     if (isEditing) {
@@ -523,6 +531,43 @@ export function TransactionDialog({
                   </div>
 
                   <div className="space-y-1.5">
+                    <Label>Empresa</Label>
+                    <Select
+                      value={companyId}
+                      onValueChange={(v) => {
+                        if (v === "__new_empresa__") {
+                          setQuickEmpresaOpen(true);
+                          return;
+                        }
+                        setCompanyId(v);
+                        if (!categoryId && v) {
+                          const emp = empresas.find((e) => String(e.id) === v);
+                          if (emp?.default_category_id) {
+                            setCategoryId(String(emp.default_category_id));
+                            setSubcategoryId("");
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empresas.map((e) => (
+                          <SelectItem key={e.id} value={String(e.id)}>
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new_empresa__">＋ Crear empresa…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Asocia la transacción a una empresa. Selecciona una empresa para auto-asignar
+                      su categoría por defecto.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
                     <Label>Patrimonio asociado</Label>
                     <Select
                       value={patrimony}
@@ -778,6 +823,18 @@ export function TransactionDialog({
       />
 
       <TransferDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen} />
+
+      <EmpresaDialog
+        open={quickEmpresaOpen}
+        onOpenChange={(v) => setQuickEmpresaOpen(v)}
+        onCreated={(e) => {
+          setCompanyId(String(e.id));
+          if (!categoryId && e.default_category_id) {
+            setCategoryId(String(e.default_category_id));
+            setSubcategoryId("");
+          }
+        }}
+      />
     </>
   );
 }
