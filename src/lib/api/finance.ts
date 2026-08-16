@@ -48,6 +48,9 @@ export interface TransactionRecord {
   account_id?: number | null;
   asset_id?: number | null;
   liability_id?: number | null;
+  transfer_group_id?: string | null;
+  origin_account_id?: number | null;
+  destination_account_id?: number | null;
 }
 
 export interface TransactionQuery {
@@ -389,6 +392,7 @@ export interface TransferMovement {
   transaction_date: string;
   description: string | null;
   reference_code: string | null;
+  objective_id?: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -399,6 +403,7 @@ export interface TransferResponse {
   transaction_date: string;
   description: string | null;
   reference_code: string | null;
+  objective_id?: number | null;
   source: TransferMovement;
   destination: TransferMovement;
 }
@@ -411,4 +416,5 @@ export interface CreateTransferDto {
   description?: string;
   reference_code?: string;
   is_fixed?: boolean;
+  objective_id?: number;
 }

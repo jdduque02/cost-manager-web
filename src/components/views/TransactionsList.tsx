@@ -14,12 +14,14 @@ import {
   Pencil,
   Trash2,
   FileUp,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useTransactions,
   useCategories,
   useDeleteTransaction,
+  useDeleteTransfer,
   useBulkDeleteTransactions,
   useObjectives,
   useBankAccounts,
@@ -28,6 +30,7 @@ import {
 } from "@/lib/hooks/use-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionDialog } from "./TransactionDialog";
+import { TransferDialog } from "./TransferDialog";
 import { TransactionCalendar } from "./TransactionCalendar";
 import { CurrencyConverter } from "./CurrencyConverter";
 import { GmfCalculator } from "./GmfCalculator";
@@ -35,7 +38,7 @@ import { StatementImportDialog } from "./StatementImportDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import type { TransactionRecord } from "@/lib/api/finance";
+import type { TransactionRecord, TransferMovement, TransferResponse } from "@/lib/api/finance";
 
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
@@ -85,6 +88,40 @@ function monthLabel(key: string) {
   return new Date(y, m - 1, 1).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
 }
 
+function toMovement(record: TransactionRecord, side: "source" | "destination"): TransferMovement {
+  return {
+    id: record.id,
+    account_id:
+      side === "source" ? (record.origin_account_id ?? 0) : (record.destination_account_id ?? 0),
+    side,
+    bank_name: side === "source" ? (record.source_bank ?? null) : (record.destination_bank ?? null),
+    account_type:
+      side === "source" ? (record.source_account ?? null) : (record.destination_account ?? null),
+    amount: record.amount,
+    transaction_date: record.transaction_date,
+    description: record.description ?? null,
+    reference_code: record.reference_code ?? null,
+    objective_id: record.objective_id ?? null,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+  };
+}
+
+function recordsToTransfer(pair: TransactionRecord[]): TransferResponse {
+  const source = pair.find((r) => r.origin_account_id != null) ?? pair[0];
+  const destination = pair.find((r) => r.destination_account_id != null) ?? pair[0];
+  return {
+    transfer_group_id: source.transfer_group_id ?? "",
+    amount: source.amount,
+    transaction_date: source.transaction_date,
+    description: source.description ?? null,
+    reference_code: source.reference_code ?? null,
+    objective_id: destination.objective_id ?? null,
+    source: toMovement(source, "source"),
+    destination: toMovement(destination, "destination"),
+  };
+}
+
 export function TransactionsList() {
   const { data: transactions = [], isLoading, error } = useTransactions({ limit: 500 });
   const { data: categories = [] } = useCategories();
@@ -93,6 +130,7 @@ export function TransactionsList() {
   const { data: assets = [] } = useFinancialAssets();
   const { data: liabilities = [] } = useFinancialLiabilities();
   const deleteTx = useDeleteTransaction();
+  const deleteTransfer = useDeleteTransfer();
   const bulkDelete = useBulkDeleteTransactions();
   const fmtAmount = useFormattedAmount();
 
@@ -101,12 +139,15 @@ export function TransactionsList() {
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [transferEditOpen, setTransferEditOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<TransactionRecord | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<TransferResponse | null>(null);
   const [defaultDate, setDefaultDate] = useState<Date | null>(null);
   const [deletingTx, setDeletingTx] = useState<TransactionRecord | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkMonthLabel, setBulkMonthLabel] = useState<string | null>(null);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -172,6 +213,33 @@ export function TransactionsList() {
     });
   }, [transactions, typeFilter, uncategorizedOnly, search, categoryMap]);
 
+  const { displayItems, groupMemberIds, transferPairs } = useMemo(() => {
+    const groups = new Map<string, TransactionRecord[]>();
+    const singles: TransactionRecord[] = [];
+    for (const t of filtered) {
+      if (t.transfer_group_id) {
+        const list = groups.get(t.transfer_group_id) ?? [];
+        list.push(t);
+        groups.set(t.transfer_group_id, list);
+      } else {
+        singles.push(t);
+      }
+    }
+    const memberIds = new Map<number, number[]>();
+    const items: TransactionRecord[] = [];
+    for (const pair of groups.values()) {
+      const representative = pair.find((r) => r.destination_account_id != null) ?? pair[0];
+      const ids = pair.map((r) => r.id);
+      for (const r of pair) memberIds.set(r.id, ids);
+      items.push(representative);
+    }
+    return {
+      displayItems: [...items, ...singles],
+      groupMemberIds: memberIds,
+      transferPairs: groups,
+    };
+  }, [filtered]);
+
   const pendingCount = useMemo(
     () => transactions.filter((t) => t.category_status === "pending").length,
     [transactions],
@@ -179,7 +247,7 @@ export function TransactionsList() {
 
   const groupedByMonth = useMemo(() => {
     const map = new Map<string, MonthGroup>();
-    for (const t of filtered) {
+    for (const t of displayItems) {
       const key = t.transaction_date?.slice(0, 7) ?? "s/fecha";
       const entry = map.get(key) ?? { key, income: 0, expenses: 0, items: [] };
       if (t.type === "income") entry.income += t.amount;
@@ -188,7 +256,7 @@ export function TransactionsList() {
       map.set(key, entry);
     }
     return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
-  }, [filtered]);
+  }, [displayItems]);
 
   function openNew(date?: Date) {
     setEditingTx(null);
@@ -197,12 +265,32 @@ export function TransactionsList() {
   }
 
   function handleEdit(tx: TransactionRecord) {
+    if (tx.transfer_group_id && transferPairs.get(tx.transfer_group_id)) {
+      setEditingTransfer(recordsToTransfer(transferPairs.get(tx.transfer_group_id)!));
+      setTransferEditOpen(true);
+      return;
+    }
     setEditingTx(tx);
     setDialogOpen(true);
   }
 
+  function handleTransferEditClose(v: boolean) {
+    setTransferEditOpen(v);
+    if (!v) setEditingTransfer(null);
+  }
+
   function handleDeleteConfirm() {
     if (!deletingTx) return;
+    if (deletingTx.transfer_group_id) {
+      deleteTransfer.mutate(String(deletingTx.id), {
+        onSuccess: () => {
+          toast.success("Transferencia eliminada");
+          setDeletingTx(null);
+        },
+        onError: () => toast.error("Error al eliminar la transferencia"),
+      });
+      return;
+    }
     deleteTx.mutate(String(deletingTx.id), {
       onSuccess: () => {
         toast.success("Transacción eliminada");
@@ -212,19 +300,30 @@ export function TransactionsList() {
     });
   }
 
+  function selectedMemberIds(t: TransactionRecord): number[] {
+    return groupMemberIds.get(t.id) ?? [t.id];
+  }
+
   function toggleSelected(id: number) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      for (const memberId of groupMemberIds.get(id) ?? [id]) {
+        if (next.has(memberId)) next.delete(memberId);
+        else next.add(memberId);
+      }
       return next;
     });
   }
 
+  function allVisibleSelected() {
+    const ids = displayItems.flatMap((t) => selectedMemberIds(t));
+    return ids.length > 0 && ids.every((id) => selectedIds.has(id));
+  }
+
   function toggleAllFiltered() {
-    const ids = filtered.map((t) => t.id);
+    const ids = displayItems.flatMap((t) => selectedMemberIds(t));
     setSelectedIds((prev) => {
-      if (prev.size > 0 && ids.every((id) => prev.has(id))) return new Set();
+      if (ids.length > 0 && ids.every((id) => prev.has(id))) return new Set();
       return new Set(ids);
     });
   }
@@ -235,10 +334,17 @@ export function TransactionsList() {
       onSuccess: () => {
         toast.success(`${selectedIds.size} transacciones eliminadas`);
         setSelectedIds(new Set());
+        setBulkMonthLabel(null);
         setBulkConfirmOpen(false);
       },
       onError: () => toast.error("Error al eliminar las transacciones"),
     });
+  }
+
+  function handleDeleteMonth(month: MonthGroup) {
+    setSelectedIds(new Set(month.items.flatMap((t) => selectedMemberIds(t))));
+    setBulkMonthLabel(monthLabel(month.key));
+    setBulkConfirmOpen(true);
   }
 
   function handleDialogClose(v: boolean) {
@@ -352,9 +458,7 @@ export function TransactionsList() {
             onClick={toggleAllFiltered}
             className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
           >
-            {filtered.length > 0 && filtered.every((t) => selectedIds.has(t.id))
-              ? "Quitar todos"
-              : "Seleccionar todos los visibles"}
+            {allVisibleSelected() ? "Quitar todos" : "Seleccionar todos los visibles"}
           </button>
           <div className="ml-auto flex gap-2">
             <button
@@ -418,14 +522,26 @@ export function TransactionsList() {
                       <span className="text-muted-foreground tabular-nums">
                         Balance {fmtAmount(month.income - month.expenses)}
                       </span>
+                      <span className="mx-1 h-4 w-px bg-border" />
+                      <button
+                        onClick={() => handleDeleteMonth(month)}
+                        className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                        title={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
+                        aria-label={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                   <Card className="p-0">
                     <ul className="divide-y divide-border">
                       {month.items.map((t) => {
-                        const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
-                        const isPendingTx = t.category_status === "pending";
-                        const Icon = getCategoryIcon(categoryName);
+                        const isTransfer = !!t.transfer_group_id;
+                        const categoryName = isTransfer
+                          ? "Transferencia"
+                          : (categoryMap[t.category_id ?? -1] ?? "Por editar");
+                        const isPendingTx = !isTransfer && t.category_status === "pending";
+                        const Icon = isTransfer ? ArrowLeftRight : getCategoryIcon(categoryName);
                         return (
                           <li
                             key={t.id}
@@ -435,7 +551,7 @@ export function TransactionsList() {
                             )}
                           >
                             <Checkbox
-                              checked={selectedIds.has(t.id)}
+                              checked={selectedMemberIds(t).every((id) => selectedIds.has(id))}
                               onCheckedChange={() => toggleSelected(t.id)}
                               aria-label="Seleccionar transacción"
                               className="shrink-0"
@@ -445,11 +561,13 @@ export function TransactionsList() {
                                 "flex h-10 w-10 items-center justify-center rounded-xl",
                                 isPendingTx
                                   ? "bg-warning/15 text-warning"
-                                  : t.type === "income"
-                                    ? "bg-success/10 text-success"
-                                    : t.type === "investment"
-                                      ? "bg-primary/10 text-primary"
-                                      : "bg-surface-2 text-muted-foreground",
+                                  : isTransfer
+                                    ? "bg-primary/10 text-primary"
+                                    : t.type === "income"
+                                      ? "bg-success/10 text-success"
+                                      : t.type === "investment"
+                                        ? "bg-primary/10 text-primary"
+                                        : "bg-surface-2 text-muted-foreground",
                               )}
                             >
                               <Icon className="h-4.5 w-4.5" size={18} />
@@ -540,7 +658,7 @@ export function TransactionsList() {
             </div>
           ) : (
             <TransactionCalendar
-              transactions={filtered}
+              transactions={displayItems}
               categoryMap={categoryMap}
               getLinkedLabel={linkedLabel}
               onNewTransaction={(d) => openNew(d)}
@@ -558,6 +676,12 @@ export function TransactionsList() {
         defaultDate={defaultDate}
       />
 
+      <TransferDialog
+        open={transferEditOpen}
+        onOpenChange={handleTransferEditClose}
+        transfer={editingTransfer}
+      />
+
       <StatementImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <ConfirmDialog
@@ -565,19 +689,33 @@ export function TransactionsList() {
         onOpenChange={(v) => {
           if (!v) setDeletingTx(null);
         }}
-        title="Eliminar transacción"
-        description={`¿Estás seguro de eliminar esta transacción? Esta acción no se puede deshacer.`}
+        title={deletingTx?.transfer_group_id ? "Eliminar transferencia" : "Eliminar transacción"}
+        description={
+          deletingTx?.transfer_group_id
+            ? "¿Estás seguro de eliminar esta transferencia? Se eliminarán ambos movimientos (origen y destino) y se recalcularán los saldos. Esta acción no se puede deshacer."
+            : "¿Estás seguro de eliminar esta transacción? Esta acción no se puede deshacer."
+        }
         onConfirm={handleDeleteConfirm}
-        loading={deleteTx.isPending}
+        loading={deleteTx.isPending || deleteTransfer.isPending}
       />
 
       <ConfirmDialog
         open={bulkConfirmOpen}
         onOpenChange={(v) => {
-          if (!v) setBulkConfirmOpen(false);
+          if (!v) {
+            setBulkConfirmOpen(false);
+            if (bulkMonthLabel) setSelectedIds(new Set());
+            setBulkMonthLabel(null);
+          }
         }}
-        title="Eliminar transacciones"
-        description={`¿Estás seguro de eliminar ${selectedIds.size} transacciones? Se recalculan los saldos de las cuentas, activos y pasivos asociados. Esta acción no se puede deshacer.`}
+        title={
+          bulkMonthLabel ? `Eliminar transacciones de ${bulkMonthLabel}` : "Eliminar transacciones"
+        }
+        description={
+          bulkMonthLabel
+            ? `¿Estás seguro de eliminar las ${selectedIds.size} transacciones de ${bulkMonthLabel}? Se recalculan los saldos de las cuentas, activos y pasivos asociados. Esta acción no se puede deshacer.`
+            : `¿Estás seguro de eliminar ${selectedIds.size} transacciones? Se recalculan los saldos de las cuentas, activos y pasivos asociados. Esta acción no se puede deshacer.`
+        }
         onConfirm={handleBulkDeleteConfirm}
         loading={bulkDelete.isPending}
       />

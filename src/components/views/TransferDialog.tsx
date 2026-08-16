@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, Target } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -23,24 +23,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateTransfer, useBankAccounts } from "@/lib/hooks/use-api";
+import {
+  useCreateTransfer,
+  useUpdateTransfer,
+  useBankAccounts,
+  useObjectives,
+} from "@/lib/hooks/use-api";
+import type { TransferResponse } from "@/lib/api/finance";
 
 interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  transfer?: TransferResponse | null;
 }
 
-export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
+export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogProps) {
   const { data: bankAccounts = [], isLoading: loadingAccounts } = useBankAccounts();
+  const { data: objectives = [], isLoading: loadingObjectives } = useObjectives();
   const createTransfer = useCreateTransfer();
+  const updateTransfer = useUpdateTransfer();
+
+  const isEditing = !!transfer;
 
   const [sourceAccountId, setSourceAccountId] = useState<string>("");
   const [destinationAccountId, setDestinationAccountId] = useState<string>("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date>(new Date());
+  const [objectiveId, setObjectiveId] = useState<string>("");
 
-  const isPending = createTransfer.isPending;
+  const isPending = createTransfer.isPending || updateTransfer.isPending;
 
   useEffect(() => {
     if (!open) {
@@ -49,11 +61,24 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
       setAmount("");
       setDescription("");
       setDate(new Date());
+      setObjectiveId("");
+      return;
     }
-  }, [open]);
+    if (transfer) {
+      setSourceAccountId(transfer.source.account_id ? String(transfer.source.account_id) : "");
+      setDestinationAccountId(
+        transfer.destination.account_id ? String(transfer.destination.account_id) : "",
+      );
+      setAmount(String(transfer.amount));
+      setDescription(transfer.description ?? "");
+      setDate(new Date(transfer.transaction_date.slice(0, 10) + "T00:00:00"));
+      setObjectiveId(transfer.objective_id ? String(transfer.objective_id) : "");
+    }
+  }, [open, transfer]);
 
   const sourceAccount = bankAccounts.find((a) => String(a.id) === sourceAccountId);
   const destAccount = bankAccounts.find((a) => String(a.id) === destinationAccountId);
+  const linkableObjectives = objectives.filter((o) => o.type !== "loan");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,13 +88,36 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
       return;
     }
 
+    const dto = {
+      amount: parseCurrency(amount),
+      transaction_date: format(date, "yyyy-MM-dd"),
+      description: description || undefined,
+      objective_id: objectiveId ? Number(objectiveId) : undefined,
+    };
+
+    if (isEditing && transfer) {
+      await updateTransfer.mutateAsync(
+        { id: String(transfer.source.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Transferencia actualizada");
+            onOpenChange(false);
+          },
+          onError: (err) => {
+            toast.error(
+              err instanceof Error ? err.message : "Error al actualizar la transferencia",
+            );
+          },
+        },
+      );
+      return;
+    }
+
     await createTransfer.mutateAsync(
       {
+        ...dto,
         source_account_id: Number(sourceAccountId),
         destination_account_id: Number(destinationAccountId),
-        amount: parseCurrency(amount),
-        transaction_date: format(date, "yyyy-MM-dd"),
-        description: description || undefined,
       },
       {
         onSuccess: () => {
@@ -87,9 +135,11 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nueva Transferencia</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Transferencia" : "Nueva Transferencia"}</DialogTitle>
           <DialogDescription>
-            Registra el movimiento de dinero de una cuenta a otra.
+            {isEditing
+              ? "Actualiza el movimiento de dinero entre cuentas. Los cambios aplican a ambos movimientos."
+              : "Registra el movimiento de dinero de una cuenta a otra."}
           </DialogDescription>
         </DialogHeader>
 
@@ -118,7 +168,11 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
               <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                 <div className="space-y-1.5">
                   <Label>Origen</Label>
-                  <Select value={sourceAccountId} onValueChange={setSourceAccountId}>
+                  <Select
+                    value={sourceAccountId}
+                    onValueChange={setSourceAccountId}
+                    disabled={isEditing}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
@@ -143,7 +197,11 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
 
                 <div className="space-y-1.5">
                   <Label>Destino</Label>
-                  <Select value={destinationAccountId} onValueChange={setDestinationAccountId}>
+                  <Select
+                    value={destinationAccountId}
+                    onValueChange={setDestinationAccountId}
+                    disabled={isEditing}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
@@ -164,6 +222,11 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
                   )}
                 </div>
               </div>
+              {isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  Las cuentas de la transferencia no se pueden cambiar al editar.
+                </p>
+              )}
             </div>
 
             {/* ── Fila 2: Detalles ── */}
@@ -195,6 +258,37 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Meta vinculada (opcional)</Label>
+                  <Select value={objectiveId} onValueChange={setObjectiveId}>
+                    <SelectTrigger disabled={loadingObjectives || linkableObjectives.length === 0}>
+                      <SelectValue
+                        placeholder={
+                          loadingObjectives
+                            ? "Cargando metas..."
+                            : linkableObjectives.length === 0
+                              ? "No hay metas de ahorro disponibles"
+                              : "Seleccionar meta..."
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {linkableObjectives.map((o) => (
+                        <SelectItem key={o.id} value={String(o.id)}>
+                          <span className="inline-flex items-center gap-2">
+                            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                            {o.name}
+                            {o.is_completed && " · Completada"}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    El monto transferido se abona al saldo de la meta.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -212,7 +306,7 @@ export function TransferDialog({ open, onOpenChange }: TransferDialogProps) {
                 className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
               >
                 {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                Registrar transferencia
+                {isEditing ? "Guardar cambios" : "Registrar transferencia"}
               </Button>
             </DialogFooter>
           </form>

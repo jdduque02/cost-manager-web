@@ -375,6 +375,7 @@ export function useCreateTransfer() {
       qc.invalidateQueries({ queryKey: ["transfers"] });
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
   });
 }
@@ -388,6 +389,22 @@ export function useDeleteTransfer() {
       qc.invalidateQueries({ queryKey: ["transfers"] });
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateTransferDto> }) =>
+      financeApi.updateTransfer(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transfers"] });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
   });
 }
