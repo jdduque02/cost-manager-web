@@ -1,15 +1,62 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check, X } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
+import type { ValidationErrorDetail } from "@/lib/api/client";
 
 interface CreateUserResponse {
   id: string;
   external_id: string;
   username: string;
   email: string;
+}
+
+const PASSWORD_RULES = [
+  { key: "minLength", test: (p: string) => p.length >= 8, label: "Minimo 8 caracteres" },
+  {
+    key: "upperCase",
+    test: (p: string) => (p.match(/[A-Z]/g) ?? []).length >= 2,
+    label: "2 mayusculas",
+  },
+  {
+    key: "lowerCase",
+    test: (p: string) => (p.match(/[a-z]/g) ?? []).length >= 2,
+    label: "2 minusculas",
+  },
+  { key: "digits", test: (p: string) => (p.match(/\d/g) ?? []).length >= 2, label: "2 numeros" },
+  { key: "special", test: (p: string) => /[^A-Za-z0-9]/.test(p), label: "1 caracter especial" },
+] as const;
+
+function PasswordHints({ password }: { password: string }) {
+  return (
+    <ul className="mt-1.5 space-y-0.5">
+      {PASSWORD_RULES.map((rule) => {
+        const ok = rule.test(password);
+        return (
+          <li key={rule.key} className="flex items-center gap-1.5 text-xs">
+            {ok ? (
+              <Check className="h-3 w-3 text-success" />
+            ) : (
+              <X className="h-3 w-3 text-muted-foreground/50" />
+            )}
+            <span className={ok ? "text-success" : "text-muted-foreground"}>{rule.label}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function fieldErrors(details: ValidationErrorDetail[], field: string): string | undefined {
+  for (const d of details) {
+    if (d.property === field) {
+      const msgs = Object.values(d.constraints);
+      return msgs.length ? msgs[0] : undefined;
+    }
+  }
+  return undefined;
 }
 
 export function Register() {
@@ -26,6 +73,7 @@ export function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldDetails, setFieldDetails] = useState<ValidationErrorDetail[]>([]);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -33,6 +81,8 @@ export function Register() {
       navigate({ to: "/dashboard" });
     }
   }, [isAuthenticated, navigate]);
+
+  const passwordValid = useMemo(() => PASSWORD_RULES.every((r) => r.test(password)), [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,13 +94,14 @@ export function Register() {
       setError("Las contrasenas no coinciden");
       return;
     }
-    if (password.length < 8) {
-      setError("La contrasena debe tener al menos 8 caracteres");
+    if (!passwordValid) {
+      setError("La contrasena no cumple con los requisitos");
       return;
     }
 
     setLoading(true);
     setError("");
+    setFieldDetails([]);
 
     try {
       await api.post<CreateUserResponse>("user", {
@@ -63,7 +114,6 @@ export function Register() {
         document_id: documentId || undefined,
         locale: "es",
         timezone: `${username}_${new Date().getFullYear()}`,
-        is_active: true,
         metadata: {
           prefered_theme: "dark",
           notifications: true,
@@ -71,8 +121,13 @@ export function Register() {
       });
       setSuccess(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error al crear la cuenta";
-      setError(message);
+      if (err instanceof ApiError && err.details.length > 0) {
+        setFieldDetails(err.details);
+        setError(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : "Error al crear la cuenta";
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +154,11 @@ export function Register() {
       </div>
     );
   }
+
+  const usernameError = fieldErrors(fieldDetails, "username");
+  const emailError = fieldErrors(fieldDetails, "email");
+  const passwordError = fieldErrors(fieldDetails, "password");
+  const phoneError = fieldErrors(fieldDetails, "phone");
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4">
@@ -132,10 +192,13 @@ export function Register() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
+                usernameError ? "border-destructive" : "border-border"
+              }`}
               placeholder="juan_perez"
               disabled={loading}
             />
+            {usernameError && <p className="mt-1 text-xs text-destructive">{usernameError}</p>}
           </div>
 
           <div>
@@ -146,10 +209,13 @@ export function Register() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
+                emailError ? "border-destructive" : "border-border"
+              }`}
               placeholder="juan@ejemplo.com"
               disabled={loading}
             />
+            {emailError && <p className="mt-1 text-xs text-destructive">{emailError}</p>}
           </div>
 
           <div>
@@ -172,10 +238,13 @@ export function Register() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
+                phoneError ? "border-destructive" : "border-border"
+              }`}
               placeholder="+57 310 123 4567"
               disabled={loading}
             />
+            {phoneError && <p className="mt-1 text-xs text-destructive">{phoneError}</p>}
           </div>
 
           <div>
@@ -196,10 +265,14 @@ export function Register() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
+                passwordError ? "border-destructive" : "border-border"
+              }`}
               placeholder="Minimo 8 caracteres"
               disabled={loading}
             />
+            <PasswordHints password={password} />
+            {passwordError && <p className="mt-1 text-xs text-destructive">{passwordError}</p>}
           </div>
 
           <div>

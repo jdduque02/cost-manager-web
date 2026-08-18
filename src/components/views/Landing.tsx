@@ -74,7 +74,7 @@ function HeroMockup() {
             </p>
             <div className="mt-2 flex h-10 items-end gap-1">
               {[40, 65, 45, 80, 60, 95].map((h, i) => (
-                <MiniBar key={i} index={i} color="bg-success/40" />
+                <MiniBar key={`bar-${h}`} index={i} color="bg-success/40" />
               ))}
             </div>
           </div>
@@ -85,7 +85,7 @@ function HeroMockup() {
             </p>
             <div className="mt-2 flex h-10 items-end gap-1">
               {[70, 45, 85, 50, 65, 55].map((h, i) => (
-                <MiniBar key={i} index={i} color="bg-info/40" />
+                <MiniBar key={`bar-${h}`} index={i} color="bg-info/40" />
               ))}
             </div>
           </div>
@@ -94,7 +94,7 @@ function HeroMockup() {
             <p className="mt-1 font-display text-lg font-semibold text-primary tabular-nums">32%</p>
             <div className="mt-2 flex h-10 items-end gap-1">
               {[30, 50, 35, 70, 55, 88].map((h, i) => (
-                <MiniBar key={i} index={i} color="bg-primary/50" />
+                <MiniBar key={`bar-${h}`} index={i} color="bg-primary/50" />
               ))}
             </div>
           </div>

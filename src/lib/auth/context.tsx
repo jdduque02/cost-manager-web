@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useState, useEffect, useCallback, useMemo } from "react";
 import { authApi, type AuthTokens } from "@/lib/api/auth";
 import {
   getAccessToken,
@@ -36,24 +36,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    async function ensureAccessToken(): Promise<{
+      token: string | null;
+      userId: string | null;
+    }> {
+      let token = getAccessToken();
+      let userId = getStoredUserId();
+
+      if (token) return { token, userId };
+
+      const restored = await tryRestoreSession();
+      if (!restored) return { token: null, userId: null };
+
+      return { token: getAccessToken(), userId: getStoredUserId() };
+    }
+
     async function bootstrap() {
       try {
-        let token = getAccessToken();
-        let userId = getStoredUserId();
-
-        if (!token) {
-          const restored = await tryRestoreSession();
-          if (!restored) {
-            if (!cancelled) setIsLoading(false);
-            return;
-          }
-          token = getAccessToken();
-          userId = getStoredUserId();
-        }
-
+        const { token, userId } = await ensureAccessToken();
         if (!token || !userId) {
           clearTokens();
-          if (!cancelled) setIsLoading(false);
           return;
         }
 
@@ -112,20 +114,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const roles = resolveRoles(user);
   const isAdmin = roles.includes("admin");
 
+  const contextValue = useMemo(
+    () => ({
+      user,
+      userId: user?.id ?? null,
+      isAuthenticated: !!user,
+      isLoading,
+      isAdmin,
+      roles,
+      login,
+      logout,
+      refreshUser,
+    }),
+    [user, isLoading, isAdmin, roles, login, logout, refreshUser],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        userId: user?.id ?? null,
-        isAuthenticated: !!user,
-        isLoading,
-        isAdmin,
-        roles,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

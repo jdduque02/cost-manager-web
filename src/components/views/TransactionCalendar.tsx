@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { DayPicker, DayButton, getDefaultClassNames } from "react-day-picker";
 import { es } from "date-fns/locale";
-import { CalendarDays, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { CalendarDays, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,64 @@ interface TransactionCalendarProps {
   onNewTransaction: (date: Date) => void;
   onEdit: (tx: TransactionRecord) => void;
   onDelete: (tx: TransactionRecord) => void;
+}
+
+interface CalendarDayButtonProps extends React.ComponentProps<typeof DayButton> {
+  dayRollups: Map<string, DayRollup>;
+  defaultDayClassName: string;
+}
+
+function CalendarDayButton({
+  className,
+  day,
+  modifiers,
+  children,
+  dayRollups,
+  defaultDayClassName,
+  ...props
+}: CalendarDayButtonProps) {
+  const key = toDateKey(day.date);
+  const info = dayRollups.get(key);
+  const outside = !!modifiers.outside;
+  return (
+    <button
+      type="button"
+      aria-selected={modifiers.selected}
+      className={cn(
+        "relative flex aspect-square h-auto w-full min-w-(--cell-size) flex-col items-center justify-center rounded-md text-sm font-normal leading-none transition",
+        outside && "text-muted-foreground opacity-40",
+        modifiers.selected
+          ? "bg-primary text-primary-foreground"
+          : "text-foreground hover:bg-surface-2",
+        modifiers.today && !modifiers.selected && "ring-1 ring-primary/40",
+        defaultDayClassName,
+        className,
+      )}
+      {...props}
+    >
+      <span>{children}</span>
+      {info && info.count > 0 && (
+        <span className="pointer-events-none absolute bottom-1 flex items-center gap-0.5">
+          {info.income > 0 && (
+            <span
+              className={cn(
+                "h-1 w-1 rounded-full",
+                modifiers.selected ? "bg-primary-foreground" : "bg-success",
+              )}
+            />
+          )}
+          {info.expenses > 0 && (
+            <span
+              className={cn(
+                "h-1 w-1 rounded-full",
+                modifiers.selected ? "bg-primary-foreground" : "bg-destructive",
+              )}
+            />
+          )}
+        </span>
+      )}
+    </button>
+  );
 }
 
 export function TransactionCalendar({
@@ -71,61 +129,21 @@ export function TransactionCalendar({
 
   const defaultClassNames = getDefaultClassNames();
 
-  const components = useMemo(
-    () => ({
-      DayButton: ({
-        className,
-        day,
-        modifiers,
-        children,
-        ...props
-      }: React.ComponentProps<typeof DayButton>) => {
-        const key = toDateKey(day.date);
-        const info = dayRollups.get(key);
-        const outside = !!modifiers.outside;
+  const DayButtonWrapper = useMemo(
+    () =>
+      function DayButtonWrapper(props: React.ComponentProps<typeof DayButton>) {
         return (
-          <button
-            type="button"
-            aria-selected={modifiers.selected}
-            className={cn(
-              "relative flex aspect-square h-auto w-full min-w-(--cell-size) flex-col items-center justify-center rounded-md text-sm font-normal leading-none transition",
-              outside && "text-muted-foreground opacity-40",
-              modifiers.selected
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground hover:bg-surface-2",
-              modifiers.today && !modifiers.selected && "ring-1 ring-primary/40",
-              defaultClassNames.day,
-              className,
-            )}
+          <CalendarDayButton
             {...props}
-          >
-            <span>{children}</span>
-            {info && info.count > 0 && (
-              <span className="pointer-events-none absolute bottom-1 flex items-center gap-0.5">
-                {info.income > 0 && (
-                  <span
-                    className={cn(
-                      "h-1 w-1 rounded-full",
-                      modifiers.selected ? "bg-primary-foreground" : "bg-success",
-                    )}
-                  />
-                )}
-                {info.expenses > 0 && (
-                  <span
-                    className={cn(
-                      "h-1 w-1 rounded-full",
-                      modifiers.selected ? "bg-primary-foreground" : "bg-destructive",
-                    )}
-                  />
-                )}
-              </span>
-            )}
-          </button>
+            dayRollups={dayRollups}
+            defaultDayClassName={defaultClassNames.day}
+          />
         );
       },
-    }),
     [dayRollups, defaultClassNames],
   );
+
+  const components = useMemo(() => ({ DayButton: DayButtonWrapper }), [DayButtonWrapper]);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -264,19 +282,30 @@ export function TransactionCalendar({
                       </Badge>
                     )}
                   </div>
-                  <span
-                    className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      t.type === "income"
-                        ? "text-success"
-                        : t.type === "investment"
-                          ? "text-primary"
-                          : "text-foreground",
-                    )}
-                  >
-                    {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
-                    {fmtAmount(t.amount)}
-                  </span>
+                  {(() => {
+                    let typeColorClass: string;
+                    if (t.type === "income") {
+                      typeColorClass = "text-success";
+                    } else if (t.type === "investment") {
+                      typeColorClass = "text-primary";
+                    } else {
+                      typeColorClass = "text-foreground";
+                    }
+                    let typeSign: string;
+                    if (t.type === "income") {
+                      typeSign = "+";
+                    } else if (t.type === "expense") {
+                      typeSign = "-";
+                    } else {
+                      typeSign = "";
+                    }
+                    return (
+                      <span className={cn("text-sm font-semibold tabular-nums", typeColorClass)}>
+                        {typeSign}
+                        {fmtAmount(t.amount)}
+                      </span>
+                    );
+                  })()}
                   <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100">
                     <button
                       onClick={() => onEdit(t)}

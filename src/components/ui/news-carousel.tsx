@@ -99,9 +99,9 @@ export function NewsCarousel() {
         )}
 
         <div className="mt-3 flex justify-center gap-1">
-          {news.map((_, i) => (
+          {news.map((item, i) => (
             <button
-              key={i}
+              key={item.id}
               onClick={() => setIndex(i)}
               className={cn(
                 "h-1 rounded-full transition-all duration-200 ease-out",

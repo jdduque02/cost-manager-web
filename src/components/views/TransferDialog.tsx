@@ -85,21 +85,39 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
   const destAccount = bankAccounts.find((a) => String(a.id) === destinationAccountId);
   const linkableObjectives = objectives.filter((o) => o.type !== "loan");
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!sourceAccountId || !destinationAccountId || !amount) return;
-    if (sourceAccountId === destinationAccountId) {
-      toast.error("La cuenta de origen y destino deben ser diferentes");
-      return;
-    }
+  let objectivePlaceholder: string;
+  if (loadingObjectives) {
+    objectivePlaceholder = "Cargando metas...";
+  } else if (linkableObjectives.length === 0) {
+    objectivePlaceholder = "No hay metas de ahorro disponibles";
+  } else {
+    objectivePlaceholder = "Seleccionar meta...";
+  }
 
-    const dto = {
+  function buildDto() {
+    return {
       amount: parseCurrency(amount),
       transaction_date: format(date, "yyyy-MM-dd"),
       description: description || undefined,
       objective_id: objectiveId ? Number(objectiveId) : undefined,
       company_id: companyId ? Number(companyId) : undefined,
     };
+  }
+
+  function validateTransfer(): boolean {
+    if (!sourceAccountId || !destinationAccountId || !amount) return false;
+    if (sourceAccountId === destinationAccountId) {
+      toast.error("La cuenta de origen y destino deben ser diferentes");
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!validateTransfer()) return;
+
+    const dto = buildDto();
 
     if (isEditing && transfer) {
       await updateTransfer.mutateAsync(
@@ -137,6 +155,200 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     );
   }
 
+  function renderLoadingBody() {
+    return (
+      <div className="flex h-24 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  function renderInsufficientAccountsBody() {
+    return (
+      <div className="space-y-4 py-2">
+        <div className="rounded-xl bg-surface p-4 text-center text-sm text-muted-foreground">
+          Necesitas al menos 2 cuentas bancarias para registrar una transferencia.
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  }
+
+  const isSubmitDisabled =
+    !sourceAccountId ||
+    !destinationAccountId ||
+    !amount ||
+    parseCurrency(amount) <= 0 ||
+    sourceAccountId === destinationAccountId ||
+    isPending;
+
+  function renderFormBody() {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ── Fila 1: Cuentas ── */}
+        <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cuentas
+          </p>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+            <div className="space-y-1.5">
+              <Label>Origen</Label>
+              <Select
+                value={sourceAccountId}
+                onValueChange={setSourceAccountId}
+                disabled={isEditing}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.bank_name} · {a.masked_account_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {sourceAccount && (
+                <p className="text-xs text-muted-foreground">
+                  Saldo: ${Number(sourceAccount.display_balance).toLocaleString("es-CO")}
+                </p>
+              )}
+            </div>
+
+            <div className="flex h-10 items-center justify-center pb-0.5">
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Destino</Label>
+              <Select
+                value={destinationAccountId}
+                onValueChange={setDestinationAccountId}
+                disabled={isEditing}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts
+                    .filter((a) => String(a.id) !== sourceAccountId)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.bank_name} · {a.masked_account_number}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {destAccount && (
+                <p className="text-xs text-muted-foreground">
+                  Saldo: ${Number(destAccount.display_balance).toLocaleString("es-CO")}
+                </p>
+              )}
+            </div>
+          </div>
+          {isEditing && (
+            <p className="text-xs text-muted-foreground">
+              Las cuentas de la transferencia no se pueden cambiar al editar.
+            </p>
+          )}
+        </div>
+
+        {/* ── Fila 2: Detalles ── */}
+        <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Detalles
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Monto</Label>
+              <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Fecha</Label>
+              <DatePicker
+                value={date}
+                onChange={(d) => d && setDate(d)}
+                disabled={isPending}
+                placeholder="Seleccionar"
+              />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Descripción (opcional)</Label>
+              <Input
+                placeholder="Ej. Transferencia Bancolombia a Nu"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Meta vinculada (opcional)</Label>
+              <Select value={objectiveId} onValueChange={setObjectiveId}>
+                <SelectTrigger disabled={loadingObjectives || linkableObjectives.length === 0}>
+                  <SelectValue placeholder={objectivePlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {linkableObjectives.map((o) => (
+                    <SelectItem key={o.id} value={String(o.id)}>
+                      <span className="inline-flex items-center gap-2">
+                        <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                        {o.name}
+                        {o.is_completed && " · Completada"}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                El monto transferido se abona al saldo de la meta.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Empresa destino (opcional)</Label>
+              <Select value={companyId} onValueChange={setCompanyId}>
+                <SelectTrigger disabled={empresas.length === 0}>
+                  <SelectValue
+                    placeholder={
+                      empresas.length === 0
+                        ? "No hay empresas disponibles"
+                        : "Seleccionar empresa..."
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="submit"
+            disabled={isSubmitDisabled}
+            className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isEditing ? "Guardar cambios" : "Registrar transferencia"}
+          </Button>
+        </DialogFooter>
+      </form>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -149,196 +361,9 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
           </DialogDescription>
         </DialogHeader>
 
-        {loadingAccounts ? (
-          <div className="flex h-24 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : bankAccounts.length < 2 ? (
-          <div className="space-y-4 py-2">
-            <div className="rounded-xl bg-surface p-4 text-center text-sm text-muted-foreground">
-              Necesitas al menos 2 cuentas bancarias para registrar una transferencia.
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cerrar
-              </Button>
-            </DialogFooter>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ── Fila 1: Cuentas ── */}
-            <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Cuentas
-              </p>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-                <div className="space-y-1.5">
-                  <Label>Origen</Label>
-                  <Select
-                    value={sourceAccountId}
-                    onValueChange={setSourceAccountId}
-                    disabled={isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bankAccounts.map((a) => (
-                        <SelectItem key={a.id} value={String(a.id)}>
-                          {a.bank_name} · {a.masked_account_number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {sourceAccount && (
-                    <p className="text-xs text-muted-foreground">
-                      Saldo: ${Number(sourceAccount.display_balance).toLocaleString("es-CO")}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex h-10 items-center justify-center pb-0.5">
-                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Destino</Label>
-                  <Select
-                    value={destinationAccountId}
-                    onValueChange={setDestinationAccountId}
-                    disabled={isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {bankAccounts
-                        .filter((a) => String(a.id) !== sourceAccountId)
-                        .map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {a.bank_name} · {a.masked_account_number}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {destAccount && (
-                    <p className="text-xs text-muted-foreground">
-                      Saldo: ${Number(destAccount.display_balance).toLocaleString("es-CO")}
-                    </p>
-                  )}
-                </div>
-              </div>
-              {isEditing && (
-                <p className="text-xs text-muted-foreground">
-                  Las cuentas de la transferencia no se pueden cambiar al editar.
-                </p>
-              )}
-            </div>
-
-            {/* ── Fila 2: Detalles ── */}
-            <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Detalles
-              </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Monto</Label>
-                  <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Fecha</Label>
-                  <DatePicker
-                    value={date}
-                    onChange={(d) => d && setDate(d)}
-                    disabled={isPending}
-                    placeholder="Seleccionar"
-                  />
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Descripción (opcional)</Label>
-                  <Input
-                    placeholder="Ej. Transferencia Bancolombia a Nu"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Meta vinculada (opcional)</Label>
-                  <Select value={objectiveId} onValueChange={setObjectiveId}>
-                    <SelectTrigger disabled={loadingObjectives || linkableObjectives.length === 0}>
-                      <SelectValue
-                        placeholder={
-                          loadingObjectives
-                            ? "Cargando metas..."
-                            : linkableObjectives.length === 0
-                              ? "No hay metas de ahorro disponibles"
-                              : "Seleccionar meta..."
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {linkableObjectives.map((o) => (
-                        <SelectItem key={o.id} value={String(o.id)}>
-                          <span className="inline-flex items-center gap-2">
-                            <Target className="h-3.5 w-3.5 text-muted-foreground" />
-                            {o.name}
-                            {o.is_completed && " · Completada"}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    El monto transferido se abona al saldo de la meta.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Empresa destino (opcional)</Label>
-                  <Select value={companyId} onValueChange={setCompanyId}>
-                    <SelectTrigger disabled={empresas.length === 0}>
-                      <SelectValue
-                        placeholder={
-                          empresas.length === 0
-                            ? "No hay empresas disponibles"
-                            : "Seleccionar empresa..."
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {empresas.map((e) => (
-                        <SelectItem key={e.id} value={String(e.id)}>
-                          {e.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="submit"
-                disabled={
-                  !sourceAccountId ||
-                  !destinationAccountId ||
-                  !amount ||
-                  parseCurrency(amount) <= 0 ||
-                  sourceAccountId === destinationAccountId ||
-                  isPending
-                }
-                className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
-              >
-                {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isEditing ? "Guardar cambios" : "Registrar transferencia"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+        {loadingAccounts && renderLoadingBody()}
+        {!loadingAccounts && bankAccounts.length < 2 && renderInsufficientAccountsBody()}
+        {!loadingAccounts && bankAccounts.length >= 2 && renderFormBody()}
       </DialogContent>
     </Dialog>
   );

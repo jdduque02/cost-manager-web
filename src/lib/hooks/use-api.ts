@@ -6,7 +6,6 @@ import {
   type UpdateTransactionDto,
   type CreateObjectiveDto,
   type CalculateQuotaRequest,
-  type CalculateQuotaResponse,
   type TransactionQuery,
   type TransactionSummaryQuery,
   type CreateTransferDto,
@@ -30,17 +29,16 @@ import {
   catalogApi,
   type CreateCategoryDto,
   type UpdateCategoryDto,
-  type CreateSubcategoryDto,
   type UpdateSubcategoryDto,
 } from "@/lib/api/catalog";
-import { newsApi, type NewsItem } from "@/lib/api/news";
+import { newsApi } from "@/lib/api/news";
 import { statementImportApi, type StatementImportProgress } from "@/lib/api/statement-imports";
 import { useAuth } from "@/lib/auth";
 import { getSocket, NEWS_EVENTS, STATEMENT_IMPORT_PROGRESS } from "@/lib/socket";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
-export const qk = {
+const qk = {
   transactions: (userId: string, params?: TransactionQuery) =>
     ["transactions", userId, params ?? {}] as const,
   transactionSummary: (userId: string, params: TransactionSummaryQuery) =>
@@ -158,10 +156,6 @@ export function useUpdateTransaction() {
   });
 }
 
-export function useGoalTransactions(goalId: number | undefined | null) {
-  return useTransactions(goalId ? { objective_id: goalId, limit: 500 } : undefined);
-}
-
 export function useObjectives() {
   const { userId } = useAuth();
   return useQuery({
@@ -202,42 +196,6 @@ export function useDeleteObjective() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
     },
-  });
-}
-
-export function useObjectivePayments(objectiveId: string) {
-  const { userId } = useAuth();
-  return useQuery({
-    queryKey: ["objective-payments", userId, objectiveId],
-    queryFn: () => financeApi.getObjectivePayments(userId!, objectiveId),
-    enabled: !!userId && !!objectiveId,
-  });
-}
-
-export function useCreateObjectivePayment() {
-  const { userId } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      objectiveId,
-      dto,
-    }: {
-      objectiveId: string;
-      dto: { amount: number; payment_date: string; note?: string };
-    }) => financeApi.createObjectivePayment(userId!, objectiveId, dto),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["objective-payments"] });
-      qc.invalidateQueries({ queryKey: ["objectives"] });
-    },
-  });
-}
-
-export function usePeriods() {
-  const { userId } = useAuth();
-  return useQuery({
-    queryKey: qk.periods(userId ?? ""),
-    queryFn: () => financeApi.getPeriods(userId!),
-    enabled: !!userId,
   });
 }
 
@@ -358,16 +316,18 @@ export function useStatementImportProgress(onProgress?: (p: StatementImportProgr
   }, [queryClient, userId]);
 }
 
-// ─── Transfers ───────────────────────────────────────────────────────────────
+// ─── Quota Calculation ────────────────────────────────────────────────────────
 
-export function useTransfers() {
+export function useCalculateQuota() {
   const { userId } = useAuth();
-  return useQuery({
-    queryKey: ["transfers", userId ?? ""],
-    queryFn: () => financeApi.getTransfers(userId!),
-    enabled: !!userId,
+  return useMutation({
+    mutationFn: (dto: CalculateQuotaRequest) => financeApi.calculateQuota(userId!, dto),
   });
 }
+
+export type { CalculateQuotaResponse } from "@/lib/api/finance";
+
+// ─── Transfers ───────────────────────────────────────────────────────────────
 
 export function useCreateTransfer() {
   const { userId } = useAuth();
@@ -411,17 +371,6 @@ export function useUpdateTransfer() {
     },
   });
 }
-
-// ─── Quota Calculation ────────────────────────────────────────────────────────
-
-export function useCalculateQuota() {
-  const { userId } = useAuth();
-  return useMutation({
-    mutationFn: (dto: CalculateQuotaRequest) => financeApi.calculateQuota(userId!, dto),
-  });
-}
-
-export type { CalculateQuotaResponse } from "@/lib/api/finance";
 
 // ─── Banking Hooks ────────────────────────────────────────────────────────────
 
@@ -669,17 +618,6 @@ export function useUpdateFinancialBudgetProfile() {
   });
 }
 
-export function useDeleteFinancialBudgetProfile() {
-  const { userId } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => identityApi.deleteFinancialBudgetProfile(userId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.financialBudgetProfile(userId ?? "") });
-    },
-  });
-}
-
 // ─── Catalog Hooks ────────────────────────────────────────────────────────────
 
 export function useCategories() {
@@ -837,32 +775,6 @@ export function useCloneTransaction() {
 
 import { api } from "@/lib/api/client";
 
-export interface FinancialSummary {
-  id: number;
-  user_id: number;
-  financial_period_id: number;
-  total_income: number;
-  total_expense: number;
-  total_debt: number;
-  net_worth: number;
-  expense_ratio: number | null;
-  debt_ratio: number | null;
-  savings_rate: number | null;
-  recommended_max_expense: number | null;
-  recommended_savings: number | null;
-  is_over_spending: boolean;
-  is_over_indebted: boolean;
-  insights: Array<{
-    type: string;
-    severity: string;
-    message: string;
-    category_id?: number;
-    suggested_action?: string;
-  }>;
-  calculated_at: string | null;
-  is_final: boolean;
-}
-
 export interface TaxSummary {
   id: number;
   user_id: number;
@@ -877,37 +789,6 @@ export interface TaxSummary {
   must_declare: boolean;
   estimated_tax: number | null;
   created_at: string;
-}
-
-function normalizeFinancialSummary(s: FinancialSummary): FinancialSummary {
-  return {
-    ...s,
-    financial_period_id: Number(s.financial_period_id),
-    total_income: Number(s.total_income ?? 0),
-    total_expense: Number(s.total_expense ?? 0),
-    total_debt: Number(s.total_debt ?? 0),
-    net_worth: Number(s.net_worth ?? 0),
-    expense_ratio: s.expense_ratio != null ? Number(s.expense_ratio) : null,
-    debt_ratio: s.debt_ratio != null ? Number(s.debt_ratio) : null,
-    savings_rate: s.savings_rate != null ? Number(s.savings_rate) : null,
-    recommended_max_expense:
-      s.recommended_max_expense != null ? Number(s.recommended_max_expense) : null,
-    recommended_savings: s.recommended_savings != null ? Number(s.recommended_savings) : null,
-  };
-}
-
-export function useFinancialSummary() {
-  const { userId } = useAuth();
-  return useQuery({
-    queryKey: qk.financialSummary(userId ?? ""),
-    queryFn: async () => {
-      const result = await api.get<FinancialSummary[]>(
-        `users/${userId}/intelligence/financial-summary`,
-      );
-      return normalizeFinancialSummary(Array.isArray(result) ? result[0] : result);
-    },
-    enabled: !!userId,
-  });
 }
 
 function normalizeTaxSummary(t: TaxSummary): TaxSummary {

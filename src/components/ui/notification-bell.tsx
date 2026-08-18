@@ -72,17 +72,19 @@ export function NotificationBell({ className }: { className?: string }) {
             )}
           </div>
 
-          {loading ? (
+          {loading && (
             <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Cargando...
             </div>
-          ) : notifications.length === 0 ? (
+          )}
+          {!loading && notifications.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-6 text-center text-xs text-muted-foreground">
               <BellOff className="h-5 w-5 opacity-50" />
               Sin notificaciones
             </div>
-          ) : (
+          )}
+          {!loading && notifications.length > 0 && (
             <ScrollArea className="max-h-96">
               <div className="p-1">
                 <NotificationGroupList notifications={notifications} onSelect={handleSelect} />

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   connectSocket,
   disconnectSocket,
@@ -112,10 +112,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
+  const contextValue = useMemo(
+    () => ({ notifications, unreadCount, markRead, markAllRead, loading }),
+    [notifications, unreadCount, markRead, markAllRead, loading],
+  );
+
   return (
-    <NotificationContext.Provider
-      value={{ notifications, unreadCount, markRead, markAllRead, loading }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

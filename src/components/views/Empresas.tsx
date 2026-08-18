@@ -1,21 +1,13 @@
 import { useState, useMemo } from "react";
 import { Loader2, Plus, Building2, Trash2, Pencil } from "lucide-react";
 import { Card, Badge } from "@/components/ui/primitives";
-import { Button } from "@/components/ui/button";
-import {
-  useEmpresas,
-  useDeleteEmpresa,
-  useCategories,
-  useTransactions,
-  useTransactionSummary,
-} from "@/lib/hooks/use-api";
+import { useEmpresas, useDeleteEmpresa, useCategories, useTransactions } from "@/lib/hooks/use-api";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmpresaDialog } from "./EmpresaDialog";
 import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { toast } from "sonner";
 import type { Empresa } from "@/lib/api/empresas";
-import { format, startOfMonth, endOfMonth } from "date-fns";
 
 export function Empresas() {
   const { data: empresas = [], isLoading } = useEmpresas();
@@ -116,16 +108,18 @@ export function Empresas() {
         </button>
       </div>
 
-      {isLoading ? (
+      {isLoading && (
         <div className="flex h-32 items-center justify-center text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : empresas.length === 0 ? (
+      )}
+      {!isLoading && empresas.length === 0 && (
         <Card className="flex h-40 flex-col items-center justify-center text-muted-foreground text-sm">
           <Building2 className="mb-2 h-6 w-6 opacity-50" />
           No hay empresas creadas.
         </Card>
-      ) : (
+      )}
+      {!isLoading && empresas.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {empresas.map((e) => {
             const count = empresaTransactionCounts[e.id] ?? 0;

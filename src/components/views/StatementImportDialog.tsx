@@ -421,13 +421,15 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                   className="flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-xs"
                 >
                   <div className="flex items-center gap-2">
-                    {job.status === "completed" || job.status === "partial" ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                    ) : job.status === "failed" ? (
-                      <XCircle className="h-3.5 w-3.5 text-destructive" />
-                    ) : (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    )}
+                    {(() => {
+                      if (job.status === "completed" || job.status === "partial") {
+                        return <CheckCircle2 className="h-3.5 w-3.5 text-success" />;
+                      }
+                      if (job.status === "failed") {
+                        return <XCircle className="h-3.5 w-3.5 text-destructive" />;
+                      }
+                      return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
+                    })()}
                     <span className="capitalize">{job.status}</span>
                     <span className="text-muted-foreground">
                       {job.total_records_created} creados · {job.total_records_skipped} omitidos
@@ -475,26 +477,26 @@ function ImportProgress({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-        {isDone ? (
-          progress.failed_files === 0 ? (
-            <CheckCircle2 className="h-8 w-8 shrink-0 text-success" />
-          ) : progress.success_files === 0 ? (
-            <XCircle className="h-8 w-8 shrink-0 text-destructive" />
-          ) : (
-            <CheckCircle2 className="h-8 w-8 shrink-0 text-warning" />
-          )
-        ) : (
-          <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />
-        )}
+        {(() => {
+          if (!isDone) {
+            return <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />;
+          }
+          if (progress.failed_files === 0) {
+            return <CheckCircle2 className="h-8 w-8 shrink-0 text-success" />;
+          }
+          if (progress.success_files === 0) {
+            return <XCircle className="h-8 w-8 shrink-0 text-destructive" />;
+          }
+          return <CheckCircle2 className="h-8 w-8 shrink-0 text-warning" />;
+        })()}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">
-            {isDone
-              ? progress.failed_files === 0
-                ? "Carga completada"
-                : progress.success_files === 0
-                  ? "No se pudo importar"
-                  : "Carga completada con errores"
-              : "Procesando extractos…"}
+            {(() => {
+              if (!isDone) return "Procesando extractos…";
+              if (progress.failed_files === 0) return "Carga completada";
+              if (progress.success_files === 0) return "No se pudo importar";
+              return "Carga completada con errores";
+            })()}
           </p>
           <p className="text-xs text-muted-foreground">
             {progress.processed_files} de {progress.total_files} archivos ·{" "}
@@ -530,15 +532,12 @@ function ImportProgress({
             <div className="flex items-center justify-between gap-2">
               <span className="truncate font-medium">{f.filename}</span>
               <Badge
-                tone={
-                  f.status === "success"
-                    ? "success"
-                    : f.status === "failed"
-                      ? "destructive"
-                      : f.status === "processing"
-                        ? "primary"
-                        : "muted"
-                }
+                tone={(() => {
+                  if (f.status === "success") return "success";
+                  if (f.status === "failed") return "destructive";
+                  if (f.status === "processing") return "primary";
+                  return "muted";
+                })()}
                 className="shrink-0"
               >
                 {fileStatusLabel(f.status)}

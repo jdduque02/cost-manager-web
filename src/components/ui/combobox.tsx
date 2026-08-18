@@ -12,12 +12,12 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 
-export interface ComboboxItem {
+interface ComboboxItem {
   value: string;
   label: string;
 }
 
-export interface ComboboxGroup {
+interface ComboboxGroup {
   heading: string;
   items: ComboboxItem[];
 }

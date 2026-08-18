@@ -15,11 +15,7 @@ export type AssetType =
   | "efectivo"
   | "otro";
 export type LiabilityType =
-  | "credito_hipotecario"
-  | "credito_consumo"
-  | "tarjeta_credito"
-  | "prestamo_personal"
-  | "otro";
+  "credito_hipotecario" | "credito_consumo" | "tarjeta_credito" | "prestamo_personal" | "otro";
 export type AccountType =
   | "ahorros"
   | "corriente"
@@ -30,7 +26,7 @@ export type AccountType =
   | "aporte_pension_voluntaria"
   | "otro";
 
-export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   ahorros: "Ahorros",
   corriente: "Corriente",
   inversion: "Inversión",

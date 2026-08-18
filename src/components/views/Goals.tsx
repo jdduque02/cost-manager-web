@@ -13,8 +13,7 @@ import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { FinancialObjective } from "@/lib/api/finance";
-import type { TransactionRecord } from "@/lib/api/finance";
+import type { FinancialObjective, TransactionRecord } from "@/lib/api/finance";
 
 function getGoalIcon(name?: string) {
   if (!name) return Tag;
@@ -26,6 +25,125 @@ function getGoalIcon(name?: string) {
     return GraduationCap;
   if (n.includes("carro") || n.includes("auto") || n.includes("car")) return Car;
   return Tag;
+}
+
+function getTransactionMeta(type: string) {
+  if (type === "income") return { color: "text-success", sign: "+" };
+  if (type === "investment") return { color: "text-primary", sign: "" };
+  return { color: "text-destructive", sign: type === "expense" ? "-" : "" };
+}
+
+function GoalCard({
+  goal,
+  linkedTransactions,
+  categoryMap,
+  fmtAmount,
+  onEdit,
+  onDelete,
+  onShowDetails,
+}: {
+  goal: FinancialObjective;
+  linkedTransactions: TransactionRecord[];
+  categoryMap: Map<number, string>;
+  fmtAmount: (v: number) => string;
+  onEdit: (g: FinancialObjective) => void;
+  onDelete: (g: FinancialObjective) => void;
+  onShowDetails: (v: { goal: FinancialObjective; transactions: TransactionRecord[] }) => void;
+}) {
+  const saved = goal.current_balance ?? 0;
+  const pct = Math.min((saved / (goal.target_amount || 1)) * 100, 100);
+  const Icon = getGoalIcon(goal.name);
+  const isComplete = goal.is_completed;
+  const linkedCount = linkedTransactions.length;
+
+  return (
+    <Card glow={isComplete} className="group">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-2">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-semibold">{goal.name}</h3>
+            <p className="text-xs text-muted-foreground">{Math.round(pct)}% completada</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          {isComplete ? (
+            <Badge tone="success">Meta completada</Badge>
+          ) : (
+            <Badge tone="primary">{goal.type}</Badge>
+          )}
+          <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100 ml-2">
+            <button
+              onClick={() => onEdit(goal)}
+              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => onDelete(goal)}
+              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full bg-gradient-primary" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-3 flex items-baseline justify-between">
+        <span className="font-display text-xl font-semibold tabular-nums">
+          {fmtAmount(saved)}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          de {fmtAmount(goal.target_amount)}
+        </span>
+      </div>
+
+      <div className="mt-4 border-t border-border/60 pt-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Transacciones vinculadas ({linkedCount})
+        </p>
+        <div className="mt-2 space-y-1.5">
+          {linkedTransactions.slice(0, 3).map((t) => {
+            const { color, sign } = getTransactionMeta(t.type);
+            return (
+              <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-muted-foreground">
+                  {t.description ??
+                    categoryMap.get(t.category_id ?? -1) ??
+                    "Sin descripción"}
+                </span>
+                <span className={cn("shrink-0 tabular-nums font-medium", color)}>
+                  {sign}
+                  {fmtAmount(t.amount)}
+                </span>
+              </div>
+            );
+          })}
+          {linkedCount === 0 && (
+            <p className="text-xs text-muted-foreground/70">
+              Sin transacciones vinculadas
+            </p>
+          )}
+          {linkedCount > 3 && (
+            <p className="text-xs text-muted-foreground/70">
+              +{linkedCount - 3} más
+            </p>
+          )}
+        </div>
+      </div>
+
+      <button
+        onClick={() => onShowDetails({ goal, transactions: linkedTransactions })}
+        className="mt-3 w-full rounded-lg border border-border/60 py-2 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+      >
+        Ver detalles ({linkedCount})
+      </button>
+    </Card>
+  );
 }
 
 export function Goals() {
@@ -101,123 +219,33 @@ export function Goals() {
         </button>
       </div>
 
-      {isLoading ? (
+      {isLoading && (
         <div className="flex h-32 items-center justify-center text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : objectives.length === 0 ? (
+      )}
+
+      {!isLoading && objectives.length === 0 && (
         <div className="flex h-32 flex-col items-center justify-center text-muted-foreground text-sm">
           <Tag className="mb-2 h-6 w-6 opacity-50" />
           No se encontraron metas financieras.
         </div>
-      ) : (
+      )}
+
+      {!isLoading && objectives.length > 0 && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {objectives.map((g) => {
-            const saved = g.current_balance ?? 0;
-            const pct = Math.min((saved / (g.target_amount || 1)) * 100, 100);
-            const Icon = getGoalIcon(g.name);
-            const isComplete = g.is_completed;
-
-            return (
-              <Card key={g.id} glow={isComplete} className="group">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-2">
-                      <Icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-display text-lg font-semibold">{g.name}</h3>
-                      <p className="text-xs text-muted-foreground">{Math.round(pct)}% completada</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isComplete ? (
-                      <Badge tone="success">Meta completada</Badge>
-                    ) : (
-                      <Badge tone="primary">{g.type}</Badge>
-                    )}
-                    <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100 ml-2">
-                      <button
-                        onClick={() => handleEdit(g)}
-                        className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeletingGoal(g)}
-                        className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full bg-gradient-primary" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="mt-3 flex items-baseline justify-between">
-                  <span className="font-display text-xl font-semibold tabular-nums">
-                    {fmtAmount(saved)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    de {fmtAmount(g.target_amount)}
-                  </span>
-                </div>
-
-                <div className="mt-4 border-t border-border/60 pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Transacciones vinculadas ({linkedByGoal.get(g.id)?.length ?? 0})
-                  </p>
-                  <div className="mt-2 space-y-1.5">
-                    {(linkedByGoal.get(g.id) ?? []).slice(0, 3).map((t) => (
-                      <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate text-muted-foreground">
-                          {t.description ??
-                            categoryMap.get(t.category_id ?? -1) ??
-                            "Sin descripción"}
-                        </span>
-                        <span
-                          className={cn(
-                            "shrink-0 tabular-nums font-medium",
-                            t.type === "income"
-                              ? "text-success"
-                              : t.type === "investment"
-                                ? "text-primary"
-                                : "text-destructive",
-                          )}
-                        >
-                          {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
-                          {fmtAmount(t.amount)}
-                        </span>
-                      </div>
-                    ))}
-                    {(linkedByGoal.get(g.id)?.length ?? 0) === 0 && (
-                      <p className="text-xs text-muted-foreground/70">
-                        Sin transacciones vinculadas
-                      </p>
-                    )}
-                    {(linkedByGoal.get(g.id)?.length ?? 0) > 3 && (
-                      <p className="text-xs text-muted-foreground/70">
-                        +{(linkedByGoal.get(g.id)?.length ?? 0) - 3} más
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() =>
-                    setDetailsTarget({
-                      goal: g,
-                      transactions: linkedByGoal.get(g.id) ?? [],
-                    })
-                  }
-                  className="mt-3 w-full rounded-lg border border-border/60 py-2 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-                >
-                  Ver detalles ({linkedByGoal.get(g.id)?.length ?? 0})
-                </button>
-              </Card>
-            );
-          })}
+          {objectives.map((g) => (
+            <GoalCard
+              key={g.id}
+              goal={g}
+              linkedTransactions={linkedByGoal.get(g.id) ?? []}
+              categoryMap={categoryMap}
+              fmtAmount={fmtAmount}
+              onEdit={handleEdit}
+              onDelete={setDeletingGoal}
+              onShowDetails={setDetailsTarget}
+            />
+          ))}
         </div>
       )}
 

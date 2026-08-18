@@ -25,6 +25,37 @@ import type { TransactionRecord } from "@/lib/api/finance";
 
 const PAGE_SIZE = 10;
 
+function matchesTypeFilter(t: TransactionRecord, typeFilter: string): boolean {
+  return typeFilter === "all" || t.type === typeFilter;
+}
+
+function matchesSearch(
+  t: TransactionRecord,
+  query: string,
+  categoryMap: Map<number, string>,
+): boolean {
+  if (!query) return true;
+  const description = (t.description ?? "").toLowerCase();
+  const category = (categoryMap.get(t.category_id ?? -1) ?? "").toLowerCase();
+  return description.includes(query) || category.includes(query);
+}
+
+function matchesDateRange(
+  t: TransactionRecord,
+  fromDate: Date | undefined,
+  toDate: Date | undefined,
+): boolean {
+  const date = t.transaction_date ? new Date(t.transaction_date) : null;
+  if (!date) return true;
+  if (fromDate && date < new Date(fromDate)) return false;
+  if (toDate) {
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    if (date > end) return false;
+  }
+  return true;
+}
+
 function TxIcon({ type }: { type: TransactionRecord["type"] }) {
   if (type === "income") return <ArrowUp className="h-3.5 w-3.5 text-success" />;
   if (type === "investment") return <TrendingUp className="h-3.5 w-3.5 text-primary" />;
@@ -75,24 +106,12 @@ export function TransactionsDetailModal({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return transactions.filter((t) => {
-      if (typeFilter !== "all" && t.type !== typeFilter) return false;
-      if (q) {
-        const description = (t.description ?? "").toLowerCase();
-        const category = (categoryMap.get(t.category_id ?? -1) ?? "").toLowerCase();
-        if (!description.includes(q) && !category.includes(q)) return false;
-      }
-      const date = t.transaction_date ? new Date(t.transaction_date) : null;
-      if (date) {
-        if (fromDate && date < new Date(fromDate)) return false;
-        if (toDate) {
-          const end = new Date(toDate);
-          end.setHours(23, 59, 59, 999);
-          if (date > end) return false;
-        }
-      }
-      return true;
-    });
+    return transactions.filter(
+      (t) =>
+        matchesTypeFilter(t, typeFilter) &&
+        matchesSearch(t, q, categoryMap) &&
+        matchesDateRange(t, fromDate, toDate),
+    );
   }, [transactions, search, typeFilter, fromDate, toDate, categoryMap]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -201,11 +220,11 @@ export function TransactionsDetailModal({
                   <span
                     className={cn(
                       "shrink-0 tabular-nums font-medium",
-                      t.type === "income"
-                        ? "text-success"
-                        : t.type === "investment"
-                          ? "text-primary"
-                          : "text-destructive",
+                      (() => {
+                        if (t.type === "income") return "text-success";
+                        if (t.type === "investment") return "text-primary";
+                        return "text-destructive";
+                      })(),
                     )}
                   >
                     {t.type === "income" || t.type === "investment" ? "+" : "-"}

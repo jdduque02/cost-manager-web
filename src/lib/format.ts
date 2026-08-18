@@ -5,7 +5,7 @@ export const fmtCurrency = (n: number, currency = "COP") =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const fmtCompact = (n: number) =>
+const fmtCompact = (n: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 export const parseCurrency = (s: string): number => Number(s.replace(/[^0-9.-]/g, "")) || 0;

@@ -5,7 +5,7 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface EncryptResult {
+interface EncryptResult {
   encrypted_password: string;
 }
 
@@ -70,5 +70,11 @@ export const authApi = {
       email,
       reset_token: resetToken,
       new_password: newPassword,
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<{ message: string }>("auth/change-password", {
+      currentPassword,
+      newPassword,
     }),
 };

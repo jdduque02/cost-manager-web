@@ -50,6 +50,88 @@ interface DeleteTarget {
   name: string;
 }
 
+function yieldFrequencyLabel(frequency?: string): string {
+  if (frequency === "daily") return "diario";
+  if (frequency === "monthly") return "mensual";
+  return "anual";
+}
+
+function RowMetadata({
+  type,
+  currency,
+  symbol,
+  yieldPct,
+  yieldFrequency,
+}: {
+  type: string;
+  currency?: string;
+  symbol?: string | null;
+  yieldPct?: number | null;
+  yieldFrequency?: string;
+}) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {type}
+      {currency && (
+        <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
+          ({currency})
+        </span>
+      )}
+      {symbol && (
+        <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">
+          {symbol}
+        </span>
+      )}
+      {yieldPct != null && (
+        <span className="ml-1.5 font-mono text-[10px] text-success/80">
+          {yieldPct}%{yieldFrequency ? ` ${yieldFrequencyLabel(yieldFrequency)}` : ""}
+        </span>
+      )}
+    </p>
+  );
+}
+
+function AccountToggles({
+  isPrimary,
+  exempt4x1000,
+  onTogglePrimary,
+  onToggleExempt,
+}: {
+  isPrimary?: boolean;
+  exempt4x1000?: boolean;
+  onTogglePrimary?: () => void;
+  onToggleExempt?: () => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button
+        onClick={onTogglePrimary}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+          isPrimary
+            ? "border-primary/40 bg-primary/10 text-primary"
+            : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+        )}
+      >
+        <Star className="h-3.5 w-3.5" />
+        {isPrimary ? "Principal" : "Marcar principal"}
+      </button>
+      <button
+        onClick={onToggleExempt}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
+          exempt4x1000
+            ? "border-success/40 bg-success/10 text-success"
+            : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+        )}
+      >
+        <ShieldCheck className="h-3.5 w-3.5" />
+        {exempt4x1000 ? "Exenta 4x1000" : "Marcar exenta 4x1000"}
+      </button>
+    </div>
+  );
+}
+
 function Row({
   name,
   value,
@@ -93,27 +175,13 @@ function Row({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">{name}</p>
-          <p className="text-xs text-muted-foreground">
-            {type}
-            {currency ? (
-              <span className="ml-1.5 font-mono text-[10px] uppercase text-muted-foreground/60">
-                ({currency})
-              </span>
-            ) : null}
-            {symbol ? (
-              <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">
-                {symbol}
-              </span>
-            ) : null}
-            {yieldPct != null ? (
-              <span className="ml-1.5 font-mono text-[10px] text-success/80">
-                {yieldPct}%
-                {yieldFrequency
-                  ? ` ${yieldFrequency === "daily" ? "diario" : yieldFrequency === "monthly" ? "mensual" : "anual"}`
-                  : ""}
-              </span>
-            ) : null}
-          </p>
+          <RowMetadata
+            type={type}
+            currency={currency}
+            symbol={symbol}
+            yieldPct={yieldPct}
+            yieldFrequency={yieldFrequency}
+          />
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -139,32 +207,12 @@ function Row({
         </div>
       </div>
       {isAccount && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={onTogglePrimary}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
-              isPrimary
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-            )}
-          >
-            <Star className="h-3.5 w-3.5" />
-            {isPrimary ? "Principal" : "Marcar principal"}
-          </button>
-          <button
-            onClick={onToggleExempt}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
-              exempt4x1000
-                ? "border-success/40 bg-success/10 text-success"
-                : "border-border/60 text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-            )}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            {exempt4x1000 ? "Exenta 4x1000" : "Marcar exenta 4x1000"}
-          </button>
-        </div>
+        <AccountToggles
+          isPrimary={isPrimary}
+          exempt4x1000={exempt4x1000}
+          onTogglePrimary={onTogglePrimary}
+          onToggleExempt={onToggleExempt}
+        />
       )}
       <button
         onClick={onShowDetails}
@@ -198,23 +246,26 @@ export function Wealth() {
     const byAsset = new Map<number, TransactionRecord[]>();
     const byLiability = new Map<number, TransactionRecord[]>();
     for (const t of transactions) {
-      const target = t.account_id
-        ? { map: byAccount, id: t.account_id }
-        : t.asset_id
-          ? { map: byAsset, id: t.asset_id }
-          : t.liability_id
-            ? { map: byLiability, id: t.liability_id }
-            : null;
+      let target: { map: Map<number, TransactionRecord[]>; id: number } | null;
+      if (t.account_id) {
+        target = { map: byAccount, id: t.account_id };
+      } else if (t.asset_id) {
+        target = { map: byAsset, id: t.asset_id };
+      } else if (t.liability_id) {
+        target = { map: byLiability, id: t.liability_id };
+      } else {
+        target = null;
+      }
       if (!target) continue;
       const list = target.map.get(target.id) ?? [];
       list.push(t);
       target.map.set(target.id, list);
     }
-    [byAccount, byAsset, byLiability].forEach((m) =>
-      m.forEach((list) =>
-        list.sort((a, b) => (b.transaction_date ?? "").localeCompare(a.transaction_date ?? "")),
-      ),
-    );
+    for (const m of [byAccount, byAsset, byLiability]) {
+      for (const list of m.values()) {
+        list.sort((a, b) => (b.transaction_date ?? "").localeCompare(a.transaction_date ?? ""));
+      }
+    }
     return { byAccount, byAsset, byLiability };
   }, [transactions]);
 
@@ -359,21 +410,25 @@ export function Wealth() {
         }
       });
     }
-    Promise.all(updates.filter(Boolean).map((u) => updateAccount.mutateAsync(u!)))
+    const validUpdates = updates.filter((u): u is NonNullable<typeof u> => u != null);
+    Promise.all(validUpdates.map((u) => updateAccount.mutateAsync(u)))
       .then(() => toast.success(next ? "Cuenta principal actualizada" : "Ya no es principal"))
       .catch(() => toast.error("Error al actualizar la cuenta principal"));
   }
 
   function handleToggleExempt(account: BankAccount) {
     const next = !account.exempt_4x1000;
-    const updates = accounts.map((a) =>
-      a.id === account.id
-        ? { id: String(a.id), dto: { exempt_4x1000: next } }
-        : next && a.exempt_4x1000
-          ? { id: String(a.id), dto: { exempt_4x1000: false } }
-          : null,
-    );
-    Promise.all(updates.filter(Boolean).map((u) => updateAccount.mutateAsync(u!)))
+    const updates = accounts.map((a) => {
+      if (a.id === account.id) {
+        return { id: String(a.id), dto: { exempt_4x1000: next } };
+      }
+      if (next && a.exempt_4x1000) {
+        return { id: String(a.id), dto: { exempt_4x1000: false } };
+      }
+      return null;
+    });
+    const validUpdates = updates.filter((u): u is NonNullable<typeof u> => u != null);
+    Promise.all(validUpdates.map((u) => updateAccount.mutateAsync(u)))
       .then(() => toast.success(next ? "Cuenta exenta del 4x1000" : "Cuenta ya no exenta"))
       .catch(() => toast.error("Error al actualizar la exención 4x1000"));
   }
@@ -386,6 +441,12 @@ export function Wealth() {
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
+  }
+
+  function getDeleteTargetLabel(type?: string) {
+    if (type === "account") return "cuenta";
+    if (type === "asset") return "activo";
+    return "deuda";
   }
 
   return (
@@ -715,8 +776,8 @@ export function Wealth() {
                       dataKey="value"
                       stroke="none"
                     >
-                      {wealthComposition.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      {wealthComposition.map((c, i) => (
+                        <Cell key={`${c.name}-${i}`} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -799,7 +860,7 @@ export function Wealth() {
         onOpenChange={(v) => {
           if (!v) setDeleteTarget(null);
         }}
-        title={`Eliminar ${deleteTarget?.type === "account" ? "cuenta" : deleteTarget?.type === "asset" ? "activo" : "deuda"}`}
+        title={`Eliminar ${getDeleteTargetLabel(deleteTarget?.type)}`}
         description={`¿Estás seguro de eliminar "${deleteTarget?.name ?? ""}"? Esta acción no se puede deshacer.`}
         onConfirm={handleDeleteConfirm}
         loading={deleteAccount.isPending || deleteAsset.isPending || deleteLiability.isPending}

@@ -3,7 +3,7 @@ import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { FileText, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancialBudgetProfile, useTransactions, useTaxSummary } from "@/lib/hooks/use-api";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { FinancialEducation } from "./FinancialEducation";
 import { LifeStageGuide } from "./LifeStageGuide";

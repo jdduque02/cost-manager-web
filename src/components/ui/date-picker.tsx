@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { CalendarIcon } from "lucide-react";
 import { format, isValid, parse } from "date-fns";
-import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -71,13 +70,11 @@ export function DatePicker({
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState<Date>(value ?? new Date());
   const [digits, setDigits] = useState(digitsFromDate(value));
-  const [validity, setValidity] = useState<PartValidity>({ day: true, month: true, year: true });
   const [touchedInvalid, setTouchedInvalid] = useState(false);
 
   useEffect(() => {
     if (value) setMonth(value);
     setDigits(digitsFromDate(value));
-    setValidity({ day: true, month: true, year: true });
     setTouchedInvalid(false);
   }, [value]);
 
@@ -87,14 +84,12 @@ export function DatePicker({
     setDigits(next);
 
     if (next.length === 0) {
-      setValidity({ day: true, month: true, year: true });
       setTouchedInvalid(false);
       onChange(undefined);
       return;
     }
 
     const parts = validateParts(next);
-    setValidity(parts);
 
     if (next.length === 8) {
       const parsed = parseFromDigits(next);
@@ -109,7 +104,6 @@ export function DatePicker({
   function handleBlur() {
     if (touchedInvalid) {
       setDigits(digitsFromDate(value));
-      setValidity({ day: true, month: true, year: true });
       setTouchedInvalid(false);
     }
   }

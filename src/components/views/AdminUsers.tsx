@@ -235,7 +235,8 @@ export function AdminUsers() {
           <TableBody>
             {listQuery.isLoading &&
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
+                // eslint-disable-next-line react/no-array-index-key -- static skeleton rows never reorder
+                <TableRow key={`skeleton-${i}`}>
                   <TableCell colSpan={6}>
                     <Skeleton className="h-10 w-full" />
                   </TableCell>
@@ -432,7 +433,7 @@ export function AdminUsers() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => revokeAllMut.mutate(detailQuery.data!.user.id)}
+                    onClick={() => revokeAllMut.mutate(detailQuery.data.user.id)}
                     disabled={revokeAllMut.isPending}
                   >
                     Revocar todas
@@ -451,13 +452,14 @@ export function AdminUsers() {
                         <p className="font-medium">{s.ipAddress ?? "IP desconocida"}</p>
                         <p className="text-xs text-muted-foreground">
                           {s.browser || "—"} · lastAccess{" "}
-                          {s.lastAccess
-                            ? formatLastLogin(
-                                typeof s.lastAccess === "number"
-                                  ? new Date(s.lastAccess).toISOString()
-                                  : s.lastAccess,
-                              )
-                            : "—"}
+                          {(() => {
+                            if (!s.lastAccess) return "—";
+                            const lastAccessDate =
+                              typeof s.lastAccess === "number"
+                                ? new Date(s.lastAccess).toISOString()
+                                : s.lastAccess;
+                            return formatLastLogin(lastAccessDate);
+                          })()}
                         </p>
                       </div>
                       <Button
@@ -465,7 +467,7 @@ export function AdminUsers() {
                         variant="ghost"
                         onClick={() =>
                           revokeOneMut.mutate({
-                            id: detailQuery.data!.user.id,
+                            id: detailQuery.data.user.id,
                             sessionId: s.id,
                           })
                         }
@@ -485,17 +487,13 @@ export function AdminUsers() {
                   )}
                   {detailQuery.data.accessHistory.slice(0, 30).map((ev, i) => (
                     <div
-                      key={i}
+                      key={`${ev.type}-${ev.time}`}
                       className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs"
                     >
                       <span className="font-medium">{ev.type ?? "event"}</span>
                       <span className="text-muted-foreground">
                         {ev.ipAddress ?? "—"} ·{" "}
-                        {ev.time
-                          ? new Date(
-                              typeof ev.time === "number" ? ev.time : ev.time,
-                            ).toLocaleString("es-CO")
-                          : "—"}
+                        {ev.time ? new Date(ev.time).toLocaleString("es-CO") : "—"}
                       </span>
                     </div>
                   ))}

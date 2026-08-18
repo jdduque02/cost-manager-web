@@ -118,6 +118,15 @@ function CategoryCard({
     setEditingSubName("");
   }
 
+  let groupTypeLabel: string;
+  if (category.group_type === "income") {
+    groupTypeLabel = "Ingreso";
+  } else if (category.group_type === "investment") {
+    groupTypeLabel = "Inversión";
+  } else {
+    groupTypeLabel = "Gasto";
+  }
+
   return (
     <Card>
       <div className="flex items-center gap-3">
@@ -130,13 +139,7 @@ function CategoryCard({
             {subcategories.length} subcategoría{subcategories.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Badge tone="muted">
-          {category.group_type === "income"
-            ? "Ingreso"
-            : category.group_type === "investment"
-              ? "Inversión"
-              : "Gasto"}
-        </Badge>
+        <Badge tone="muted">{groupTypeLabel}</Badge>
         {category.profile_bucket && (
           <Badge tone="primary">{PROFILE_BUCKET_LABELS[category.profile_bucket]}</Badge>
         )}
@@ -281,17 +284,17 @@ export function Categories() {
   );
 
   const paginationPages = useMemo(() => {
-    const pages: (number | "...")[] = [];
+    const pages: { key: string; value: number | "..." }[] = [];
     if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      for (let i = 1; i <= totalPages; i++) pages.push({ key: `page-${i}`, value: i });
     } else {
-      pages.push(1);
-      if (currentPage > 3) pages.push("...");
+      pages.push({ key: "page-1", value: 1 });
+      if (currentPage > 3) pages.push({ key: "ellipsis-before", value: "..." });
       const start = Math.max(2, currentPage - 1);
       const end = Math.min(totalPages - 1, currentPage + 1);
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (currentPage < totalPages - 2) pages.push("...");
-      pages.push(totalPages);
+      for (let i = start; i <= end; i++) pages.push({ key: `page-${i}`, value: i });
+      if (currentPage < totalPages - 2) pages.push({ key: "ellipsis-after", value: "..." });
+      pages.push({ key: `page-${totalPages}`, value: totalPages });
     }
     return pages;
   }, [currentPage, totalPages]);
@@ -363,6 +366,45 @@ export function Categories() {
 
   const isLoading = loadingCategories || loadingSubs;
 
+  let contentSection: React.ReactNode;
+  if (isLoading) {
+    contentSection = (
+      <div className="flex h-32 items-center justify-center text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  } else if (filteredCategories.length === 0) {
+    contentSection = (
+      <div className="flex h-32 flex-col items-center justify-center text-muted-foreground text-sm">
+        <Tag className="mb-2 h-6 w-6 opacity-50" />
+        No hay categorías disponibles.
+      </div>
+    );
+  } else {
+    contentSection = (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {paginatedCategories.map((cat) => (
+          <CategoryCard
+            key={cat.id}
+            category={cat}
+            subcategories={subcategoriesByCategory(cat.id)}
+            onCreateSubcategory={handleCreateSub}
+            onUpdateSubcategory={handleUpdateSub}
+            onDeleteSubcategory={(id) => {
+              const sub = allSubcategories.find((s) => s.id === id);
+              setDeleteTarget({ id, name: sub?.name ?? "" });
+            }}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={(cat) => setDeleteCategoryTarget(cat)}
+            isCreating={createSub.isPending}
+            isDeleting={deleteSub.isPending}
+            isUpdatingSub={updateSub.isPending}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-7">
       {/* Header */}
@@ -387,61 +429,45 @@ export function Categories() {
 
       {/* Group toggle */}
       <div className="grid w-fit grid-cols-3 gap-1 rounded-xl bg-surface p-1">
-        {(["expense", "income", "investment"] as const).map((g) => (
-          <button
-            key={g}
-            onClick={() => {
-              setGroupFilter(g);
-              setCurrentPage(1);
-            }}
-            className={cn(
-              "rounded-lg px-4 py-2 text-sm font-medium transition",
-              groupFilter === g
-                ? g === "expense"
-                  ? "bg-destructive/15 text-destructive"
-                  : g === "income"
-                    ? "bg-success/15 text-success"
-                    : "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {g === "expense" ? "Gastos" : g === "income" ? "Ingresos" : "Inversiones"}
-          </button>
-        ))}
+        {(["expense", "income", "investment"] as const).map((g) => {
+          const isActive = groupFilter === g;
+          let activeStyle: string;
+          if (g === "expense") {
+            activeStyle = "bg-destructive/15 text-destructive";
+          } else if (g === "income") {
+            activeStyle = "bg-success/15 text-success";
+          } else {
+            activeStyle = "bg-primary/15 text-primary";
+          }
+          let groupLabel: string;
+          if (g === "expense") {
+            groupLabel = "Gastos";
+          } else if (g === "income") {
+            groupLabel = "Ingresos";
+          } else {
+            groupLabel = "Inversiones";
+          }
+
+          return (
+            <button
+              key={g}
+              onClick={() => {
+                setGroupFilter(g);
+                setCurrentPage(1);
+              }}
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-medium transition",
+                isActive ? activeStyle : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {groupLabel}
+            </button>
+          );
+        })}
       </div>
 
       {/* Content */}
-      {isLoading ? (
-        <div className="flex h-32 items-center justify-center text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-      ) : filteredCategories.length === 0 ? (
-        <div className="flex h-32 flex-col items-center justify-center text-muted-foreground text-sm">
-          <Tag className="mb-2 h-6 w-6 opacity-50" />
-          No hay categorías disponibles.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {paginatedCategories.map((cat) => (
-            <CategoryCard
-              key={cat.id}
-              category={cat}
-              subcategories={subcategoriesByCategory(cat.id)}
-              onCreateSubcategory={handleCreateSub}
-              onUpdateSubcategory={handleUpdateSub}
-              onDeleteSubcategory={(id) => {
-                const sub = allSubcategories.find((s) => s.id === id);
-                setDeleteTarget({ id, name: sub?.name ?? "" });
-              }}
-              onEditCategory={handleEditCategory}
-              onDeleteCategory={(cat) => setDeleteCategoryTarget(cat)}
-              isCreating={createSub.isPending}
-              isDeleting={deleteSub.isPending}
-              isUpdatingSub={updateSub.isPending}
-            />
-          ))}
-        </div>
-      )}
+      {contentSection}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -456,13 +482,13 @@ export function Categories() {
                   }
                 />
               </PaginationItem>
-              {paginationPages.map((page, i) =>
+              {paginationPages.map(({ key, value: page }) =>
                 page === "..." ? (
-                  <PaginationItem key={`ellipsis-${i}`}>
+                  <PaginationItem key={key}>
                     <PaginationEllipsis />
                   </PaginationItem>
                 ) : (
-                  <PaginationItem key={page}>
+                  <PaginationItem key={key}>
                     <PaginationLink
                       isActive={currentPage === page}
                       onClick={() => setCurrentPage(page)}

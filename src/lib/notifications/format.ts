@@ -30,7 +30,9 @@ function prettifyKey(key: string): string {
     .replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
-export function translateTitle(raw: string | null | undefined): string {
+type NullableString = string | null | undefined;
+
+function translateTitle(raw: NullableString): string {
   if (!raw) return "Notificación";
   if (isNotificationKey(raw)) {
     return TITLE_TRANSLATIONS[raw] ?? prettifyKey(raw);
@@ -38,7 +40,7 @@ export function translateTitle(raw: string | null | undefined): string {
   return raw;
 }
 
-export function translateDescription(
+function translateDescription(
   raw: string | null | undefined,
   kind: NotificationKind,
 ): string | null {
@@ -57,7 +59,7 @@ export function translateDescription(
   return prettifyKey(raw);
 }
 
-export function getNotificationKind(
+function getNotificationKind(
   n: Pick<NotificationPayload, "title" | "reference">,
 ): NotificationKind {
   const ref = n.reference ?? "";

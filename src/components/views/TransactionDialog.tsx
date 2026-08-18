@@ -68,6 +68,40 @@ function toLocalDate(iso?: string | null): Date | undefined {
   return new Date(y, m - 1, d);
 }
 
+function toStr(v: unknown): string {
+  return v != null ? String(v) : "";
+}
+
+function optNum(v: string): number | undefined {
+  return v ? Number(v) : undefined;
+}
+
+function fixedOptNum(isFixed: boolean, v: string): number | undefined {
+  return isFixed && v ? Number(v) : undefined;
+}
+
+function fixedSource(isFixed: boolean, txType: string, v: string): string | undefined {
+  return isFixed && txType !== "income" && v ? v : undefined;
+}
+
+function parsePatrimony(value: string) {
+  if (!value) return {};
+  const [kind, id] = value.split(":");
+  const numId = Number(id);
+  if (!kind || !numId) return {};
+  if (kind === "account") return { account_id: numId };
+  if (kind === "asset") return { asset_id: numId };
+  if (kind === "liability") return { liability_id: numId };
+  return {};
+}
+
+function resolvePatrimonyValue(tx: TransactionRecord): string {
+  if (tx.account_id) return `account:${tx.account_id}`;
+  if (tx.asset_id) return `asset:${tx.asset_id}`;
+  if (tx.liability_id) return `liability:${tx.liability_id}`;
+  return "";
+}
+
 const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: "bank_transfer", label: "Transferencia" },
   { value: "cash", label: "Efectivo" },
@@ -76,6 +110,21 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: "digital_wallet", label: "Billetera digital" },
   { value: "mobile_payment", label: "Pago móvil" },
 ];
+
+function getTypeButtonClasses(t: string, activeType: string): string {
+  const isActive = activeType === t && t !== "transfer";
+  if (!isActive) return "text-muted-foreground hover:bg-accent hover:text-foreground";
+  if (t === "expense") return "bg-destructive/15 text-destructive ring-1 ring-destructive/30";
+  if (t === "income") return "bg-success/15 text-success ring-1 ring-success/30";
+  return "bg-primary/15 text-primary ring-1 ring-primary/30";
+}
+
+function getTypeLabel(t: string): string {
+  if (t === "expense") return "Gasto";
+  if (t === "income") return "Ingreso";
+  if (t === "investment") return "Inversión";
+  return "Transferencia";
+}
 
 export function TransactionDialog({
   open,
@@ -145,43 +194,46 @@ export function TransactionDialog({
     [subcategories],
   );
 
+  const bankAccountGroups = useMemo(() => {
+    const savings = bankAccounts.filter((a) => a.account_type === "ahorros");
+    const checking = bankAccounts.filter((a) => a.account_type === "corriente");
+    const other = bankAccounts.filter(
+      (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
+    );
+    return { savings, checking, other };
+  }, [bankAccounts]);
+
   const hasCategories = categories.length > 0;
   const isPending = createTx.isPending || updateTx.isPending;
 
+  function populateFormFromTransaction(tx: TransactionRecord) {
+    setType(tx.type);
+    setAmount(Number(tx.amount).toString());
+    setCategoryId(toStr(tx.category_id));
+    setSubcategoryId(toStr(tx.subcategory_id));
+    setDescription(tx.description ?? "");
+    setPaymentMethod(tx.payment_method ?? "");
+    setIsFixed(tx.is_fixed ?? false);
+    setFixedType(
+      tx.fixed_type ?? (tx.type === "income" ? "fixed_income" : "deduction"),
+    );
+    setFrequency(tx.frequency ?? "");
+    setDueDay(toStr(tx.due_day));
+    setReminderDays(tx.reminder_days != null ? String(tx.reminder_days) : "3");
+    setInstallments(toStr(tx.installments));
+    setInstallmentValue(toStr(tx.installment_value));
+    setApplyToSimilar(false);
+    setSourceBank(tx.source_bank ?? "");
+    setSourceAccount(tx.source_account ?? "");
+    setDate(toLocalDate(tx.transaction_date) ?? new Date());
+    setObjectiveId(toStr(tx.objective_id));
+    setCompanyId(toStr(tx.company_id));
+    setPatrimony(resolvePatrimonyValue(tx));
+  }
+
   useEffect(() => {
     if (transaction) {
-      setType(transaction.type);
-      setAmount(Number(transaction.amount).toString());
-      setCategoryId(transaction.category_id ? String(transaction.category_id) : "");
-      setSubcategoryId(transaction.subcategory_id ? String(transaction.subcategory_id) : "");
-      setDescription(transaction.description ?? "");
-      setPaymentMethod(transaction.payment_method ?? "");
-      setIsFixed(transaction.is_fixed ?? false);
-      setFixedType(
-        transaction.fixed_type ?? (transaction.type === "income" ? "fixed_income" : "deduction"),
-      );
-      setFrequency(transaction.frequency ?? "");
-      setDueDay(transaction.due_day ? String(transaction.due_day) : "");
-      setReminderDays(transaction.reminder_days != null ? String(transaction.reminder_days) : "3");
-      setInstallments(transaction.installments ? String(transaction.installments) : "");
-      setInstallmentValue(
-        transaction.installment_value ? String(transaction.installment_value) : "",
-      );
-      setApplyToSimilar(false);
-      setSourceBank(transaction.source_bank ?? "");
-      setSourceAccount(transaction.source_account ?? "");
-      setDate(toLocalDate(transaction.transaction_date) ?? new Date());
-      setObjectiveId(transaction.objective_id ? String(transaction.objective_id) : "");
-      setCompanyId(transaction.company_id ? String(transaction.company_id) : "");
-      setPatrimony(
-        transaction.account_id
-          ? `account:${transaction.account_id}`
-          : transaction.asset_id
-            ? `asset:${transaction.asset_id}`
-            : transaction.liability_id
-              ? `liability:${transaction.liability_id}`
-              : "",
-      );
+      populateFormFromTransaction(transaction);
     } else {
       reset();
     }
@@ -210,47 +262,39 @@ export function TransactionDialog({
     setPatrimony("");
   }
 
-  function parsePatrimony(value: string) {
-    if (!value) return {};
-    const [kind, id] = value.split(":");
-    const numId = Number(id);
-    if (!kind || !numId) return {};
-    if (kind === "account") return { account_id: numId };
-    if (kind === "asset") return { asset_id: numId };
-    if (kind === "liability") return { liability_id: numId };
-    return {};
+  function buildPayload() {
+    const p = parsePatrimony(patrimony);
+    const defaultFixedType = type === "income" ? "fixed_income" : "deduction";
+    return {
+      type,
+      amount: parseCurrency(amount),
+      category_id: optNum(categoryId),
+      subcategory_id: optNum(subcategoryId),
+      description: description || undefined,
+      payment_method: (paymentMethod as PaymentMethod) || undefined,
+      transaction_date: format(date, "yyyy-MM-dd"),
+      is_fixed: isFixed,
+      fixed_type: isFixed ? (fixedType ?? defaultFixedType) : undefined,
+      frequency: isFixed ? frequency || undefined : undefined,
+      due_day: fixedOptNum(isFixed, dueDay),
+      reminder_days: fixedOptNum(isFixed, reminderDays),
+      installments: optNum(installments),
+      installment_value: installmentValue ? parseCurrency(installmentValue) : undefined,
+      source_bank: fixedSource(isFixed, type, sourceBank),
+      source_account: fixedSource(isFixed, type, sourceAccount),
+      objective_id: optNum(objectiveId),
+      account_id: p.account_id ?? undefined,
+      asset_id: p.asset_id ?? undefined,
+      liability_id: p.liability_id ?? undefined,
+      company_id: optNum(companyId),
+    };
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!amount || parseCurrency(amount) <= 0) return;
 
-    const p = parsePatrimony(patrimony);
-    const payload = {
-      type,
-      amount: parseCurrency(amount),
-      category_id: categoryId ? Number(categoryId) : undefined,
-      subcategory_id: subcategoryId ? Number(subcategoryId) : undefined,
-      description: description || undefined,
-      payment_method: (paymentMethod as PaymentMethod) || undefined,
-      transaction_date: format(date, "yyyy-MM-dd"),
-      is_fixed: isFixed,
-      fixed_type: isFixed
-        ? (fixedType ?? (type === "income" ? "fixed_income" : "deduction"))
-        : undefined,
-      frequency: isFixed ? frequency || undefined : undefined,
-      due_day: isFixed && dueDay ? Number(dueDay) : undefined,
-      reminder_days: isFixed && reminderDays ? Number(reminderDays) : undefined,
-      installments: installments ? Number(installments) : undefined,
-      installment_value: installmentValue ? parseCurrency(installmentValue) : undefined,
-      source_bank: isFixed && type !== "income" && sourceBank ? sourceBank : undefined,
-      source_account: isFixed && type !== "income" && sourceAccount ? sourceAccount : undefined,
-      objective_id: objectiveId ? Number(objectiveId) : undefined,
-      account_id: p.account_id ?? undefined,
-      asset_id: p.asset_id ?? undefined,
-      liability_id: p.liability_id ?? undefined,
-      company_id: companyId ? Number(companyId) : undefined,
-    };
+    const payload = buildPayload();
 
     if (isEditing) {
       await updateTx.mutateAsync(
@@ -281,6 +325,46 @@ export function TransactionDialog({
     }
   }
 
+  let dialogContent: React.ReactNode;
+  if (loadingCategories) {
+    dialogContent = (
+      <div className="flex h-24 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  } else if (!hasCategories) {
+    dialogContent = (
+      <div className="space-y-4 py-2">
+        <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+            <FolderOpen className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
+            <p className="text-xs text-muted-foreground">
+              Debes crear categorías antes de registrar transacciones.
+            </p>
+          </div>
+        </div>
+        <Badge tone="primary">Configura tus categorías primero</Badge>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onOpenChange(false);
+              navigate({ to: "/categories" });
+            }}
+            className="bg-gradient-primary text-primary-foreground hover:brightness-105"
+          >
+            Ir a Categorías
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  }
+
   return (
     <>
       <Dialog
@@ -298,40 +382,7 @@ export function TransactionDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {loadingCategories ? (
-            <div className="flex h-24 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !hasCategories ? (
-            <div className="space-y-4 py-2">
-              <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <FolderOpen className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
-                  <p className="text-xs text-muted-foreground">
-                    Debes crear categorías antes de registrar transacciones.
-                  </p>
-                </div>
-              </div>
-              <Badge tone="primary">Configura tus categorías primero</Badge>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() => {
-                    onOpenChange(false);
-                    navigate({ to: "/categories" });
-                  }}
-                  className="bg-gradient-primary text-primary-foreground hover:brightness-105"
-                >
-                  Ir a Categorías
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
+          {dialogContent ?? (
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* ── Fila 1: Datos principales ── */}
               <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
@@ -351,23 +402,9 @@ export function TransactionDialog({
                         }
                         setType(t);
                       }}
-                      className={`rounded-lg py-2 text-sm font-medium transition ${
-                        type === t && t !== "transfer"
-                          ? t === "expense"
-                            ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
-                            : t === "income"
-                              ? "bg-success/15 text-success ring-1 ring-success/30"
-                              : "bg-primary/15 text-primary ring-1 ring-primary/30"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                      }`}
+                      className={`rounded-lg py-2 text-sm font-medium transition ${getTypeButtonClasses(t, type)}`}
                     >
-                      {t === "expense"
-                        ? "Gasto"
-                        : t === "income"
-                          ? "Ingreso"
-                          : t === "investment"
-                            ? "Inversión"
-                            : "Transferencia"}
+                      {getTypeLabel(t)}
                     </button>
                   ))}
                 </div>
@@ -482,7 +519,7 @@ export function TransactionDialog({
                         placeholder="Ej. 12"
                         value={installments}
                         onChange={(e) =>
-                          setInstallments(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))
+                          setInstallments(e.target.value.replace(/\D/g, "").slice(0, 3))
                         }
                       />
                     </div>
@@ -572,18 +609,13 @@ export function TransactionDialog({
                     <Select
                       value={patrimony}
                       onValueChange={(v) => {
-                        if (
-                          v === "__new_account__" ||
-                          v === "__new_asset__" ||
-                          v === "__new_liability__"
-                        ) {
-                          setQuickWealthType(
-                            v === "__new_account__"
-                              ? "account"
-                              : v === "__new_asset__"
-                                ? "asset"
-                                : "liability",
-                          );
+                        const wealthTypeMap: Record<string, "account" | "asset" | "liability"> = {
+                          __new_account__: "account",
+                          __new_asset__: "asset",
+                          __new_liability__: "liability",
+                        };
+                        if (v in wealthTypeMap) {
+                          setQuickWealthType(wealthTypeMap[v]);
                           return;
                         }
                         setPatrimony(v);
@@ -593,45 +625,34 @@ export function TransactionDialog({
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
-                        {bankAccounts.filter((a) => a.account_type === "ahorros").length > 0 && (
+                        {bankAccountGroups.savings.length > 0 && (
                           <SelectGroup>
                             <SelectLabel>Cuentas de ahorro</SelectLabel>
-                            {bankAccounts
-                              .filter((a) => a.account_type === "ahorros")
-                              .map((a) => (
-                                <SelectItem key={a.id} value={`account:${a.id}`}>
-                                  {a.bank_name} · {a.masked_account_number}
-                                </SelectItem>
-                              ))}
+                            {bankAccountGroups.savings.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
                           </SelectGroup>
                         )}
-                        {bankAccounts.filter((a) => a.account_type === "corriente").length > 0 && (
+                        {bankAccountGroups.checking.length > 0 && (
                           <SelectGroup>
                             <SelectLabel>Cuentas corrientes</SelectLabel>
-                            {bankAccounts
-                              .filter((a) => a.account_type === "corriente")
-                              .map((a) => (
-                                <SelectItem key={a.id} value={`account:${a.id}`}>
-                                  {a.bank_name} · {a.masked_account_number}
-                                </SelectItem>
-                              ))}
+                            {bankAccountGroups.checking.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
                           </SelectGroup>
                         )}
-                        {bankAccounts.filter(
-                          (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
-                        ).length > 0 && (
+                        {bankAccountGroups.other.length > 0 && (
                           <SelectGroup>
                             <SelectLabel>Otras cuentas</SelectLabel>
-                            {bankAccounts
-                              .filter(
-                                (a) =>
-                                  a.account_type !== "ahorros" && a.account_type !== "corriente",
-                              )
-                              .map((a) => (
-                                <SelectItem key={a.id} value={`account:${a.id}`}>
-                                  {a.bank_name} · {a.masked_account_number}
-                                </SelectItem>
-                              ))}
+                            {bankAccountGroups.other.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
                           </SelectGroup>
                         )}
                         <SelectItem value="__new_account__">＋ Crear cuenta…</SelectItem>
@@ -712,9 +733,7 @@ export function TransactionDialog({
                         max={31}
                         placeholder="Ej. 15"
                         value={dueDay}
-                        onChange={(e) =>
-                          setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
-                        }
+                        onChange={(e) => setDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -726,7 +745,7 @@ export function TransactionDialog({
                         placeholder="Ej. 3"
                         value={reminderDays}
                         onChange={(e) =>
-                          setReminderDays(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))
+                          setReminderDays(e.target.value.replace(/\D/g, "").slice(0, 2))
                         }
                       />
                     </div>

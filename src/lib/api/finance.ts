@@ -2,7 +2,7 @@ import { api } from "./client";
 
 export type TransactionType = "income" | "expense" | "investment" | "transfer";
 
-export type CategoryStatus = "categorized" | "pending";
+type CategoryStatus = "categorized" | "pending";
 
 export type FixedType = "deduction" | "fixed_income";
 export type FixedFrequency = "biweekly" | "monthly";
@@ -101,8 +101,8 @@ export interface CreateTransactionDto {
   company_id?: number;
 }
 
-export type FinancialObjectiveType = "loan" | "savings" | "goal";
-export type Frequency = "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
+type FinancialObjectiveType = "loan" | "savings" | "goal";
+type Frequency = "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
 export type QuotaFrequency = "weekly" | "biweekly" | "monthly";
 
 export interface FinancialObjective {
@@ -212,14 +212,14 @@ export interface CalculateQuotaResponse {
 
 export type TransactionGroupBy = "day" | "week" | "month";
 
-export interface TransactionSummaryTotals {
+interface TransactionSummaryTotals {
   income: number;
   expenses: number;
   investments: number;
   count: number;
 }
 
-export interface TransactionSummaryCategory {
+interface TransactionSummaryCategory {
   category_id: number;
   income: number;
   expenses: number;
@@ -227,7 +227,7 @@ export interface TransactionSummaryCategory {
   count: number;
 }
 
-export interface TransactionSummarySeriesItem {
+interface TransactionSummarySeriesItem {
   key: string;
   label: string;
   income: number;
@@ -236,7 +236,7 @@ export interface TransactionSummarySeriesItem {
   count: number;
 }
 
-export interface TransactionSummaryCompany {
+interface TransactionSummaryCompany {
   company_id: number;
   company_name: string;
   expenses: number;

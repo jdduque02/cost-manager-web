@@ -67,7 +67,7 @@ function fileStatusLabel(status: StatementImportFileStatus): string {
   }
 }
 
-export function NotificationRow({
+function NotificationRow({
   notification,
   onSelect,
 }: {
@@ -186,20 +186,38 @@ function StatCard({
   );
 }
 
+function statusIcon(status: StatementImport["status"]) {
+  switch (status) {
+    case "completed":
+      return <CheckCircle2 className="h-8 w-8 shrink-0 text-success" />;
+    case "failed":
+      return <XCircle className="h-8 w-8 shrink-0 text-destructive" />;
+    case "partial":
+      return <AlertTriangle className="h-8 w-8 shrink-0 text-warning" />;
+    default:
+      return <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />;
+  }
+}
+
+function fileBadgeTone(status: StatementImport["files"][number]["status"]): string {
+  switch (status) {
+    case "success":
+      return "success";
+    case "failed":
+      return "destructive";
+    case "processing":
+      return "primary";
+    default:
+      return "muted";
+  }
+}
+
 function ImportResultSummary({ job }: { job: StatementImport }) {
   const { status } = job;
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-        {status === "completed" ? (
-          <CheckCircle2 className="h-8 w-8 shrink-0 text-success" />
-        ) : status === "failed" ? (
-          <XCircle className="h-8 w-8 shrink-0 text-destructive" />
-        ) : status === "partial" ? (
-          <AlertTriangle className="h-8 w-8 shrink-0 text-warning" />
-        ) : (
-          <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />
-        )}
+        {statusIcon(status)}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</p>
           <p className="text-xs text-muted-foreground">
@@ -225,15 +243,7 @@ function ImportResultSummary({ job }: { job: StatementImport }) {
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate font-medium">{f.filename}</span>
                 <Badge
-                  tone={
-                    f.status === "success"
-                      ? "success"
-                      : f.status === "failed"
-                        ? "destructive"
-                        : f.status === "processing"
-                          ? "primary"
-                          : "muted"
-                  }
+                  tone={fileBadgeTone(f.status) as "success" | "destructive" | "primary" | "muted"}
                   className="shrink-0"
                 >
                   {fileStatusLabel(f.status)}

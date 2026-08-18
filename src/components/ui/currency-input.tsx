@@ -13,7 +13,7 @@ interface CurrencyInputProps {
 
 function formatDisplay(raw: string): string {
   if (!raw) return "";
-  const clean = raw.replace(/[^0-9]/g, "");
+  const clean = raw.replace(/\D/g, "");
   if (!clean) return "";
   return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
@@ -36,7 +36,7 @@ export function CurrencyInput({
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
-      const clean = raw.replace(/[^0-9]/g, "");
+      const clean = raw.replace(/\D/g, "");
       setDisplayValue(clean ? formatDisplay(clean) : "");
       onChange(clean);
     },

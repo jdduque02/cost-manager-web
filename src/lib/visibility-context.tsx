@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
-import { encryptNumber, decryptNumber, maskValue } from "@/lib/encryption";
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from "react";
+import { decryptNumber, maskValue } from "@/lib/encryption";
 
 export type VisibilityMode = "visible" | "masked" | "encrypted";
 
-export interface VisibilityState {
+interface VisibilityState {
   mode: VisibilityMode;
   setMasked: () => void;
   setEncrypted: (password: string) => void;
@@ -70,17 +70,20 @@ export function VisibilityProvider({ children }: { children: React.ReactNode }) 
     [mode],
   );
 
+  const contextValue = useMemo(
+    () => ({
+      mode,
+      setMasked,
+      setEncrypted,
+      setVisible,
+      decryptNumber: decryptValue,
+      formatAmount,
+    }),
+    [mode, setMasked, setEncrypted, setVisible, decryptValue, formatAmount],
+  );
+
   return (
-    <VisibilityContext.Provider
-      value={{
-        mode,
-        setMasked,
-        setEncrypted,
-        setVisible,
-        decryptNumber: decryptValue,
-        formatAmount,
-      }}
-    >
+    <VisibilityContext.Provider value={contextValue}>
       {children}
     </VisibilityContext.Provider>
   );

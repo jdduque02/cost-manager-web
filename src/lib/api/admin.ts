@@ -16,7 +16,7 @@ export interface AdminUserListResult {
   total: number;
 }
 
-export interface AdminSession {
+interface AdminSession {
   id: string;
   ipAddress?: string;
   browser?: string;
@@ -24,7 +24,7 @@ export interface AdminSession {
   lastAccess?: string | null;
 }
 
-export interface AdminAccessEvent {
+interface AdminAccessEvent {
   type?: string;
   ipAddress?: string;
   time?: number | string;
@@ -69,7 +69,8 @@ export const adminApi = {
     if (query.sortBy) params.set("sortBy", query.sortBy);
     if (query.order) params.set("order", query.order);
     const qs = params.toString();
-    const result = await api.getPaginated<unknown>(`admin/users${qs ? `?${qs}` : ""}`);
+    const endpoint = qs ? `admin/users?${qs}` : "admin/users";
+    const result = await api.getPaginated<unknown>(endpoint);
     return normalizeList(result);
   },
 

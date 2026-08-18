@@ -33,7 +33,11 @@ import {
   Sun,
   Moon,
   Monitor,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { authApi } from "@/lib/api/auth";
 
 const sections = [
   { id: "profile", label: "Perfil", icon: User },
@@ -90,7 +94,6 @@ export function Settings() {
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [notifBudget, setNotifBudget] = useState(true);
-  const [twoFa, setTwoFa] = useState(false);
 
   return (
     <div className="space-y-7">
@@ -156,25 +159,7 @@ export function Settings() {
             </Card>
           )}
 
-          {active === "security" && (
-            <Card>
-              <h3 className="font-display text-lg font-semibold mb-2">Seguridad</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Protege tu cuenta con opciones avanzadas de seguridad.
-              </p>
-              <SettingRow
-                label="Autenticacion de dos factores"
-                value="Anade una capa extra de seguridad"
-              >
-                <Toggle checked={twoFa} onChange={setTwoFa} />
-              </SettingRow>
-              <SettingRow label="Cambiar contrasena" value="Ultimo cambio hace 30 dias" />
-              <SettingRow label="Sesiones activas" value="2 dispositivos">
-                <Badge tone="warning">Administrar</Badge>
-              </SettingRow>
-              <SettingRow label="Historial de accesos" value="Ver accesos recientes" />
-            </Card>
-          )}
+          {active === "security" && <SecuritySettings />}
 
           {active === "billing" && (
             <Card glow>
@@ -271,6 +256,23 @@ function ProfileSettings() {
   };
 
   const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
+
+  let profileButtonContent: React.ReactNode;
+  if (saving) {
+    profileButtonContent = (
+      <>
+        <Loader2 className="h-4 w-4 animate-spin" /> Guardando...
+      </>
+    );
+  } else if (saved) {
+    profileButtonContent = (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  } else {
+    profileButtonContent = "Guardar cambios";
+  }
 
   return (
     <Card>
@@ -387,17 +389,7 @@ function ProfileSettings() {
             saving && "opacity-70",
           )}
         >
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Guardando...
-            </>
-          ) : saved ? (
-            <>
-              <Check className="h-4 w-4" /> Guardado!
-            </>
-          ) : (
-            "Guardar cambios"
-          )}
+          {profileButtonContent}
         </button>
       </div>
     </Card>
@@ -443,7 +435,7 @@ function FinancialProfileSettings() {
 
     setSaving(true);
     try {
-      const monthlyIncome = salary ? Number(salary.replace(/[^0-9]/g, "")) || undefined : undefined;
+      const monthlyIncome = salary ? Number(salary.replace(/\D/g, "")) || undefined : undefined;
       const dto = {
         needs_ratio: needsRatio,
         wants_ratio: wantsRatio,
@@ -476,6 +468,21 @@ function FinancialProfileSettings() {
 
   const hasProfile = !error && profile;
 
+  let profileButtonContent: React.ReactNode;
+  if (saving) {
+    profileButtonContent = <Loader2 className="h-4 w-4 animate-spin" />;
+  } else if (saved) {
+    profileButtonContent = (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  } else if (hasProfile) {
+    profileButtonContent = "Guardar cambios";
+  } else {
+    profileButtonContent = "Crear perfil";
+  }
+
   return (
     <Card>
       <h3 className="font-display text-lg font-semibold mb-2">Perfil Financiero</h3>
@@ -504,31 +511,11 @@ function FinancialProfileSettings() {
             Se almacena cifrado. Se usa para calcular tus límites por rango.
           </p>
         </div>
-        <RatioSlider
-          label="Necesidades"
-          value={needsRatio}
-          onChange={setNeedsRatio}
-          color="primary"
-        />
-        <RatioSlider label="Deseos" value={wantsRatio} onChange={setWantsRatio} color="warning" />
-        <RatioSlider
-          label="Ahorros"
-          value={savingsRatio}
-          onChange={setSavingsRatio}
-          color="success"
-        />
-        <RatioSlider
-          label="Inversión"
-          value={investmentRatio}
-          onChange={setInvestmentRatio}
-          color="info"
-        />
-        <RatioSlider
-          label="Deuda maxima"
-          value={maxDebtRatio}
-          onChange={setMaxDebtRatio}
-          color="destructive"
-        />
+        <RatioSlider label="Necesidades" value={needsRatio} onChange={setNeedsRatio} />
+        <RatioSlider label="Deseos" value={wantsRatio} onChange={setWantsRatio} />
+        <RatioSlider label="Ahorros" value={savingsRatio} onChange={setSavingsRatio} />
+        <RatioSlider label="Inversión" value={investmentRatio} onChange={setInvestmentRatio} />
+        <RatioSlider label="Deuda maxima" value={maxDebtRatio} onChange={setMaxDebtRatio} />
 
         <div
           className={cn(
@@ -553,17 +540,7 @@ function FinancialProfileSettings() {
           disabled={saving}
           className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out bg-gradient-primary hover:opacity-90 disabled:opacity-70"
         >
-          {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : saved ? (
-            <>
-              <Check className="h-4 w-4" /> Guardado!
-            </>
-          ) : hasProfile ? (
-            "Guardar cambios"
-          ) : (
-            "Crear perfil"
-          )}
+          {profileButtonContent}
         </button>
       </div>
     </Card>
@@ -574,21 +551,11 @@ function RatioSlider({
   label,
   value,
   onChange,
-  color,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
-  color: string;
 }) {
-  const colorClasses: Record<string, string> = {
-    primary: "bg-primary",
-    warning: "bg-warning",
-    success: "bg-success",
-    info: "bg-info",
-    destructive: "bg-destructive",
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -608,6 +575,204 @@ function RatioSlider({
         <span className="text-xs text-muted-foreground">100%</span>
       </div>
     </div>
+  );
+}
+
+function SecuritySettings() {
+  const [twoFa, setTwoFa] = useState(false);
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <h3 className="font-display text-lg font-semibold mb-2">Seguridad</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Protege tu cuenta con opciones avanzadas de seguridad.
+        </p>
+        <SettingRow label="Autenticacion de dos factores" value="Anade una capa extra de seguridad">
+          <Toggle checked={twoFa} onChange={setTwoFa} />
+        </SettingRow>
+        <SettingRow label="Sesiones activas" value="2 dispositivos">
+          <Badge tone="warning">Administrar</Badge>
+        </SettingRow>
+        <SettingRow label="Historial de accesos" value="Ver accesos recientes" />
+      </Card>
+      <ChangePasswordSection />
+    </div>
+  );
+}
+
+function getPasswordErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "No se pudo cambiar la contraseña";
+}
+
+function getPasswordButtonContent(saving: boolean, saved: boolean): React.ReactNode {
+  if (saving) {
+    return (
+      <>
+        <Loader2 className="h-4 w-4 animate-spin" /> Cambiando...
+      </>
+    );
+  }
+  if (saved) {
+    return (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  }
+  return "Cambiar contraseña";
+}
+
+function ChangePasswordSection() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const hints = [
+    { label: "Mínimo 8 caracteres", test: (p: string) => p.length >= 8 },
+    { label: "2 letras mayúsculas", test: (p: string) => (p.match(/[A-Z]/g) || []).length >= 2 },
+    { label: "2 letras minúsculas", test: (p: string) => (p.match(/[a-z]/g) || []).length >= 2 },
+    { label: "2 números", test: (p: string) => (p.match(/\d/g) || []).length >= 2 },
+    { label: "1 carácter especial", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+
+  const allHintsPass = hints.every((h) => h.test(newPassword));
+  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+  const canSubmit = currentPassword && allHintsPass && passwordsMatch;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+
+    setSaving(true);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      toast.success("Contraseña cambiada exitosamente");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(getPasswordErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const passwordButtonContent = getPasswordButtonContent(saving, saved);
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-2">
+        <Lock className="h-5 w-5 text-primary" />
+        <h3 className="font-display text-lg font-semibold">Cambiar contraseña</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mb-6">
+        Actualiza tu contraseña regularmente para mantener tu cuenta segura.
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="current-password">Contraseña actual</Label>
+          <div className="relative">
+            <Input
+              id="current-password"
+              type={showCurrent ? "text" : "password"}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Tu contraseña actual"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(!showCurrent)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="new-password">Nueva contraseña</Label>
+          <div className="relative">
+            <Input
+              id="new-password"
+              type={showNew ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Tu nueva contraseña"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(!showNew)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {newPassword.length > 0 && (
+            <div className="space-y-1 mt-2">
+              {hints.map((h) => (
+                <div key={h.label} className="flex items-center gap-2 text-xs">
+                  <span className={h.test(newPassword) ? "text-success" : "text-muted-foreground"}>
+                    {h.test(newPassword) ? "✓" : "✗"}
+                  </span>
+                  <span
+                    className={h.test(newPassword) ? "text-foreground" : "text-muted-foreground"}
+                  >
+                    {h.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirm-password">Confirmar nueva contraseña</Label>
+          <div className="relative">
+            <Input
+              id="confirm-password"
+              type={showConfirm ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repite tu nueva contraseña"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {confirmPassword.length > 0 && (
+            <p className={`text-xs ${passwordsMatch ? "text-success" : "text-destructive"}`}>
+              {passwordsMatch ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
+            </p>
+          )}
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={!canSubmit || saving}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out",
+              saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
+              (!canSubmit || saving) && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            {passwordButtonContent}
+          </button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

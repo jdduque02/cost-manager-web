@@ -39,22 +39,23 @@ type NavItem = {
 };
 
 const nav: NavItem[] = [
-  { to: "/dashboard", label: "Panel", icon: LayoutDashboard, exact: true },
-  { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight },
-  { to: "/reports", label: "Reportes", icon: BarChart3 },
-  { to: "/wealth", label: "Patrimonio", icon: Wallet },
-  { to: "/goals", label: "Metas", icon: Target },
-  { to: "/categories", label: "Categorías", icon: Tag },
-  { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles },
-  { to: "/news", label: "Noticias", icon: Newspaper },
-  { to: "/emails", label: "Emails", icon: Mail },
-  { to: "/empresas", label: "Empresas", icon: Building2 },
+  { to: "/dashboard", label: "Panel", icon: LayoutDashboard, exact: true, adminOnly: false },
+  { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight, adminOnly: false },
+  { to: "/reports", label: "Reportes", icon: BarChart3, adminOnly: false },
+  { to: "/wealth", label: "Patrimonio", icon: Wallet, adminOnly: false },
+  { to: "/goals", label: "Metas", icon: Target, adminOnly: false },
+  { to: "/categories", label: "Categorías", icon: Tag, adminOnly: false },
+  { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles, adminOnly: false },
+  { to: "/empresas", label: "Empresas", icon: Building2, adminOnly: false },
+  { to: "/news", label: "Noticias", icon: Newspaper, adminOnly: true },
+  { to: "/emails", label: "Emails", icon: Mail, adminOnly: true },
   { to: "/admin", label: "Usuarios", icon: Users, adminOnly: true },
+  { to: "/logs", label: "Logs", icon: Newspaper, adminOnly: true },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
 function VisibilityToggle({ className }: { className?: string }) {
-  const { mode, setMasked, setEncrypted, setVisible } = useVisibility();
+  const { mode, setEncrypted, setVisible } = useVisibility();
   const [pwdOpen, setPwdOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -124,7 +125,9 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
 
   const name = user?.username ? user.username : "Usuario Sprig";
   const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "SP";
-  const visibleNav = nav.filter((item) => !item.adminOnly || isAdmin);
+  const visibleNav = nav.filter((item) =>
+    isAdmin ? item.adminOnly !== false : item.adminOnly !== true,
+  );
 
   return (
     <div className="flex h-full flex-col">

@@ -139,37 +139,16 @@ export function WealthDialog({
   const [currentYield, setCurrentYield] = useState("");
 
   useEffect(() => {
-    if (entity) {
-      if (entityType === "account") {
-        const a = entity as BankAccount;
-        setBankName(a.bank_name);
-        setAccountType(a.account_type);
-        setAccountNumber("");
-        setAmount(String(Number(a.display_balance ?? 0)));
-        setCurrency(a.currency ?? "COP");
-        setIsPrimary(a.is_primary);
-        setExempt4x1000(a.exempt_4x1000);
-        setAnnualRate(a.annual_interest_rate != null ? String(a.annual_interest_rate) : "");
-        setYieldFrequency(a.yield_frequency ?? "monthly");
-      } else if (entityType === "asset") {
-        const a = entity as FinancialAsset;
-        setName(a.name);
-        setAssetType(a.asset_type);
-        setAmount(String(a.current_value));
-        setCurrency(a.currency ?? "COP");
-        setSymbol(a.symbol ?? "");
-        setQuoteSource(a.quote_source ?? "yahoo");
-        setCurrentYield(a.current_yield != null ? String(a.current_yield) : "");
-      } else {
-        const l = entity as FinancialLiability;
-        setName(l.name);
-        setLiabilityType(l.liability_type);
-        setAmount(String(l.current_balance));
-        setInterestRate(String(l.interest_rate ?? ""));
-        setCurrency(l.currency ?? "COP");
-      }
-    } else {
+    if (!entity) {
       reset();
+      return;
+    }
+    if (entityType === "account") {
+      populateAccountFields(entity as BankAccount);
+    } else if (entityType === "asset") {
+      populateAssetFields(entity as FinancialAsset);
+    } else {
+      populateLiabilityFields(entity as FinancialLiability);
     }
   }, [entity, open, entityType]);
 
@@ -192,108 +171,149 @@ export function WealthDialog({
     setCurrentYield("");
   }
 
+  function populateAccountFields(a: BankAccount) {
+    setBankName(a.bank_name);
+    setAccountType(a.account_type);
+    setAccountNumber("");
+    setAmount(String(Number(a.display_balance ?? 0)));
+    setCurrency(a.currency ?? "COP");
+    setIsPrimary(a.is_primary);
+    setExempt4x1000(a.exempt_4x1000);
+    setAnnualRate(a.annual_interest_rate != null ? String(a.annual_interest_rate) : "");
+    setYieldFrequency(a.yield_frequency ?? "monthly");
+  }
+
+  function populateAssetFields(a: FinancialAsset) {
+    setName(a.name);
+    setAssetType(a.asset_type);
+    setAmount(String(a.current_value));
+    setCurrency(a.currency ?? "COP");
+    setSymbol(a.symbol ?? "");
+    setQuoteSource(a.quote_source ?? "yahoo");
+    setCurrentYield(a.current_yield != null ? String(a.current_yield) : "");
+  }
+
+  function populateLiabilityFields(l: FinancialLiability) {
+    setName(l.name);
+    setLiabilityType(l.liability_type);
+    setAmount(String(l.current_balance));
+    setInterestRate(String(l.interest_rate ?? ""));
+    setCurrency(l.currency ?? "COP");
+  }
+
+  async function submitAccount() {
+    const dto = {
+      bank_name: bankName,
+      account_type: accountType as AccountType,
+      account_number: accountNumber || "0000",
+      balance: Number(amount) || 0,
+      currency: currency !== "COP" ? currency : undefined,
+      annual_interest_rate: annualRate ? Number(annualRate) : undefined,
+      yield_frequency: yieldFrequency,
+      is_primary: isPrimary,
+      exempt_4x1000: exempt4x1000,
+    };
+    if (isEditing) {
+      await updateAccount.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Cuenta actualizada");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error("Error al actualizar la cuenta"),
+        },
+      );
+    } else {
+      await createAccount.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Cuenta creada");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error("Error al crear la cuenta"),
+      });
+    }
+  }
+
+  async function submitAsset() {
+    const dto = {
+      asset_type: assetType as AssetType,
+      name: name.trim(),
+      current_value: Number(amount) || 0,
+      current_yield: currentYield ? Number(currentYield) : undefined,
+      currency: currency !== "COP" ? currency : undefined,
+      symbol: symbol.trim() || undefined,
+      quote_source: symbol.trim() ? (quoteSource as "yahoo" | "coingecko") : undefined,
+    };
+    if (isEditing) {
+      await updateAsset.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Activo actualizado");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error("Error al actualizar el activo"),
+        },
+      );
+    } else {
+      await createAsset.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Activo creado");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error("Error al crear el activo"),
+      });
+    }
+  }
+
+  async function submitLiability() {
+    const dto = {
+      liability_type: liabilityType as LiabilityType,
+      name: name.trim(),
+      current_balance: Number(amount) || 0,
+      interest_rate: interestRate ? Number(interestRate) : undefined,
+      currency: currency !== "COP" ? currency : undefined,
+    };
+    if (isEditing) {
+      await updateLiability.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Deuda actualizada");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error("Error al actualizar la deuda"),
+        },
+      );
+    } else {
+      await createLiability.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Deuda creada");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error("Error al crear la deuda"),
+      });
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     if (entityType === "account") {
-      const dto = {
-        bank_name: bankName,
-        account_type: accountType as AccountType,
-        account_number: accountNumber || "0000",
-        balance: Number(amount) || 0,
-        currency: currency !== "COP" ? currency : undefined,
-        annual_interest_rate: annualRate ? Number(annualRate) : undefined,
-        yield_frequency: yieldFrequency,
-        is_primary: isPrimary,
-        exempt_4x1000: exempt4x1000,
-      };
-      if (isEditing) {
-        await updateAccount.mutateAsync(
-          { id: String(entity.id), dto },
-          {
-            onSuccess: () => {
-              toast.success("Cuenta actualizada");
-              reset();
-              onOpenChange(false);
-            },
-            onError: () => toast.error("Error al actualizar la cuenta"),
-          },
-        );
-      } else {
-        await createAccount.mutateAsync(dto, {
-          onSuccess: (created) => {
-            toast.success("Cuenta creada");
-            reset();
-            onCreated?.(created);
-            onOpenChange(false);
-          },
-          onError: () => toast.error("Error al crear la cuenta"),
-        });
-      }
+      await submitAccount();
     } else if (entityType === "asset") {
-      const dto = {
-        asset_type: assetType as AssetType,
-        name: name.trim(),
-        current_value: Number(amount) || 0,
-        current_yield: currentYield ? Number(currentYield) : undefined,
-        currency: currency !== "COP" ? currency : undefined,
-        symbol: symbol.trim() || undefined,
-        quote_source: symbol.trim() ? (quoteSource as "yahoo" | "coingecko") : undefined,
-      };
-      if (isEditing) {
-        await updateAsset.mutateAsync(
-          { id: String(entity.id), dto },
-          {
-            onSuccess: () => {
-              toast.success("Activo actualizado");
-              reset();
-              onOpenChange(false);
-            },
-            onError: () => toast.error("Error al actualizar el activo"),
-          },
-        );
-      } else {
-        await createAsset.mutateAsync(dto, {
-          onSuccess: (created) => {
-            toast.success("Activo creado");
-            reset();
-            onCreated?.(created);
-            onOpenChange(false);
-          },
-          onError: () => toast.error("Error al crear el activo"),
-        });
-      }
+      await submitAsset();
     } else {
-      const dto = {
-        liability_type: liabilityType as LiabilityType,
-        name: name.trim(),
-        current_balance: Number(amount) || 0,
-        interest_rate: interestRate ? Number(interestRate) : undefined,
-        currency: currency !== "COP" ? currency : undefined,
-      };
-      if (isEditing) {
-        await updateLiability.mutateAsync(
-          { id: String(entity.id), dto },
-          {
-            onSuccess: () => {
-              toast.success("Deuda actualizada");
-              reset();
-              onOpenChange(false);
-            },
-            onError: () => toast.error("Error al actualizar la deuda"),
-          },
-        );
-      } else {
-        await createLiability.mutateAsync(dto, {
-          onSuccess: (created) => {
-            toast.success("Deuda creada");
-            reset();
-            onCreated?.(created);
-            onOpenChange(false);
-          },
-          onError: () => toast.error("Error al crear la deuda"),
-        });
-      }
+      await submitLiability();
     }
   }
 

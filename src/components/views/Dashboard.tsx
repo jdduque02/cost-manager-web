@@ -29,6 +29,51 @@ import { useMemo, useState } from "react";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
 
+function kFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
+  const v = Number(this.value);
+  return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
+}
+
+function tooltipHtml(points: Highcharts.Point[], fmt: (v: number) => string) {
+  const rows = points
+    .map(
+      (p) => `
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${p.color}"></span>
+          <span>${p.series.name}</span>
+          <span style="margin-left:auto;padding-left:16px;font-weight:600">${fmt(p.y ?? 0)}</span>
+        </div>`,
+    )
+    .join("");
+  return rows;
+}
+
+function pieTooltipHtml(
+  key: string | undefined,
+  y: number | undefined,
+  fmt: (v: number) => string,
+) {
+  return `<b>${key}</b>: ${fmt(typeof y === "number" ? y : 0)}`;
+}
+
+function getTypeIconStyle(type: string): string {
+  if (type === "income") return "bg-success/10 text-success";
+  if (type === "investment") return "bg-primary/10 text-primary";
+  return "bg-surface-2 text-muted-foreground";
+}
+
+function getTypeTextStyle(type: string): string {
+  if (type === "income") return "text-success";
+  if (type === "investment") return "text-primary";
+  return "text-foreground";
+}
+
+function getAmountSign(type: string): string {
+  if (type === "income") return "+";
+  if (type === "expense") return "-";
+  return "";
+}
+
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName.toLowerCase();
@@ -91,10 +136,7 @@ function KPI({
       </div>
       <p className="mt-5 text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
       <p
-        className={cn(
-          "mt-1 font-display text-2xl font-semibold tracking-tight",
-          positive ? "text-foreground" : "text-foreground",
-        )}
+        className={cn("mt-1 font-display text-2xl font-semibold tracking-tight", "text-foreground")}
       >
         {value}
       </p>
@@ -217,30 +259,14 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: {
-          style: { color: colors.mutedFg, fontSize: "11px" },
-          formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-            const v = Number(this.value);
-            return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
-          },
-        },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
       },
       tooltip: {
         ...tooltipStyle,
         shared: true,
         useHTML: true,
         formatter: function (this: Highcharts.TooltipFormatterContextObject) {
-          const rows = (this.points ?? [])
-            .map(
-              (p) => `
-                <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-                  <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${p.color}"></span>
-                  <span>${p.series.name}</span>
-                  <span style="margin-left:auto;padding-left:16px;font-weight:600">${fmtAmount(p.y ?? 0)}</span>
-                </div>`,
-            )
-            .join("");
-          return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${rows}`;
+          return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${tooltipHtml(this.points ?? [], fmtAmount)}`;
         },
       },
       plotOptions: {
@@ -289,18 +315,12 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: {
-          style: { color: colors.mutedFg, fontSize: "11px" },
-          formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-            const v = Number(this.value);
-            return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
-          },
-        },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
       },
       tooltip: {
         ...tooltipStyle,
         formatter: function (this: Highcharts.TooltipFormatterContextObject) {
-          return `<b>${this.key}</b>: ${fmtAmount(typeof this.y === "number" ? this.y : 0)}`;
+          return pieTooltipHtml(this.key, this.y, fmtAmount);
         },
       },
       plotOptions: { column: { borderRadius: 8, pointPadding: 0.08, groupPadding: 0.08 } },
@@ -325,7 +345,7 @@ export function Dashboard() {
       tooltip: {
         ...tooltipStyle,
         formatter: function (this: Highcharts.TooltipFormatterContextObject) {
-          return `<b>${this.key}</b>: ${fmtAmount(typeof this.y === "number" ? this.y : 0)}`;
+          return pieTooltipHtml(this.key, this.y, fmtAmount);
         },
       },
       plotOptions: {
@@ -489,6 +509,7 @@ export function Dashboard() {
                 txs.slice(0, 5).map((t) => {
                   const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
                   const Icon = getCategoryIcon(categoryName);
+
                   return (
                     <li
                       key={t.id}
@@ -497,11 +518,7 @@ export function Dashboard() {
                       <div
                         className={cn(
                           "flex h-9 w-9 items-center justify-center rounded-lg",
-                          t.type === "income"
-                            ? "bg-success/10 text-success"
-                            : t.type === "investment"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-surface-2 text-muted-foreground",
+                          getTypeIconStyle(t.type),
                         )}
                       >
                         <Icon className="h-4 w-4" />
@@ -517,14 +534,10 @@ export function Dashboard() {
                       <span
                         className={cn(
                           "text-sm font-semibold tabular-nums",
-                          t.type === "income"
-                            ? "text-success"
-                            : t.type === "investment"
-                              ? "text-primary"
-                              : "text-foreground",
+                          getTypeTextStyle(t.type),
                         )}
                       >
-                        {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
+                        {getAmountSign(t.type)}
                         {fmtAmount(t.amount)}
                       </span>
                     </li>

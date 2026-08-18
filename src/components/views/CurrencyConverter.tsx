@@ -15,6 +15,17 @@ import { RefreshCw, Loader2, ArrowLeftRight } from "lucide-react";
 
 type Direction = "cop_usd" | "usd_cop";
 
+function computeResult(
+  rate: number | undefined,
+  parsed: number,
+  direction: Direction,
+): number | null {
+  if (typeof rate !== "number" || isNaN(rate) || rate <= 0 || isNaN(parsed) || parsed <= 0) {
+    return null;
+  }
+  return direction === "cop_usd" ? parsed / rate : parsed * rate;
+}
+
 export function CurrencyConverter({ className }: { className?: string }) {
   const { data, isLoading, isError, refetch } = useExchangeRate();
   const [direction, setDirection] = useState<Direction>("cop_usd");
@@ -25,12 +36,7 @@ export function CurrencyConverter({ className }: { className?: string }) {
   const rate = manualRate ? Number(manualRate) : liveRate;
   const parsed = Number(amount);
   const hasRate = typeof rate === "number" && !isNaN(rate) && rate > 0;
-  const result =
-    hasRate && !isNaN(parsed) && parsed > 0
-      ? direction === "cop_usd"
-        ? parsed / rate
-        : parsed * rate
-      : null;
+  const result = computeResult(rate, parsed, direction);
 
   const inputCurrency = direction === "cop_usd" ? "COP" : "USD";
   const outputCurrency = direction === "cop_usd" ? "USD" : "COP";
@@ -58,10 +64,10 @@ export function CurrencyConverter({ className }: { className?: string }) {
           <span className="font-mono font-medium text-primary tabular-nums">
             1 USD = {fmtCurrency(rate, "COP")}
           </span>
-        ) : isLoading ? (
-          <span className="text-muted-foreground">Consultando tasa…</span>
         ) : (
-          <span className="text-destructive">No disponible</span>
+          <span className={isLoading ? "text-muted-foreground" : "text-destructive"}>
+            {isLoading ? "Consultando tasa…" : "No disponible"}
+          </span>
         )}
         {data?.source && (
           <span className="text-muted-foreground/60">

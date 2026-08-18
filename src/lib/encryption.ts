@@ -66,7 +66,7 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
  * Encrypt a plaintext string with AES-256-GCM.
  * Returns a base64 string: salt(16) + iv(12) + ciphertext.
  */
-export async function encryptData(plaintext: string, password: string): Promise<string> {
+async function encryptData(plaintext: string, password: string): Promise<string> {
   const encoder = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -84,9 +84,8 @@ export async function encryptData(plaintext: string, password: string): Promise<
 /**
  * Decrypt a base64 string produced by encryptData.
  */
-export async function decryptData(encrypted: string, password: string): Promise<string> {
+async function decryptData(encrypted: string, password: string): Promise<string> {
   const data = fromBase64(encrypted);
-  const dataView = new DataView(data);
 
   const salt = data.slice(0, 16);
   const iv = data.slice(16, 28);

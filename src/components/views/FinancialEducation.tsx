@@ -75,8 +75,8 @@ function StratTable({ rows }: { rows: { concept: string; pct: string; amount: st
 function BulletList({ items }: { items: string[] }) {
   return (
     <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
-      {items.map((item, i) => (
-        <li key={i} className="flex gap-2">
+      {items.map((item) => (
+        <li key={item} className="flex gap-2">
           <span className="shrink-0 text-primary">&#8226;</span>
           <span>{item}</span>
         </li>

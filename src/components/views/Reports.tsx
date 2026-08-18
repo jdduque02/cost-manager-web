@@ -20,6 +20,29 @@ import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import type { TransactionGroupBy } from "@/lib/api/finance";
 
+function reportsKFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
+  const v = Number(this.value);
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+}
+
+function reportsTooltipHtml(
+  points: Highcharts.Point[],
+  fmt: (v: number) => string,
+  xLabel: string | number | undefined,
+) {
+  const rows = points
+    .map(
+      (p) => `
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${p.color}"></span>
+          <span style="text-transform:capitalize">${p.series.name}</span>
+          <span style="margin-left:auto;padding-left:16px;font-weight:600">${fmt(p.y ?? 0)}</span>
+        </div>`,
+    )
+    .join("");
+  return `<div style="font-weight:600;margin-bottom:6px;">${xLabel}</div>${rows}`;
+}
+
 const presets = [
   { id: "this-month", label: "Este mes" },
   { id: "last-month", label: "Mes pasado" },
@@ -71,6 +94,21 @@ function suggestedGroupBy(days: number): TransactionGroupBy {
   return "month";
 }
 
+type KpiTone = "income" | "expense" | "investment" | "neutral";
+
+function kpiIconStyle(tone: KpiTone): string {
+  if (tone === "income") return "bg-success/10 text-success";
+  if (tone === "expense") return "bg-destructive/10 text-destructive";
+  if (tone === "investment") return "bg-primary/10 text-primary";
+  return "bg-surface-2 text-foreground";
+}
+
+function kpiBadgeTone(tone: KpiTone): "success" | "destructive" | "muted" {
+  if (tone === "income") return "success";
+  if (tone === "expense") return "destructive";
+  return "muted";
+}
+
 function KpiCard({
   label,
   value,
@@ -81,7 +119,7 @@ function KpiCard({
   label: string;
   value: string;
   hint: string;
-  tone: "income" | "expense" | "investment" | "neutral";
+  tone: KpiTone;
   icon: typeof TrendingUp;
 }) {
   return (
@@ -90,18 +128,12 @@ function KpiCard({
         <div
           className={cn(
             "flex h-10 w-10 items-center justify-center rounded-xl",
-            tone === "income"
-              ? "bg-success/10 text-success"
-              : tone === "expense"
-                ? "bg-destructive/10 text-destructive"
-                : tone === "investment"
-                  ? "bg-primary/10 text-primary"
-                  : "bg-surface-2 text-foreground",
+            kpiIconStyle(tone),
           )}
         >
           <Icon className="h-5 w-5" />
         </div>
-        <Badge tone={tone === "income" ? "success" : tone === "expense" ? "destructive" : "muted"}>
+        <Badge tone={kpiBadgeTone(tone)}>
           {hint}
         </Badge>
       </div>
@@ -228,10 +260,7 @@ export function Reports() {
         gridLineDashStyle: "Dash",
         labels: {
           style: { color: chartColors.mutedFg, fontSize: "11px" },
-          formatter: function (this: Highcharts.AxisLabelsFormatterContextObject) {
-            const v = Number(this.value);
-            return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
-          },
+          formatter: reportsKFormatter,
         },
       },
       tooltip: {
@@ -239,17 +268,7 @@ export function Reports() {
         shared: true,
         useHTML: true,
         formatter: function (this: Highcharts.TooltipFormatterContextObject) {
-          const rows = (this.points ?? [])
-            .map(
-              (p) => `
-                <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-                  <span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${p.color}"></span>
-                  <span style="text-transform:capitalize">${p.series.name}</span>
-                  <span style="margin-left:auto;padding-left:16px;font-weight:600">${fmtAmount(p.y ?? 0)}</span>
-                </div>`,
-            )
-            .join("");
-          return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${rows}`;
+          return reportsTooltipHtml(this.points ?? [], fmtAmount, this.x);
         },
       },
       plotOptions: {
@@ -387,18 +406,22 @@ export function Reports() {
         </Card>
       )}
 
-      {isLoading ? (
+      {isLoading && (
         <div className="flex h-40 items-center justify-center text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : error ? (
+      )}
+
+      {error && (
         <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-sm text-destructive">
           <p>Error al cargar el resumen.</p>
           <p className="max-w-md break-words text-xs text-muted-foreground">
             {error instanceof Error ? error.message : String(error)}
           </p>
         </div>
-      ) : (
+      )}
+
+      {!isLoading && !error && (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <KpiCard

@@ -86,6 +86,19 @@ interface MonthGroup {
   items: TransactionRecord[];
 }
 
+interface FilterState {
+  typeFilter: "all" | "income" | "expense" | "investment";
+  companyFilter: string;
+  uncategorizedOnly: boolean;
+  search: string;
+}
+
+interface TransactionGroups {
+  displayItems: TransactionRecord[];
+  groupMemberIds: Map<number, number[]>;
+  transferPairs: Map<string, TransactionRecord[]>;
+}
+
 function monthLabel(key: string) {
   if (key === "s/fecha") return "Sin fecha";
   const [y, m] = key.split("-").map(Number);
@@ -126,6 +139,418 @@ function recordsToTransfer(pair: TransactionRecord[]): TransferResponse {
   };
 }
 
+function matchesTypeFilter(t: TransactionRecord, typeFilter: string): boolean {
+  return typeFilter === "all" || t.type === typeFilter;
+}
+
+function matchesUncategorizedFilter(t: TransactionRecord, uncategorizedOnly: boolean): boolean {
+  return !uncategorizedOnly || t.category_status === "pending";
+}
+
+function matchesCompanyFilter(t: TransactionRecord, companyFilter: string): boolean {
+  if (companyFilter === "all") return true;
+  if (companyFilter === "none") return t.company_id == null;
+  return String(t.company_id) === companyFilter;
+}
+
+function matchesSearchTerm(
+  t: TransactionRecord,
+  search: string,
+  categoryMap: Record<number, string>,
+  accountMap: Record<number, string>,
+): boolean {
+  if (!search) return true;
+  const q = search.toLowerCase();
+  const haystacks = [
+    t.description ?? "",
+    t.reference_code ?? "",
+    t.source_bank ?? "",
+    t.destination_bank ?? "",
+    t.source_account ?? "",
+    t.destination_account ?? "",
+    t.addressee ?? "",
+    categoryMap[t.category_id ?? -1] ?? "",
+    accountMap[t.account_id ?? -1] ?? "",
+    String(t.amount ?? ""),
+  ];
+  return haystacks.some((h) => h.toLowerCase().includes(q));
+}
+
+function matchesFilters(
+  t: TransactionRecord,
+  filters: FilterState,
+  categoryMap: Record<number, string>,
+  accountMap: Record<number, string>,
+): boolean {
+  return (
+    matchesTypeFilter(t, filters.typeFilter) &&
+    matchesUncategorizedFilter(t, filters.uncategorizedOnly) &&
+    matchesCompanyFilter(t, filters.companyFilter) &&
+    matchesSearchTerm(t, filters.search, categoryMap, accountMap)
+  );
+}
+
+function groupTransactions(
+  transactions: TransactionRecord[],
+  filters: FilterState,
+  categoryMap: Record<number, string>,
+  accountMap: Record<number, string>,
+): TransactionGroups {
+  const groups = new Map<string, TransactionRecord[]>();
+  const singles: TransactionRecord[] = [];
+
+  for (const t of transactions) {
+    if (t.transfer_group_id) {
+      const list = groups.get(t.transfer_group_id) ?? [];
+      list.push(t);
+      groups.set(t.transfer_group_id, list);
+    } else {
+      singles.push(t);
+    }
+  }
+
+  const memberIds = new Map<number, number[]>();
+  const items: TransactionRecord[] = [];
+
+  for (const pair of groups.values()) {
+    if (!pair.some((r) => matchesFilters(r, filters, categoryMap, accountMap))) continue;
+    const representative = pair.find((r) => r.destination_account_id != null) ?? pair[0];
+    const ids = pair.map((r) => r.id);
+    for (const r of pair) memberIds.set(r.id, ids);
+    items.push(representative);
+  }
+
+  for (const t of singles) {
+    if (matchesFilters(t, filters, categoryMap, accountMap)) items.push(t);
+  }
+
+  return { displayItems: items, groupMemberIds: memberIds, transferPairs: groups };
+}
+
+function groupByMonth(items: TransactionRecord[]): MonthGroup[] {
+  const map = new Map<string, MonthGroup>();
+  for (const t of items) {
+    const key = t.transaction_date?.slice(0, 7) ?? "s/fecha";
+    const entry = map.get(key) ?? { key, income: 0, expenses: 0, items: [] };
+    if (t.type === "income") entry.income += t.amount;
+    else if (t.type === "expense") entry.expenses += t.amount;
+    entry.items.push(t);
+    map.set(key, entry);
+  }
+  return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
+}
+
+function getIconBgClass(isPendingTx: boolean, isTransfer: boolean, type: string): string {
+  if (isPendingTx) return "bg-warning/15 text-warning";
+  if (isTransfer) return "bg-primary/10 text-primary";
+  if (type === "income") return "bg-success/10 text-success";
+  if (type === "investment") return "bg-primary/10 text-primary";
+  return "bg-surface-2 text-muted-foreground";
+}
+
+function getAmountColorClass(type: string): string {
+  if (type === "income") return "text-success";
+  if (type === "investment") return "text-primary";
+  return "text-foreground";
+}
+
+function getAmountSign(type: string): string {
+  if (type === "income") return "+";
+  if (type === "expense") return "-";
+  return "";
+}
+
+function getFrequencyText(frequency?: "biweekly" | "monthly" | null): string {
+  if (frequency === "monthly") return " · Mensual";
+  if (frequency === "biweekly") return " · Quincenal";
+  return "";
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return "Sin fecha";
+  return new Date(dateStr.slice(0, 10) + "T00:00:00").toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function linkedLabel(
+  t: TransactionRecord,
+  objectiveMap: Record<number, string>,
+  accountMap: Record<number, string>,
+  assetMap: Record<number, string>,
+  liabilityMap: Record<number, string>,
+): string | null {
+  if (t.objective_id && objectiveMap[t.objective_id])
+    return `Meta · ${objectiveMap[t.objective_id]}`;
+  if (t.account_id && accountMap[t.account_id]) return `Cuenta · ${accountMap[t.account_id]}`;
+  if (t.asset_id && assetMap[t.asset_id]) return `Activo · ${assetMap[t.asset_id]}`;
+  if (t.liability_id && liabilityMap[t.liability_id])
+    return `Pasivo · ${liabilityMap[t.liability_id]}`;
+  return null;
+}
+
+function LoadingSpinner({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center justify-center text-muted-foreground", className)}>
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  );
+}
+
+function ErrorMessage({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center justify-center text-destructive text-sm", className)}>
+      Error al cargar transacciones.
+    </div>
+  );
+}
+
+function EmptyState({ hasTransactions }: { hasTransactions: boolean }) {
+  return (
+    <Card className="flex h-40 flex-col items-center justify-center text-muted-foreground text-sm">
+      <Tag className="mb-2 h-6 w-6 opacity-50" />
+      {hasTransactions
+        ? "No hay transacciones que coincidan con la búsqueda."
+        : "No se encontraron transacciones."}
+    </Card>
+  );
+}
+
+interface TransactionRowProps {
+  t: TransactionRecord;
+  isTransfer: boolean;
+  categoryName: string;
+  isPendingTx: boolean;
+  iconBgClass: string;
+  frequencyText: string;
+  amountColorClass: string;
+  amountSign: string;
+  linkedLabel: string | null;
+  selectedMemberIds: (t: TransactionRecord) => number[];
+  selectedIds: Set<number>;
+  toggleSelected: (id: number) => void;
+  handleEdit: (t: TransactionRecord) => void;
+  setDeletingTx: (t: TransactionRecord | null) => void;
+  cloneTx: ReturnType<typeof useCloneTransaction>;
+  fmtAmount: (amount: number) => string;
+}
+
+function TransactionRow({
+  t,
+  isTransfer,
+  categoryName,
+  isPendingTx,
+  iconBgClass,
+  frequencyText,
+  amountColorClass,
+  amountSign,
+  linkedLabel: linkedLabelValue,
+  selectedMemberIds,
+  selectedIds,
+  toggleSelected,
+  handleEdit,
+  setDeletingTx,
+  cloneTx,
+  fmtAmount,
+}: TransactionRowProps) {
+  const Icon = isTransfer ? ArrowLeftRight : getCategoryIcon(categoryName);
+
+  return (
+    <li
+      key={t.id}
+      className={cn(
+        "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
+        isPendingTx && "bg-warning/[0.03]",
+      )}
+    >
+      <Checkbox
+        checked={selectedMemberIds(t).every((id) => selectedIds.has(id))}
+        onCheckedChange={() => toggleSelected(t.id)}
+        aria-label="Seleccionar transacción"
+        className="shrink-0"
+      />
+      <div
+        className={cn(
+          "flex h-10 w-10 items-center justify-center rounded-xl",
+          iconBgClass,
+        )}
+      >
+        <Icon className="h-4.5 w-4.5" size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">
+          {t.description ?? "Sin descripcion"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {categoryName}
+          {t.installments && t.installments > 1
+            ? ` · ${t.installments} cuotas`
+            : ""}
+          {" · "}
+          {formatDate(t.transaction_date)}
+        </p>
+      </div>
+      {isPendingTx ? (
+        <Badge tone="warning">Por editar</Badge>
+      ) : (
+        <Badge tone="muted">{categoryName}</Badge>
+      )}
+      {linkedLabelValue && <Badge tone="primary">{linkedLabelValue}</Badge>}
+      {t.is_fixed && (
+        <Badge tone="primary">
+          Fija
+          {frequencyText}
+          {t.due_day ? ` · Día ${t.due_day}` : ""}
+        </Badge>
+      )}
+      <span
+        className={cn(
+          "w-28 text-right font-display text-base font-semibold tabular-nums",
+          amountColorClass,
+        )}
+      >
+        {amountSign}
+        {fmtAmount(t.amount)}
+      </span>
+      <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+        {!isTransfer && (
+          <button
+            onClick={() => {
+              cloneTx.mutate(
+                { id: t.id },
+                {
+                  onSuccess: () => toast.success("Transacción clonada"),
+                  onError: () => toast.error("Error al clonar la transacción"),
+                },
+              );
+            }}
+            disabled={cloneTx.isPending}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+            title="Clonar transacción"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => handleEdit(t)}
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => setDeletingTx(t)}
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+interface MonthSectionProps {
+  month: MonthGroup;
+  categoryMap: Record<number, string>;
+  objectiveMap: Record<number, string>;
+  accountMap: Record<number, string>;
+  assetMap: Record<number, string>;
+  liabilityMap: Record<number, string>;
+  selectedIds: Set<number>;
+  groupMemberIds: Map<number, number[]>;
+  toggleSelected: (id: number) => void;
+  handleEdit: (t: TransactionRecord) => void;
+  setDeletingTx: (t: TransactionRecord | null) => void;
+  handleDeleteMonth: (month: MonthGroup) => void;
+  cloneTx: ReturnType<typeof useCloneTransaction>;
+  fmtAmount: (amount: number) => string;
+}
+
+function MonthSection({
+  month,
+  categoryMap,
+  objectiveMap,
+  accountMap,
+  assetMap,
+  liabilityMap,
+  selectedIds,
+  groupMemberIds,
+  toggleSelected,
+  handleEdit,
+  setDeletingTx,
+  handleDeleteMonth,
+  cloneTx,
+  fmtAmount,
+}: MonthSectionProps) {
+  const selectedMemberIds = (t: TransactionRecord): number[] => {
+    return groupMemberIds.get(t.id) ?? [t.id];
+  };
+
+  return (
+    <section key={month.key}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <h3 className="font-display text-lg font-semibold capitalize">
+          {monthLabel(month.key)}
+        </h3>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-success tabular-nums">+{fmtAmount(month.income)}</span>
+          <span className="text-destructive tabular-nums">-{fmtAmount(month.expenses)}</span>
+          <span className="text-muted-foreground tabular-nums">
+            Balance {fmtAmount(month.income - month.expenses)}
+          </span>
+          <span className="mx-1 h-4 w-px bg-border" />
+          <button
+            onClick={() => handleDeleteMonth(month)}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+            title={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
+            aria-label={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <Card className="p-0">
+        <ul className="divide-y divide-border">
+          {month.items.map((t) => {
+            const isTransfer = !!t.transfer_group_id;
+            const categoryName = isTransfer
+              ? "Transferencia"
+              : (categoryMap[t.category_id ?? -1] ?? "Por editar");
+            const isPendingTx = !isTransfer && t.category_status === "pending";
+            const iconBgClass = getIconBgClass(isPendingTx, isTransfer, t.type);
+            const frequencyText = getFrequencyText(t.frequency);
+            const amountColorClass = getAmountColorClass(t.type);
+            const amountSign = getAmountSign(t.type);
+            const label = linkedLabel(t, objectiveMap, accountMap, assetMap, liabilityMap);
+
+            return (
+              <TransactionRow
+                key={t.id}
+                t={t}
+                isTransfer={isTransfer}
+                categoryName={categoryName}
+                isPendingTx={isPendingTx}
+                iconBgClass={iconBgClass}
+                frequencyText={frequencyText}
+                amountColorClass={amountColorClass}
+                amountSign={amountSign}
+                linkedLabel={label}
+                selectedMemberIds={selectedMemberIds}
+                selectedIds={selectedIds}
+                toggleSelected={toggleSelected}
+                handleEdit={handleEdit}
+                setDeletingTx={setDeletingTx}
+                cloneTx={cloneTx}
+                fmtAmount={fmtAmount}
+              />
+            );
+          })}
+        </ul>
+      </Card>
+    </section>
+  );
+}
+
 export function TransactionsList() {
   const { data: transactions = [], isLoading, error } = useTransactions({ limit: 500 });
   const { data: categories = [] } = useCategories();
@@ -158,138 +583,58 @@ export function TransactionsList() {
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
-    categories.forEach((c) => {
-      map[c.id] = c.name;
-    });
+    categories.forEach((c) => { map[c.id] = c.name; });
     return map;
   }, [categories]);
 
   const objectiveMap = useMemo(() => {
     const map: Record<number, string> = {};
-    objectives.forEach((o) => {
-      map[o.id] = o.name;
-    });
+    objectives.forEach((o) => { map[o.id] = o.name; });
     return map;
   }, [objectives]);
 
   const accountMap = useMemo(() => {
     const map: Record<number, string> = {};
-    bankAccounts.forEach((a) => {
-      map[a.id] = `${a.bank_name} · ${a.masked_account_number}`;
-    });
+    bankAccounts.forEach((a) => { map[a.id] = `${a.bank_name} · ${a.masked_account_number}`; });
     return map;
   }, [bankAccounts]);
 
   const assetMap = useMemo(() => {
     const map: Record<number, string> = {};
-    assets.forEach((a) => {
-      map[a.id] = a.name;
-    });
+    assets.forEach((a) => { map[a.id] = a.name; });
     return map;
   }, [assets]);
 
   const liabilityMap = useMemo(() => {
     const map: Record<number, string> = {};
-    liabilities.forEach((l) => {
-      map[l.id] = l.name;
-    });
+    liabilities.forEach((l) => { map[l.id] = l.name; });
     return map;
   }, [liabilities]);
 
-  function linkedLabel(t: TransactionRecord): string | null {
-    if (t.objective_id && objectiveMap[t.objective_id])
-      return `Meta · ${objectiveMap[t.objective_id]}`;
-    if (t.account_id && accountMap[t.account_id]) return `Cuenta · ${accountMap[t.account_id]}`;
-    if (t.asset_id && assetMap[t.asset_id]) return `Activo · ${assetMap[t.asset_id]}`;
-    if (t.liability_id && liabilityMap[t.liability_id])
-      return `Pasivo · ${liabilityMap[t.liability_id]}`;
-    return null;
-  }
+  const filters: FilterState = useMemo(
+    () => ({ typeFilter, companyFilter, uncategorizedOnly, search }),
+    [typeFilter, companyFilter, uncategorizedOnly, search],
+  );
 
-  const matchesFilters = (t: TransactionRecord): boolean => {
-    if (typeFilter !== "all" && t.type !== typeFilter) return false;
-    if (uncategorizedOnly && t.category_status !== "pending") return false;
-    if (companyFilter !== "all") {
-      if (companyFilter === "none" && t.company_id != null) return false;
-      if (companyFilter !== "none" && String(t.company_id) !== companyFilter) return false;
-    }
-    return true;
-  };
-
-  const matchesSearch = (t: TransactionRecord): boolean => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    const haystacks = [
-      t.description ?? "",
-      t.reference_code ?? "",
-      t.source_bank ?? "",
-      t.destination_bank ?? "",
-      t.source_account ?? "",
-      t.destination_account ?? "",
-      t.addressee ?? "",
-      categoryMap[t.category_id ?? -1] ?? "",
-      accountMap[t.account_id ?? -1] ?? "",
-      String(t.amount ?? ""),
-    ];
-    return haystacks.some((h) => h.toLowerCase().includes(q));
-  };
-
-  const { displayItems, groupMemberIds, transferPairs } = useMemo(() => {
-    const groups = new Map<string, TransactionRecord[]>();
-    const singles: TransactionRecord[] = [];
-    for (const t of transactions) {
-      if (t.transfer_group_id) {
-        const list = groups.get(t.transfer_group_id) ?? [];
-        list.push(t);
-        groups.set(t.transfer_group_id, list);
-      } else {
-        singles.push(t);
-      }
-    }
-    const memberIds = new Map<number, number[]>();
-    const items: TransactionRecord[] = [];
-    for (const pair of groups.values()) {
-      if (!pair.some((r) => matchesFilters(r) && matchesSearch(r))) continue;
-      const representative = pair.find((r) => r.destination_account_id != null) ?? pair[0];
-      const ids = pair.map((r) => r.id);
-      for (const r of pair) memberIds.set(r.id, ids);
-      items.push(representative);
-    }
-    for (const t of singles) {
-      if (matchesFilters(t) && matchesSearch(t)) items.push(t);
-    }
-    return {
-      displayItems: items,
-      groupMemberIds: memberIds,
-      transferPairs: groups,
-    };
-  }, [transactions, typeFilter, uncategorizedOnly, companyFilter, search, categoryMap, accountMap]);
+  const { displayItems, groupMemberIds, transferPairs } = useMemo(
+    () => groupTransactions(transactions, filters, categoryMap, accountMap),
+    [transactions, filters, categoryMap, accountMap],
+  );
 
   const pendingCount = useMemo(
     () => transactions.filter((t) => t.category_status === "pending").length,
     [transactions],
   );
 
-  const groupedByMonth = useMemo(() => {
-    const map = new Map<string, MonthGroup>();
-    for (const t of displayItems) {
-      const key = t.transaction_date?.slice(0, 7) ?? "s/fecha";
-      const entry = map.get(key) ?? { key, income: 0, expenses: 0, items: [] };
-      if (t.type === "income") entry.income += t.amount;
-      else if (t.type === "expense") entry.expenses += t.amount;
-      entry.items.push(t);
-      map.set(key, entry);
-    }
-    return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
-  }, [displayItems]);
+  const groupedByMonth = useMemo(() => groupByMonth(displayItems), [displayItems]);
 
-  function openNew(date?: Date) {
+  const openNew = (date?: Date) => {
     setEditingTx(null);
     setDefaultDate(date ?? null);
     setDialogOpen(true);
-  }
+  };
 
-  function handleEdit(tx: TransactionRecord) {
+  const handleEdit = (tx: TransactionRecord) => {
     if (tx.transfer_group_id && transferPairs.get(tx.transfer_group_id)) {
       setEditingTransfer(recordsToTransfer(transferPairs.get(tx.transfer_group_id)!));
       setTransferEditOpen(true);
@@ -297,14 +642,14 @@ export function TransactionsList() {
     }
     setEditingTx(tx);
     setDialogOpen(true);
-  }
+  };
 
-  function handleTransferEditClose(v: boolean) {
+  const handleTransferEditClose = (v: boolean) => {
     setTransferEditOpen(v);
     if (!v) setEditingTransfer(null);
-  }
+  };
 
-  function handleDeleteConfirm() {
+  const handleDeleteConfirm = () => {
     if (!deletingTx) return;
     if (deletingTx.transfer_group_id) {
       deleteTransfer.mutate(String(deletingTx.id), {
@@ -323,13 +668,13 @@ export function TransactionsList() {
       },
       onError: () => toast.error("Error al eliminar la transacción"),
     });
-  }
+  };
 
-  function selectedMemberIds(t: TransactionRecord): number[] {
+  const selectedMemberIds = (t: TransactionRecord): number[] => {
     return groupMemberIds.get(t.id) ?? [t.id];
-  }
+  };
 
-  function toggleSelected(id: number) {
+  const toggleSelected = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       for (const memberId of groupMemberIds.get(id) ?? [id]) {
@@ -338,22 +683,22 @@ export function TransactionsList() {
       }
       return next;
     });
-  }
+  };
 
-  function allVisibleSelected() {
+  const allVisibleSelected = () => {
     const ids = displayItems.flatMap((t) => selectedMemberIds(t));
     return ids.length > 0 && ids.every((id) => selectedIds.has(id));
-  }
+  };
 
-  function toggleAllFiltered() {
+  const toggleAllFiltered = () => {
     const ids = displayItems.flatMap((t) => selectedMemberIds(t));
     setSelectedIds((prev) => {
       if (ids.length > 0 && ids.every((id) => prev.has(id))) return new Set();
       return new Set(ids);
     });
-  }
+  };
 
-  function handleBulkDeleteConfirm() {
+  const handleBulkDeleteConfirm = () => {
     if (selectedIds.size === 0) return;
     bulkDelete.mutate([...selectedIds], {
       onSuccess: () => {
@@ -364,21 +709,79 @@ export function TransactionsList() {
       },
       onError: () => toast.error("Error al eliminar las transacciones"),
     });
-  }
+  };
 
-  function handleDeleteMonth(month: MonthGroup) {
+  const handleDeleteMonth = (month: MonthGroup) => {
     setSelectedIds(new Set(month.items.flatMap((t) => selectedMemberIds(t))));
     setBulkMonthLabel(monthLabel(month.key));
     setBulkConfirmOpen(true);
-  }
+  };
 
-  function handleDialogClose(v: boolean) {
+  const handleDialogClose = (v: boolean) => {
     setDialogOpen(v);
     if (!v) {
       setEditingTx(null);
       setDefaultDate(null);
     }
-  }
+  };
+
+  const listTabContent = useMemo(() => {
+    if (isLoading) return <LoadingSpinner className="h-32" />;
+    if (error) return <ErrorMessage className="h-32" />;
+    if (groupedByMonth.length === 0) return <EmptyState hasTransactions={transactions.length > 0} />;
+    return (
+      <div className="space-y-6">
+        {groupedByMonth.map((month) => (
+          <MonthSection
+            key={month.key}
+            month={month}
+            categoryMap={categoryMap}
+            objectiveMap={objectiveMap}
+            accountMap={accountMap}
+            assetMap={assetMap}
+            liabilityMap={liabilityMap}
+            selectedIds={selectedIds}
+            groupMemberIds={groupMemberIds}
+            toggleSelected={toggleSelected}
+            handleEdit={handleEdit}
+            setDeletingTx={setDeletingTx}
+            handleDeleteMonth={handleDeleteMonth}
+            cloneTx={cloneTx}
+            fmtAmount={fmtAmount}
+          />
+        ))}
+      </div>
+    );
+  }, [
+    isLoading,
+    error,
+    groupedByMonth,
+    transactions.length,
+    categoryMap,
+    objectiveMap,
+    accountMap,
+    assetMap,
+    liabilityMap,
+    selectedIds,
+    groupMemberIds,
+    cloneTx,
+    fmtAmount,
+  ]);
+
+  const calendarTabContent = useMemo(() => {
+    if (isLoading) return <LoadingSpinner className="h-40" />;
+    if (error) return <ErrorMessage className="h-40" />;
+    return (
+      <TransactionCalendar
+        transactions={displayItems}
+        categoryMap={categoryMap}
+        getLinkedLabel={(t) => linkedLabel(t, objectiveMap, accountMap, assetMap, liabilityMap)}
+        onNewTransaction={(d) => openNew(d)}
+        onEdit={handleEdit}
+        onDelete={setDeletingTx}
+      />
+    );
+  }, [isLoading, error, displayItems, categoryMap, objectiveMap, accountMap, assetMap, liabilityMap]);
 
   return (
     <div className="space-y-7">
@@ -398,32 +801,36 @@ export function TransactionsList() {
             />
           </div>
           <div className="flex rounded-xl bg-surface p-1">
-            {(["all", "expense", "income", "investment"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setTypeFilter(f)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium transition",
-                  typeFilter === f
-                    ? f === "expense"
-                      ? "bg-destructive/15 text-destructive"
-                      : f === "income"
-                        ? "bg-success/15 text-success"
-                        : f === "investment"
-                          ? "bg-primary/15 text-primary"
-                          : "bg-surface-2 text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {f === "all"
-                  ? "Todos"
-                  : f === "expense"
-                    ? "Gastos"
-                    : f === "income"
-                      ? "Ingresos"
-                      : "Inversiones"}
-              </button>
-            ))}
+            {(["all", "expense", "income", "investment"] as const).map((f) => {
+              const filterClasses: Record<string, string> = {
+                expense: "bg-destructive/15 text-destructive",
+                income: "bg-success/15 text-success",
+                investment: "bg-primary/15 text-primary",
+                all: "bg-surface-2 text-foreground",
+              };
+              const filterLabels: Record<string, string> = {
+                all: "Todos",
+                expense: "Gastos",
+                income: "Ingresos",
+                investment: "Inversiones",
+              };
+              const activeFilterClass = filterClasses[f];
+              const filterLabel = filterLabels[f];
+              return (
+                <button
+                  key={f}
+                  onClick={() => setTypeFilter(f)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                    typeFilter === f
+                      ? activeFilterClass
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {filterLabel}
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={() => setUncategorizedOnly((v) => !v)}
@@ -531,202 +938,9 @@ export function TransactionsList() {
           <TabsTrigger value="calendar">Calendario</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list">
-          {isLoading ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="flex h-32 items-center justify-center text-destructive text-sm">
-              Error al cargar transacciones.
-            </div>
-          ) : groupedByMonth.length === 0 ? (
-            <Card className="flex h-40 flex-col items-center justify-center text-muted-foreground text-sm">
-              <Tag className="mb-2 h-6 w-6 opacity-50" />
-              {transactions.length === 0
-                ? "No se encontraron transacciones."
-                : "No hay transacciones que coincidan con la búsqueda."}
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {groupedByMonth.map((month) => (
-                <section key={month.key}>
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <h3 className="font-display text-lg font-semibold capitalize">
-                      {monthLabel(month.key)}
-                    </h3>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-success tabular-nums">+{fmtAmount(month.income)}</span>
-                      <span className="text-destructive tabular-nums">
-                        -{fmtAmount(month.expenses)}
-                      </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        Balance {fmtAmount(month.income - month.expenses)}
-                      </span>
-                      <span className="mx-1 h-4 w-px bg-border" />
-                      <button
-                        onClick={() => handleDeleteMonth(month)}
-                        className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                        title={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
-                        aria-label={`Eliminar las ${month.items.length} transacciones de ${monthLabel(month.key)}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <Card className="p-0">
-                    <ul className="divide-y divide-border">
-                      {month.items.map((t) => {
-                        const isTransfer = !!t.transfer_group_id;
-                        const categoryName = isTransfer
-                          ? "Transferencia"
-                          : (categoryMap[t.category_id ?? -1] ?? "Por editar");
-                        const isPendingTx = !isTransfer && t.category_status === "pending";
-                        const Icon = isTransfer ? ArrowLeftRight : getCategoryIcon(categoryName);
-                        return (
-                          <li
-                            key={t.id}
-                            className={cn(
-                              "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
-                              isPendingTx && "bg-warning/[0.03]",
-                            )}
-                          >
-                            <Checkbox
-                              checked={selectedMemberIds(t).every((id) => selectedIds.has(id))}
-                              onCheckedChange={() => toggleSelected(t.id)}
-                              aria-label="Seleccionar transacción"
-                              className="shrink-0"
-                            />
-                            <div
-                              className={cn(
-                                "flex h-10 w-10 items-center justify-center rounded-xl",
-                                isPendingTx
-                                  ? "bg-warning/15 text-warning"
-                                  : isTransfer
-                                    ? "bg-primary/10 text-primary"
-                                    : t.type === "income"
-                                      ? "bg-success/10 text-success"
-                                      : t.type === "investment"
-                                        ? "bg-primary/10 text-primary"
-                                        : "bg-surface-2 text-muted-foreground",
-                              )}
-                            >
-                              <Icon className="h-4.5 w-4.5" size={18} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {t.description ?? "Sin descripcion"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {categoryName}
-                                {t.installments && t.installments > 1
-                                  ? ` · ${t.installments} cuotas`
-                                  : ""}
-                                {" · "}
-                                {t.transaction_date
-                                  ? new Date(
-                                      t.transaction_date.slice(0, 10) + "T00:00:00",
-                                    ).toLocaleDateString("es-CO", {
-                                      day: "numeric",
-                                      month: "short",
-                                    })
-                                  : "Sin fecha"}
-                              </p>
-                            </div>
-                            {isPendingTx ? (
-                              <Badge tone="warning">Por editar</Badge>
-                            ) : (
-                              <Badge tone="muted">{categoryName}</Badge>
-                            )}
-                            {linkedLabel(t) && <Badge tone="primary">{linkedLabel(t)}</Badge>}
-                            {t.is_fixed && (
-                              <Badge tone="primary">
-                                Fija
-                                {t.frequency === "monthly"
-                                  ? " · Mensual"
-                                  : t.frequency === "biweekly"
-                                    ? " · Quincenal"
-                                    : ""}
-                                {t.due_day ? ` · Día ${t.due_day}` : ""}
-                              </Badge>
-                            )}
-                            <span
-                              className={cn(
-                                "w-28 text-right font-display text-base font-semibold tabular-nums",
-                                t.type === "income"
-                                  ? "text-success"
-                                  : t.type === "investment"
-                                    ? "text-primary"
-                                    : "text-foreground",
-                              )}
-                            >
-                              {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}
-                              {fmtAmount(t.amount)}
-                            </span>
-                            <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                              {!isTransfer && (
-                                <button
-                                  onClick={() => {
-                                    cloneTx.mutate(
-                                      { id: t.id },
-                                      {
-                                        onSuccess: () => toast.success("Transacción clonada"),
-                                        onError: () =>
-                                          toast.error("Error al clonar la transacción"),
-                                      },
-                                    );
-                                  }}
-                                  disabled={cloneTx.isPending}
-                                  className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-                                  title="Clonar transacción"
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleEdit(t)}
-                                className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeletingTx(t)}
-                                className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </Card>
-                </section>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+        <TabsContent value="list">{listTabContent}</TabsContent>
 
-        <TabsContent value="calendar">
-          {isLoading ? (
-            <div className="flex h-40 items-center justify-center text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="flex h-40 items-center justify-center text-destructive text-sm">
-              Error al cargar transacciones.
-            </div>
-          ) : (
-            <TransactionCalendar
-              transactions={displayItems}
-              categoryMap={categoryMap}
-              getLinkedLabel={linkedLabel}
-              onNewTransaction={(d) => openNew(d)}
-              onEdit={handleEdit}
-              onDelete={setDeletingTx}
-            />
-          )}
-        </TabsContent>
+        <TabsContent value="calendar">{calendarTabContent}</TabsContent>
       </Tabs>
 
       <TransactionDialog

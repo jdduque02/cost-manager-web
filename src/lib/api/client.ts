@@ -76,7 +76,7 @@ export function getStoredUserId(): string | null {
   return memoryUserId;
 }
 
-export function getRefreshToken(): string | null {
+function getRefreshToken(): string | null {
   // Refresh vive en cookie httpOnly; el cliente no lo lee.
   return null;
 }
@@ -118,6 +118,23 @@ function refreshTokens(): Promise<{ access_token: string; refresh_token?: string
   return refreshInFlight;
 }
 
+export interface ValidationErrorDetail {
+  property: string;
+  constraints: Record<string, string>;
+}
+
+export class ApiError extends Error {
+  status: number;
+  details: ValidationErrorDetail[];
+
+  constructor(message: string, status: number, details: ValidationErrorDetail[] = []) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
 /** Intenta recuperar sesión vía cookie de refresh (p. ej. al recargar). */
 export async function tryRestoreSession(): Promise<boolean> {
   try {
@@ -153,10 +170,7 @@ export interface ApiFetchOptions extends RequestInit {
  * Main fetch wrapper. Automatically adds Authorization header, handles
  * token refresh on 401 responses, and unwraps ApiResponseDto envelope.
  */
-export async function apiFetch<T = unknown>(
-  path: string,
-  options: ApiFetchOptions = {},
-): Promise<T> {
+async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { token: explicitToken, preservePaginated = false, ...fetchOptions } = options;
   const token = explicitToken ?? getAccessToken();
 
@@ -179,15 +193,17 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     let message = `API error ${res.status}`;
+    let details: ValidationErrorDetail[] = [];
     try {
       const err = await res.json();
       message = err.message ?? err.error ?? message;
+      if (Array.isArray(err.details)) {
+        details = err.details;
+      }
     } catch {
       // ignore JSON parse errors
     }
-    const error = new Error(message) as Error & { status?: number };
-    error.status = res.status;
-    throw error;
+    throw new ApiError(message, res.status, details);
   }
 
   if (res.status === 204) return undefined as T;
@@ -226,15 +242,19 @@ export const api = {
   },
 };
 
-async function parseResponseError(res: Response): Promise<string> {
+async function parseResponseError(res: Response): Promise<ApiError> {
   let message = `API error ${res.status}`;
+  let details: ValidationErrorDetail[] = [];
   try {
     const err = await res.json();
     message = err.message ?? err.error ?? message;
+    if (Array.isArray(err.details)) {
+      details = err.details;
+    }
   } catch {
     // ignore JSON parse errors
   }
-  return message;
+  return new ApiError(message, res.status, details);
 }
 
 export async function apiPostForm<T = unknown>(
@@ -261,7 +281,7 @@ export async function apiPostForm<T = unknown>(
   }
 
   if (!res.ok) {
-    throw new Error(await parseResponseError(res));
+    throw await parseResponseError(res);
   }
 
   if (res.status === 204) return undefined as T;

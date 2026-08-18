@@ -5,7 +5,7 @@ export type StatementImportStatus = "pending" | "processing" | "completed" | "pa
 
 export type StatementImportFileStatus = "pending" | "processing" | "success" | "failed";
 
-export interface StatementImportFile {
+interface StatementImportFile {
   id: number;
   import_id: number;
   filename: string;
@@ -70,7 +70,7 @@ export interface StatementImportProgress {
   updated_at: string | null;
 }
 
-export interface CreateStatementImportForm {
+interface CreateStatementImportForm {
   password?: string;
   default_category_id?: number;
   account_id?: number;
