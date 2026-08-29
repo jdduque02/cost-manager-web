@@ -146,6 +146,7 @@ export function TransactionDialog({
 
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState<"COP" | "USD">("COP");
   const [categoryId, setCategoryId] = useState<string>("");
   const [subcategoryId, setSubcategoryId] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -209,6 +210,7 @@ export function TransactionDialog({
   function populateFormFromTransaction(tx: TransactionRecord) {
     setType(tx.type);
     setAmount(Number(tx.amount).toString());
+    setCurrency((tx.currency as "COP" | "USD") || "COP");
     setCategoryId(toStr(tx.category_id));
     setSubcategoryId(toStr(tx.subcategory_id));
     setDescription(tx.description ?? "");
@@ -242,6 +244,7 @@ export function TransactionDialog({
   function reset() {
     setType("expense");
     setAmount("");
+    setCurrency("COP");
     setCategoryId("");
     setSubcategoryId("");
     setDescription("");
@@ -268,6 +271,7 @@ export function TransactionDialog({
     return {
       type,
       amount: parseCurrency(amount),
+      currency,
       category_id: optNum(categoryId),
       subcategory_id: optNum(subcategoryId),
       description: description || undefined,
@@ -412,7 +416,18 @@ export function TransactionDialog({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>Monto</Label>
-                    <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                    <div className="flex gap-2">
+                      <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required className="flex-1" />
+                      <Select value={currency} onValueChange={(v) => setCurrency(v as "COP" | "USD")}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="COP">COP</SelectItem>
+                          <SelectItem value="USD">USD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">

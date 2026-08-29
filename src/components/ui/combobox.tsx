@@ -17,7 +17,7 @@ interface ComboboxItem {
   label: string;
 }
 
-interface ComboboxGroup {
+export interface ComboboxGroup {
   heading: string;
   items: ComboboxItem[];
 }

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQueryState, parseAsStringEnum, parseAsIsoDate } from "nuqs";
 import { format } from "date-fns";
 import {
   ArrowDownRight,
@@ -24,6 +25,13 @@ function reportsKFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
   const v = Number(this.value);
   return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 }
+
+type TooltipFormatterContext = {
+  x?: string | number;
+  key?: string;
+  y?: number;
+  points?: Highcharts.Point[];
+};
 
 function reportsTooltipHtml(
   points: Highcharts.Point[],
@@ -146,16 +154,19 @@ function KpiCard({
 }
 
 export function Reports() {
-  const [preset, setPreset] = useState<PresetId>("this-month");
-  const [customFrom, setCustomFrom] = useState<Date | undefined>();
-  const [customTo, setCustomTo] = useState<Date | undefined>();
-  const [groupBy, setGroupBy] = useState<TransactionGroupBy>("day");
+  const [preset, setPreset] = useQueryState(
+    "period",
+    parseAsStringEnum(["this-month", "last-month", "last-7d", "last-30d", "this-year", "custom"] as const).withDefault("this-month"),
+  );
+  const [customFrom, setCustomFrom] = useQueryState("from", parseAsIsoDate.withDefault(null));
+  const [customTo, setCustomTo] = useQueryState("to", parseAsIsoDate.withDefault(null));
+  const [groupBy, setGroupBy] = useQueryState("groupBy", parseAsStringEnum(["day", "week", "month"] as const));
   const { data: categories = [] } = useCategories();
   const fmtAmount = useFormattedAmount();
   const chartColors = useChartColors();
 
   const range = useMemo(
-    () => presetRange(preset, customFrom, customTo),
+    () => presetRange(preset, customFrom ?? undefined, customTo ?? undefined),
     [preset, customFrom, customTo],
   );
   const diffDays = useMemo(
@@ -163,17 +174,15 @@ export function Reports() {
     [range],
   );
 
-  useEffect(() => {
-    setGroupBy(suggestedGroupBy(diffDays));
-  }, [diffDays]);
+  const effectiveGroupBy = groupBy ?? suggestedGroupBy(diffDays);
 
   const query = useMemo(
     () => ({
       date_from: format(range.from, "yyyy-MM-dd"),
       date_to: format(range.to, "yyyy-MM-dd"),
-      group_by: groupBy,
+      group_by: effectiveGroupBy,
     }),
-    [range, groupBy],
+    [range, effectiveGroupBy],
   );
 
   const { data, isLoading, error } = useTransactionSummary(query);
@@ -267,9 +276,9 @@ export function Reports() {
         ...tooltipStyle,
         shared: true,
         useHTML: true,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return reportsTooltipHtml(this.points ?? [], fmtAmount, this.x);
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         column: {
@@ -311,9 +320,9 @@ export function Reports() {
       legend: { enabled: false },
       tooltip: {
         ...tooltipStyle,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return `<b>${this.key}</b>: ${fmtAmount(typeof this.y === "number" ? this.y : 0)}`;
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         pie: {
@@ -373,7 +382,7 @@ export function Reports() {
               onClick={() => setGroupBy(g.id)}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-medium transition",
-                groupBy === g.id
+                effectiveGroupBy === g.id
                   ? "bg-surface-2 text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
@@ -389,16 +398,16 @@ export function Reports() {
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">Desde</p>
             <DatePicker
-              value={customFrom}
-              onChange={(d) => setCustomFrom(d ?? undefined)}
+              value={customFrom ?? undefined}
+              onChange={(d) => setCustomFrom(d ?? null)}
               placeholder="Seleccionar"
             />
           </div>
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">Hasta</p>
             <DatePicker
-              value={customTo}
-              onChange={(d) => setCustomTo(d ?? undefined)}
+              value={customTo ?? undefined}
+              onChange={(d) => setCustomTo(d ?? null)}
               placeholder="Seleccionar"
             />
           </div>

@@ -65,22 +65,33 @@ function CalendarDayButton({
     >
       <span>{children}</span>
       {info && info.count > 0 && (
-        <span className="pointer-events-none absolute bottom-1 flex items-center gap-0.5">
-          {info.income > 0 && (
-            <span
-              className={cn(
-                "h-1 w-1 rounded-full",
-                modifiers.selected ? "bg-primary-foreground" : "bg-success",
+        <span className="pointer-events-none absolute bottom-0.5 flex items-center gap-0.5">
+          {info.count > 2 ? (
+            <span className={cn(
+              "text-[0.55rem] font-semibold leading-none tabular-nums",
+              modifiers.selected ? "text-primary-foreground" : "text-muted-foreground",
+            )}>
+              {info.count}
+            </span>
+          ) : (
+            <>
+              {info.income > 0 && (
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    modifiers.selected ? "bg-primary-foreground" : "bg-success",
+                  )}
+                />
               )}
-            />
-          )}
-          {info.expenses > 0 && (
-            <span
-              className={cn(
-                "h-1 w-1 rounded-full",
-                modifiers.selected ? "bg-primary-foreground" : "bg-destructive",
+              {info.expenses > 0 && (
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    modifiers.selected ? "bg-primary-foreground" : "bg-destructive",
+                  )}
+                />
               )}
-            />
+            </>
           )}
         </span>
       )}
@@ -173,7 +184,7 @@ export function TransactionCalendar({
           onMonthChange={setMonth}
           locale={es}
           showOutsideDays
-          className="bg-background w-full p-3 [--cell-size:2.25rem]"
+          className="bg-background w-full p-3 [--cell-size:3rem]"
           classNames={{
             root: defaultClassNames.root,
             months: cn("relative flex w-full flex-col", defaultClassNames.months),

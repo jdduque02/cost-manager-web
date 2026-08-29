@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQueryState, parseAsInteger } from "nuqs";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { Plane, Home, GraduationCap, Car, Tag, Loader2, Plus, Pencil, Trash2 } from "lucide-react";
@@ -51,7 +52,8 @@ function GoalCard({
   onShowDetails: (v: { goal: FinancialObjective; transactions: TransactionRecord[] }) => void;
 }) {
   const saved = goal.current_balance ?? 0;
-  const pct = Math.min((saved / (goal.target_amount || 1)) * 100, 100);
+  const hasTarget = !!goal.target_amount && goal.target_amount > 0;
+  const pct = hasTarget ? Math.min((saved / (goal.target_amount as number)) * 100, 100) : 0;
   const Icon = getGoalIcon(goal.name);
   const isComplete = goal.is_completed;
   const linkedCount = linkedTransactions.length;
@@ -65,7 +67,9 @@ function GoalCard({
           </div>
           <div>
             <h3 className="font-display text-lg font-semibold">{goal.name}</h3>
-            <p className="text-xs text-muted-foreground">{Math.round(pct)}% completada</p>
+            <p className="text-xs text-muted-foreground">
+              {hasTarget ? `${Math.round(pct)}% completada` : "Meta abierta · sin monto objetivo"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -90,16 +94,20 @@ function GoalCard({
           </div>
         </div>
       </div>
-      <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full bg-gradient-primary" style={{ width: `${pct}%` }} />
-      </div>
+      {hasTarget && (
+        <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-surface-2">
+          <div className="h-full bg-gradient-primary" style={{ width: `${pct}%` }} />
+        </div>
+      )}
       <div className="mt-3 flex items-baseline justify-between">
-        <span className="font-display text-xl font-semibold tabular-nums">
-          {fmtAmount(saved)}
-        </span>
-        <span className="text-sm text-muted-foreground">
-          de {fmtAmount(goal.target_amount)}
-        </span>
+        <span className="font-display text-xl font-semibold tabular-nums">{fmtAmount(saved)}</span>
+        {hasTarget ? (
+          <span className="text-sm text-muted-foreground">
+            de {fmtAmount(goal.target_amount as number)}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">acumulado</span>
+        )}
       </div>
 
       <div className="mt-4 border-t border-border/60 pt-3">
@@ -112,9 +120,7 @@ function GoalCard({
             return (
               <div key={t.id} className="flex items-center justify-between gap-3 text-xs">
                 <span className="truncate text-muted-foreground">
-                  {t.description ??
-                    categoryMap.get(t.category_id ?? -1) ??
-                    "Sin descripción"}
+                  {t.description ?? categoryMap.get(t.category_id ?? -1) ?? "Sin descripción"}
                 </span>
                 <span className={cn("shrink-0 tabular-nums font-medium", color)}>
                   {sign}
@@ -124,14 +130,10 @@ function GoalCard({
             );
           })}
           {linkedCount === 0 && (
-            <p className="text-xs text-muted-foreground/70">
-              Sin transacciones vinculadas
-            </p>
+            <p className="text-xs text-muted-foreground/70">Sin transacciones vinculadas</p>
           )}
           {linkedCount > 3 && (
-            <p className="text-xs text-muted-foreground/70">
-              +{linkedCount - 3} más
-            </p>
+            <p className="text-xs text-muted-foreground/70">+{linkedCount - 3} más</p>
           )}
         </div>
       </div>
@@ -171,15 +173,26 @@ export function Goals() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<FinancialObjective | null>(null);
+  const [goalId, setGoalId] = useQueryState("goal", parseAsInteger);
   const [deletingGoal, setDeletingGoal] = useState<FinancialObjective | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<{
     goal: FinancialObjective;
     transactions: TransactionRecord[];
   } | null>(null);
 
+  useEffect(() => {
+    if (goalId === null || isLoading) return;
+    const goal = objectives.find((o) => o.id === goalId);
+    if (goal) {
+      setEditingGoal(goal);
+      setDialogOpen(true);
+    }
+  }, [goalId, objectives, isLoading]);
+
   function handleEdit(goal: FinancialObjective) {
     setEditingGoal(goal);
     setDialogOpen(true);
+    setGoalId(goal.id);
   }
 
   function handleDeleteConfirm() {
@@ -195,7 +208,10 @@ export function Goals() {
 
   function handleDialogClose(v: boolean) {
     setDialogOpen(v);
-    if (!v) setEditingGoal(null);
+    if (!v) {
+      setEditingGoal(null);
+      setGoalId(null);
+    }
   }
 
   return (
@@ -211,6 +227,7 @@ export function Goals() {
           onClick={() => {
             setEditingGoal(null);
             setDialogOpen(true);
+            setGoalId(null);
           }}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
         >

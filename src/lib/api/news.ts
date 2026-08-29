@@ -39,8 +39,15 @@ export const newsApi = {
 
   getById: (id: number) => api.getOne<NewsItem>(`news/${id}`),
 
-  create: (dto: CreateNewsItemDto) =>
-    apiPostForm<NewsItem>("news", dto as unknown as Record<string, unknown>),
+  create: (dto: CreateNewsItemDto) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(dto)) {
+      if (value !== undefined && value !== null) {
+        form.append(key, String(value));
+      }
+    }
+    return apiPostForm<NewsItem>("news", form);
+  },
 
   update: (id: number, dto: Partial<CreateNewsItemDto>) =>
     api.patch<NewsItem>(`news/${id}`, dto as Record<string, unknown>),

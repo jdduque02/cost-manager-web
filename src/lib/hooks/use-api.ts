@@ -771,6 +771,25 @@ export function useCloneTransaction() {
   });
 }
 
+export function useCloneTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      dto,
+    }: {
+      id: number;
+      dto?: { transaction_date?: string; amount?: number; description?: string };
+    }) => financeApi.cloneTransfer(userId ?? "", String(id), dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: ["transfers"] });
+    },
+  });
+}
+
 // ─── Intelligence Hooks ───────────────────────────────────────────────────────
 
 import { api } from "@/lib/api/client";

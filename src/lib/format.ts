@@ -2,12 +2,40 @@ export const fmtCurrency = (n: number, currency = "COP") =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: n % 1 !== 0 ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(n);
 
 const fmtCompact = (n: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-export const parseCurrency = (s: string): number => Number(s.replace(/[^0-9.-]/g, "")) || 0;
+/** Parses plain ("48900"), US ("48900.50") or es-CO ("48.900" / "48.900,50") amounts. */
+export const parseCurrency = (s: string): number => {
+  const t = s.trim();
+  if (!t) return 0;
+  const cleaned = t.replace(/[^0-9.,-]/g, "");
+  if (!cleaned) return 0;
+
+  let n: string;
+  if (cleaned.includes(",")) {
+    // es-CO: "." thousands, "," decimal
+    n = cleaned.replace(/\./g, "").replace(",", ".");
+  } else {
+    const dots = (cleaned.match(/\./g) ?? []).length;
+    if (dots > 1) {
+      // Multiple dots → thousand separators (e.g. 1.234.567)
+      n = cleaned.replace(/\./g, "");
+    } else if (dots === 1) {
+      const after = cleaned.split(".")[1] ?? "";
+      // Exactly 3 digits after single dot → es-CO thousands (48.900 → 48900)
+      n = after.length === 3 ? cleaned.replace(".", "") : cleaned;
+    } else {
+      n = cleaned;
+    }
+  }
+
+  const v = Number(n);
+  return Number.isFinite(v) ? v : 0;
+};
 
 export const MASKED = "\u2022\u2022\u2022\u2022\u2022\u2022";

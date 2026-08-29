@@ -131,6 +131,12 @@ export function WealthDialog({
   const [interestRate, setInterestRate] = useState("");
   const [annualRate, setAnnualRate] = useState("");
   const [yieldFrequency, setYieldFrequency] = useState("monthly");
+  const [rateType, setRateType] = useState("EA");
+  const [interestEnabled, setInterestEnabled] = useState(true);
+  const [termDays, setTermDays] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [maturityDate, setMaturityDate] = useState("");
+  const [autoRenew, setAutoRenew] = useState(true);
   const [isPrimary, setIsPrimary] = useState(false);
   const [exempt4x1000, setExempt4x1000] = useState(false);
   const [currency, setCurrency] = useState("COP");
@@ -163,6 +169,12 @@ export function WealthDialog({
     setInterestRate("");
     setAnnualRate("");
     setYieldFrequency("monthly");
+    setRateType("EA");
+    setInterestEnabled(true);
+    setTermDays("");
+    setStartDate("");
+    setMaturityDate("");
+    setAutoRenew(true);
     setIsPrimary(false);
     setExempt4x1000(false);
     setCurrency("COP");
@@ -181,6 +193,12 @@ export function WealthDialog({
     setExempt4x1000(a.exempt_4x1000);
     setAnnualRate(a.annual_interest_rate != null ? String(a.annual_interest_rate) : "");
     setYieldFrequency(a.yield_frequency ?? "monthly");
+    setRateType(a.rate_type ?? "EA");
+    setInterestEnabled(a.interest_enabled ?? true);
+    setTermDays(a.term_days != null ? String(a.term_days) : "");
+    setStartDate(a.start_date ?? "");
+    setMaturityDate(a.maturity_date ?? "");
+    setAutoRenew(a.auto_renew ?? true);
   }
 
   function populateAssetFields(a: FinancialAsset) {
@@ -210,6 +228,11 @@ export function WealthDialog({
       currency: currency !== "COP" ? currency : undefined,
       annual_interest_rate: annualRate ? Number(annualRate) : undefined,
       yield_frequency: yieldFrequency,
+      rate_type: rateType,
+      interest_enabled: interestEnabled,
+      term_days: termDays ? Number(termDays) : undefined,
+      start_date: startDate || undefined,
+      auto_renew: autoRenew,
       is_primary: isPrimary,
       exempt_4x1000: exempt4x1000,
     };
@@ -415,6 +438,89 @@ export function WealthDialog({
                   Cada cuanto se entrega el rendimiento en la cuenta.
                 </p>
               </div>
+              <div className="space-y-1.5">
+                <Label>Tipo de tasa</Label>
+                <Select value={rateType} onValueChange={setRateType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EA">Efectiva Anual (E.A.)</SelectItem>
+                    <SelectItem value="nominal">Nominal</SelectItem>
+                    <SelectItem value="MV">Mes Vencido (M.V.)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  En Colombia las captaciones suelen publicarse en E.A.
+                </p>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Capitalizar automáticamente</p>
+                  <p className="text-xs text-muted-foreground">
+                    El patrimonio se actualiza con un ingreso de rendimientos en cada periodo.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={interestEnabled}
+                  onCheckedChange={(v) => setInterestEnabled(v === true)}
+                  aria-label="Capitalizar automáticamente"
+                />
+              </div>
+              {accountType === "cdt" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Plazo (días)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Ej. 360"
+                        value={termDays}
+                        onChange={(e) => setTermDays(e.target.value)}
+                        required={accountType === "cdt"}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Plazo del CDT en días.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Fecha inicio</Label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        required={accountType === "cdt"}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Fecha de inicio del CDT.
+                      </p>
+                    </div>
+                  </div>
+                  {maturityDate && (
+                    <div className="space-y-1.5">
+                      <Label>Vencimiento</Label>
+                      <Input type="date" value={maturityDate} disabled />
+                      <p className="text-xs text-muted-foreground">
+                        Calculada automáticamente (inicio + plazo).
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Auto-renovar al vencer</p>
+                      <p className="text-xs text-muted-foreground">
+                        Renovar el CDT automáticamente al mismo plazo.
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={autoRenew}
+                      onCheckedChange={(v) => setAutoRenew(v === true)}
+                      aria-label="Auto-renovar CDT"
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-1.5">
                 <Label>Moneda</Label>
                 <Select value={currency} onValueChange={setCurrency}>

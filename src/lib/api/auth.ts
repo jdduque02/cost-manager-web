@@ -39,7 +39,7 @@ export const authApi = {
       password: encryptedPassword,
     });
     const t = Array.isArray(tokens) ? tokens[0] : tokens;
-    setTokens(t.access_token, t.refresh_token, t.userId);
+    setTokens(t.access_token, t.refresh_token, t.userId, t.expires_in);
     if (t.userId != null) setStoredUserId(t.userId);
     return {
       accessToken: t.access_token,

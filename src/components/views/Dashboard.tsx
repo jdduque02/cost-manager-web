@@ -29,6 +29,13 @@ import { useMemo, useState } from "react";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
 
+type TooltipFormatterContext = {
+  x?: string | number;
+  key?: string;
+  y?: number;
+  points?: Highcharts.Point[];
+};
+
 function kFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
   const v = Number(this.value);
   return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
@@ -265,9 +272,9 @@ export function Dashboard() {
         ...tooltipStyle,
         shared: true,
         useHTML: true,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${tooltipHtml(this.points ?? [], fmtAmount)}`;
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         area: {
@@ -319,9 +326,9 @@ export function Dashboard() {
       },
       tooltip: {
         ...tooltipStyle,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return pieTooltipHtml(this.key, this.y, fmtAmount);
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: { column: { borderRadius: 8, pointPadding: 0.08, groupPadding: 0.08 } },
       series: [
@@ -344,9 +351,9 @@ export function Dashboard() {
       legend: { enabled: false },
       tooltip: {
         ...tooltipStyle,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return pieTooltipHtml(this.key, this.y, fmtAmount);
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         pie: {

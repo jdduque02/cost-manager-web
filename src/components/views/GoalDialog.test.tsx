@@ -92,13 +92,13 @@ describe("GoalDialog", () => {
   it("renders labels for type and amounts", () => {
     render(<GoalDialog {...defaultProps} />);
     expect(screen.getByText("Tipo")).toBeInTheDocument();
-    expect(screen.getByText("Monto objetivo")).toBeInTheDocument();
+    expect(screen.getByText("Monto objetivo (opcional)")).toBeInTheDocument();
     expect(screen.getByText("Ahorrado actual")).toBeInTheDocument();
   });
 
-  it("renders next step button", () => {
+  it("renders a direct create button when there is no target/end date", () => {
     render(<GoalDialog {...defaultProps} />);
-    expect(screen.getByRole("button", { name: /siguiente/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /crear meta/i })).toBeInTheDocument();
   });
 
   it("renders edit title when goal provided", () => {

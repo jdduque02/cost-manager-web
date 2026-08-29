@@ -30,6 +30,7 @@ import {
   useStatementImportProgress,
   useStatementImportJob,
   useEmpresas,
+  useFinancialLiabilities,
 } from "@/lib/hooks/use-api";
 import { cn } from "@/lib/utils";
 import type {
@@ -93,6 +94,9 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const { data: bankAccounts = [] } = useBankAccounts();
   const { data: empresas = [] } = useEmpresas();
   const { data: recentImports = [] } = useStatementImports();
+  const { data: liabilities = [] } = useFinancialLiabilities();
+
+  const creditCards = liabilities.filter((l) => l.liability_type === "tarjeta_credito");
 
   const createImport = useCreateStatementImport();
   const retryImport = useRetryStatementImport();
@@ -101,6 +105,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
+  const [liabilityId, setLiabilityId] = useState<string>("");
+  const [currency, setCurrency] = useState<"COP" | "USD">("COP");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignCategories, setAssignCategories] = useState(true);
   const [companyId, setCompanyId] = useState<string>("");
@@ -129,6 +135,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
       setPassword("");
       setCategoryId("");
       setAccountId("");
+      setLiabilityId("");
+      setCurrency("COP");
       setSkipDuplicates(true);
       setAssignCategories(true);
       setCompanyId("");
@@ -152,6 +160,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
     if (password) formData.append("password", password);
     if (categoryId) formData.append("default_category_id", categoryId);
     if (accountId) formData.append("account_id", accountId);
+    if (liabilityId) formData.append("liability_id", liabilityId);
+    formData.append("currency", currency);
     formData.append("skip_duplicates", skipDuplicates ? "true" : "false");
     formData.append("assign_categories", assignCategories ? "true" : "false");
     formData.append("default_type", defaultType);
@@ -312,6 +322,41 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Al elegirla, los saldos se ajustan con los movimientos.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Tarjeta de crédito (opcional)</Label>
+                <Select value={liabilityId} onValueChange={setLiabilityId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin tarjeta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {creditCards.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        {l.name} ({l.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Asocia los movimientos a una TC específica.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Moneda</Label>
+                <Select value={currency} onValueChange={(v) => setCurrency(v as "COP" | "USD")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="COP">COP</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda de las transacciones del extracto.
                 </p>
               </div>
 

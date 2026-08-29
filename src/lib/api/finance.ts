@@ -27,6 +27,7 @@ export interface TransactionRecord {
   subcategory_id?: number;
   type: TransactionType;
   amount: number;
+  currency: string;
   is_fixed: boolean;
   fixed_type?: FixedType | null;
   frequency?: FixedFrequency | null;
@@ -67,6 +68,7 @@ export interface TransactionQuery {
   asset_id?: number;
   liability_id?: number;
   company_id?: number;
+  currency?: string;
   page?: number;
   limit?: number;
 }
@@ -76,6 +78,7 @@ export interface CreateTransactionDto {
   subcategory_id?: number;
   type: TransactionType;
   amount: number;
+  currency?: string;
   is_fixed?: boolean;
   fixed_type?: FixedType;
   frequency?: FixedFrequency;
@@ -112,7 +115,7 @@ export interface FinancialObjective {
   subcategory_id?: number;
   name: string;
   type: FinancialObjectiveType;
-  target_amount: number;
+  target_amount: number | null;
   current_balance: number;
   interest_rate?: number;
   fees?: number;
@@ -135,7 +138,7 @@ export interface FinancialObjective {
 export interface CreateObjectiveDto {
   name: string;
   type: FinancialObjectiveType;
-  target_amount: number;
+  target_amount?: number | null;
   current_balance?: number;
   category_id?: number;
   subcategory_id?: number;
@@ -178,7 +181,7 @@ export interface ObjectivePayment {
 }
 
 export interface CalculateQuotaRequest {
-  target_amount: number;
+  target_amount?: number;
   current_balance?: number;
   start_date?: string;
   end_date?: string;
@@ -188,9 +191,9 @@ export interface CalculateQuotaRequest {
 }
 
 export interface CalculateQuotaResponse {
-  target_amount: number;
+  target_amount: number | null;
   current_balance: number;
-  amount_to_save: number;
+  amount_to_save: number | null;
   start_date: string;
   end_date: string | null;
   frequency: string;
@@ -390,13 +393,19 @@ export const financeApi = {
     api.patch<TransferResponse>(`users/${userId}/transfers/${id}`, dto),
   deleteTransfer: (userId: string, id: string) =>
     api.delete<void>(`users/${userId}/transfers/${id}`),
+  cloneTransfer: (
+    userId: string,
+    id: string,
+    dto?: { transaction_date?: string; amount?: number; description?: string },
+  ) => api.post<TransferResponse>(`users/${userId}/transfers/${id}/clone`, dto ?? {}),
 };
 
 // ── Tipos de transferencia ─────────────────────────────────────
 
 export interface TransferMovement {
   id: number;
-  account_id: number;
+  account_id: number | null;
+  liability_id: number | null;
   side: "source" | "destination";
   bank_name: string | null;
   account_type: string | null;
@@ -405,6 +414,7 @@ export interface TransferMovement {
   description: string | null;
   reference_code: string | null;
   objective_id?: number | null;
+  company_id?: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -416,18 +426,29 @@ export interface TransferResponse {
   description: string | null;
   reference_code: string | null;
   objective_id?: number | null;
+  destination_liability_id?: number | null;
+  is_fixed?: boolean;
+  frequency?: FixedFrequency | null;
+  fixed_type?: FixedType | null;
+  due_day?: number | null;
+  reminder_days?: number | null;
   source: TransferMovement;
   destination: TransferMovement;
 }
 
 export interface CreateTransferDto {
   source_account_id: number;
-  destination_account_id: number;
+  destination_account_id?: number;
+  destination_liability_id?: number;
   amount: number;
   transaction_date?: string;
   description?: string;
   reference_code?: string;
   is_fixed?: boolean;
+  fixed_type?: FixedType;
+  frequency?: FixedFrequency;
+  due_day?: number;
+  reminder_days?: number;
   objective_id?: number;
   company_id?: number;
 }

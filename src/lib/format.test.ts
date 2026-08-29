@@ -48,8 +48,21 @@ describe("parseCurrency", () => {
     expect(parseCurrency("$50000")).toBe(50000);
   });
 
-  it("returns 0 for NaN results", () => {
-    expect(parseCurrency("COP 1.234.567")).toBe(0);
+  it("parses es-CO thousands with dots", () => {
+    expect(parseCurrency("48.900")).toBe(48900);
+    expect(parseCurrency("1.234.567")).toBe(1234567);
+  });
+
+  it("parses es-CO with decimal comma", () => {
+    expect(parseCurrency("48.900,50")).toBe(48900.5);
+  });
+
+  it("parses US decimal with single dot", () => {
+    expect(parseCurrency("48900.50")).toBe(48900.5);
+  });
+
+  it("returns 0 for non-numeric currency labels", () => {
+    expect(parseCurrency("COP")).toBe(0);
   });
 });
 

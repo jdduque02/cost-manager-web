@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQueryState, parseAsString, parseAsStringEnum, parseAsBoolean } from "nuqs";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import {
@@ -19,6 +20,28 @@ import {
   Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { parseCurrency } from "@/lib/format";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useTransactions,
   useCategories,
@@ -31,6 +54,7 @@ import {
   useFinancialLiabilities,
   useEmpresas,
   useCloneTransaction,
+  useCloneTransfer,
 } from "@/lib/hooks/use-api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionDialog } from "./TransactionDialog";
@@ -110,6 +134,7 @@ function toMovement(record: TransactionRecord, side: "source" | "destination"): 
     id: record.id,
     account_id:
       side === "source" ? (record.origin_account_id ?? 0) : (record.destination_account_id ?? 0),
+    liability_id: side === "destination" ? (record.liability_id ?? null) : null,
     side,
     bank_name: side === "source" ? (record.source_bank ?? null) : (record.destination_bank ?? null),
     account_type:
@@ -119,6 +144,7 @@ function toMovement(record: TransactionRecord, side: "source" | "destination"): 
     description: record.description ?? null,
     reference_code: record.reference_code ?? null,
     objective_id: record.objective_id ?? null,
+    company_id: record.company_id ?? null,
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
@@ -126,7 +152,7 @@ function toMovement(record: TransactionRecord, side: "source" | "destination"): 
 
 function recordsToTransfer(pair: TransactionRecord[]): TransferResponse {
   const source = pair.find((r) => r.origin_account_id != null) ?? pair[0];
-  const destination = pair.find((r) => r.destination_account_id != null) ?? pair[0];
+  const destination = pair.find((r) => r.destination_account_id != null || r.liability_id != null) ?? pair[0];
   return {
     transfer_group_id: source.transfer_group_id ?? "",
     amount: source.amount,
@@ -134,6 +160,7 @@ function recordsToTransfer(pair: TransactionRecord[]): TransferResponse {
     description: source.description ?? null,
     reference_code: source.reference_code ?? null,
     objective_id: destination.objective_id ?? null,
+    destination_liability_id: destination.liability_id ?? null,
     source: toMovement(source, "source"),
     destination: toMovement(destination, "destination"),
   };
@@ -332,6 +359,8 @@ interface TransactionRowProps {
   toggleSelected: (id: number) => void;
   handleEdit: (t: TransactionRecord) => void;
   setDeletingTx: (t: TransactionRecord | null) => void;
+  onClone: (t: TransactionRecord) => void;
+  onCloneTransfer?: (t: TransactionRecord) => void;
   cloneTx: ReturnType<typeof useCloneTransaction>;
   fmtAmount: (amount: number) => string;
 }
@@ -351,6 +380,8 @@ function TransactionRow({
   toggleSelected,
   handleEdit,
   setDeletingTx,
+  onClone,
+  onCloneTransfer,
   cloneTx,
   fmtAmount,
 }: TransactionRowProps) {
@@ -414,24 +445,13 @@ function TransactionRow({
         {fmtAmount(t.amount)}
       </span>
       <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-        {!isTransfer && (
-          <button
-            onClick={() => {
-              cloneTx.mutate(
-                { id: t.id },
-                {
-                  onSuccess: () => toast.success("Transacción clonada"),
-                  onError: () => toast.error("Error al clonar la transacción"),
-                },
-              );
-            }}
-            disabled={cloneTx.isPending}
-            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-            title="Clonar transacción"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <button
+          onClick={() => isTransfer && onCloneTransfer ? onCloneTransfer(t) : onClone(t)}
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+          title={isTransfer ? "Clonar transferencia" : "Clonar transacción"}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={() => handleEdit(t)}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
@@ -462,6 +482,8 @@ interface MonthSectionProps {
   handleEdit: (t: TransactionRecord) => void;
   setDeletingTx: (t: TransactionRecord | null) => void;
   handleDeleteMonth: (month: MonthGroup) => void;
+  onClone: (t: TransactionRecord) => void;
+  onCloneTransfer?: (t: TransactionRecord) => void;
   cloneTx: ReturnType<typeof useCloneTransaction>;
   fmtAmount: (amount: number) => string;
 }
@@ -479,6 +501,8 @@ function MonthSection({
   handleEdit,
   setDeletingTx,
   handleDeleteMonth,
+  onClone,
+  onCloneTransfer,
   cloneTx,
   fmtAmount,
 }: MonthSectionProps) {
@@ -540,6 +564,8 @@ function MonthSection({
                 toggleSelected={toggleSelected}
                 handleEdit={handleEdit}
                 setDeletingTx={setDeletingTx}
+                onClone={onClone}
+                onCloneTransfer={onCloneTransfer}
                 cloneTx={cloneTx}
                 fmtAmount={fmtAmount}
               />
@@ -552,7 +578,14 @@ function MonthSection({
 }
 
 export function TransactionsList() {
-  const { data: transactions = [], isLoading, error } = useTransactions({ limit: 500 });
+  const [dateFrom, setDateFrom] = useQueryState("from", parseAsString.withDefault(""));
+  const [dateTo, setDateTo] = useQueryState("to", parseAsString.withDefault(""));
+
+  const { data: transactions = [], isLoading, error } = useTransactions({
+    limit: 500,
+    ...(dateFrom ? { date_from: dateFrom } : {}),
+    ...(dateTo ? { date_to: dateTo } : {}),
+  });
   const { data: categories = [] } = useCategories();
   const { data: objectives = [] } = useObjectives();
   const { data: bankAccounts = [] } = useBankAccounts();
@@ -563,13 +596,17 @@ export function TransactionsList() {
   const deleteTransfer = useDeleteTransfer();
   const bulkDelete = useBulkDeleteTransactions();
   const cloneTx = useCloneTransaction();
+  const cloneTransfer = useCloneTransfer();
   const fmtAmount = useFormattedAmount();
 
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "investment">("all");
-  const [companyFilter, setCompanyFilter] = useState<string>("all");
-  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [search, setSearch] = useQueryState("q", parseAsString.withDefault(""));
+  const [typeFilter, setTypeFilter] = useQueryState(
+    "type",
+    parseAsStringEnum(["all", "income", "expense", "investment"] as const).withDefault("all"),
+  );
+  const [companyFilter, setCompanyFilter] = useQueryState("company", parseAsString.withDefault("all"));
+  const [uncategorizedOnly, setUncategorizedOnly] = useQueryState("uncategorized", parseAsBoolean.withDefault(false));
+  const [view, setView] = useQueryState("view", parseAsStringEnum(["list", "calendar"] as const).withDefault("list"));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferEditOpen, setTransferEditOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -580,6 +617,8 @@ export function TransactionsList() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkMonthLabel, setBulkMonthLabel] = useState<string | null>(null);
+  const [cloningTx, setCloningTx] = useState<TransactionRecord | null>(null);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -746,6 +785,14 @@ export function TransactionsList() {
             handleEdit={handleEdit}
             setDeletingTx={setDeletingTx}
             handleDeleteMonth={handleDeleteMonth}
+            onClone={(t) => {
+              setCloningTx(t);
+              setCloneDialogOpen(true);
+            }}
+            onCloneTransfer={(t) => {
+              setCloningTx(t);
+              setCloneDialogOpen(true);
+            }}
             cloneTx={cloneTx}
             fmtAmount={fmtAmount}
           />
@@ -799,6 +846,31 @@ export function TransactionsList() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary lg:w-80"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              placeholder="Desde"
+              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-primary"
+            />
+            <span className="text-xs text-muted-foreground">a</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              placeholder="Hasta"
+              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-primary"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+              >
+                Limpiar
+              </button>
+            )}
           </div>
           <div className="flex rounded-xl bg-surface p-1">
             {(["all", "expense", "income", "investment"] as const).map((f) => {
@@ -993,6 +1065,204 @@ export function TransactionsList() {
         onConfirm={handleBulkDeleteConfirm}
         loading={bulkDelete.isPending}
       />
+
+      <CloneTransactionDialog
+        open={cloneDialogOpen}
+        onOpenChange={(v) => {
+          setCloneDialogOpen(v);
+          if (!v) setCloningTx(null);
+        }}
+        transaction={cloningTx}
+        sourceAccount={
+          cloningTx?.transfer_group_id && cloningTx?.origin_account_id != null
+            ? bankAccounts.find((a) => a.id === cloningTx.origin_account_id)
+            : undefined
+        }
+        categories={categories}
+        empresas={empresas}
+        onClone={(dto) => {
+          if (!cloningTx) return;
+          if (cloningTx.transfer_group_id) {
+            const { category_id: _cat, company_id: _com, ...transferDto } = dto;
+            cloneTransfer.mutate(
+              { id: cloningTx.id, dto: transferDto },
+              {
+                onSuccess: () => {
+                  toast.success("Transferencia clonada");
+                  setCloneDialogOpen(false);
+                  setCloningTx(null);
+                },
+                onError: (err) => {
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : "Error al clonar la transferencia",
+                  );
+                },
+              },
+            );
+          } else {
+            cloneTx.mutate(
+              { id: cloningTx.id, dto },
+              {
+                onSuccess: () => {
+                  toast.success("Transacción clonada");
+                  setCloneDialogOpen(false);
+                  setCloningTx(null);
+                },
+                onError: (err) =>
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : "Error al clonar la transacción",
+                  ),
+              },
+            );
+          }
+        }}
+        isLoading={cloneTx.isPending || cloneTransfer.isPending}
+      />
     </div>
+  );
+}
+
+interface CloneTransactionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction: TransactionRecord | null;
+  sourceAccount?: { id?: number; display_balance?: string };
+  categories: { id: number; name: string }[];
+  empresas: { id: number; name: string }[];
+  onClone: (dto: { transaction_date?: string; amount?: number; description?: string; category_id?: number; company_id?: number }) => void;
+  isLoading: boolean;
+}
+
+function CloneTransactionDialog({
+  open,
+  onOpenChange,
+  transaction,
+  sourceAccount,
+  categories,
+  empresas,
+  onClone,
+  isLoading,
+}: CloneTransactionDialogProps) {
+  const [date, setDate] = useState<Date>(new Date());
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [companyId, setCompanyId] = useState<string>("");
+
+  useEffect(() => {
+    if (transaction) {
+      const txDate = transaction.transaction_date?.slice(0, 10);
+      if (txDate) {
+        const [y, m, d] = txDate.split("-").map(Number);
+        setDate(new Date(y, m - 1, d));
+      }
+      setAmount(String(transaction.amount));
+      setDescription(transaction.description ?? "");
+      setCategoryId(transaction.category_id ? String(transaction.category_id) : "");
+      setCompanyId(transaction.company_id ? String(transaction.company_id) : "");
+    }
+  }, [transaction]);
+
+  const isTransfer = !!transaction?.transfer_group_id;
+  const cloneAmount = parseCurrency(amount);
+  const sourceBalance = sourceAccount ? Number(sourceAccount.display_balance ?? 0) : 0;
+  const insufficientBalance =
+    isTransfer &&
+    sourceAccount &&
+    cloneAmount > 0 &&
+    sourceBalance > 0 &&
+    cloneAmount > sourceBalance;
+
+  if (!transaction) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Clonar transacción</DialogTitle>
+          <DialogDescription>
+            Modifica los campos que desees antes de clonar la transacción.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Fecha</Label>
+            <DatePicker value={date} onChange={(d) => d && setDate(d)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Monto</Label>
+            <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+            {insufficientBalance && (
+              <p className="text-xs font-medium text-destructive">
+                Saldo insuficiente (disponible ${sourceBalance.toLocaleString("es-CO")})
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Descripción</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descripción"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Categoría</Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sin categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Empresa</Label>
+            <Select value={companyId} onValueChange={setCompanyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sin empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {empresas.map((e) => (
+                  <SelectItem key={e.id} value={String(e.id)}>
+                    {e.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onClone({
+                transaction_date: format(date, "yyyy-MM-dd"),
+                amount: parseCurrency(amount),
+                description: description || undefined,
+                category_id: categoryId ? Number(categoryId) : undefined,
+                company_id: companyId ? Number(companyId) : undefined,
+              });
+            }}
+            disabled={isLoading || cloneAmount <= 0 || insufficientBalance}
+            className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+          >
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Clonar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

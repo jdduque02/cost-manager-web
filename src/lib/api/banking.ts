@@ -51,6 +51,15 @@ export interface BankAccount {
   currency: string;
   annual_interest_rate?: number | null;
   yield_frequency: string;
+  rate_type: string;
+  interest_enabled: boolean;
+  last_interest_applied_at: string | null;
+  interest_start_date: string | null;
+  term_days: number | null;
+  start_date: string | null;
+  maturity_date: string | null;
+  maturity_action: string;
+  auto_renew: boolean;
   is_primary: boolean;
   exempt_4x1000: boolean;
   created_at: string;
@@ -65,6 +74,13 @@ export interface CreateBankAccountDto {
   currency?: string;
   annual_interest_rate?: number;
   yield_frequency?: string;
+  rate_type?: string;
+  interest_enabled?: boolean;
+  interest_start_date?: string;
+  term_days?: number;
+  start_date?: string;
+  maturity_action?: string;
+  auto_renew?: boolean;
   is_primary?: boolean;
   exempt_4x1000?: boolean;
 }

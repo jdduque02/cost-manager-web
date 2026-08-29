@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { authApi, type AuthTokens } from "@/lib/api/auth";
 import {
   getAccessToken,
@@ -6,6 +7,8 @@ import {
   getStoredUserId,
   setStoredUserId,
   tryRestoreSession,
+  onSessionExpired,
+  resetSessionExpiredFlag,
 } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 
@@ -32,6 +35,22 @@ function resolveRoles(user: User | null): string[] {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    resetSessionExpiredFlag();
+    const unsubscribe = onSessionExpired(() => {
+      setUser(null);
+      toast.error("Sesión expirada", {
+        description: "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
+        duration: 5000,
+      });
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1500);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

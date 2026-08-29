@@ -61,13 +61,15 @@ export function NewsCarousel() {
             {current.summary || current.content}
           </p>
           <div className="mt-2 flex items-center gap-3">
-            <span className="text-[10px] text-muted-foreground">
-              {new Date(current.published_at).toLocaleDateString("es-CO", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
+            {current.published_at && (
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(current.published_at).toLocaleDateString("es-CO", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            )}
             {current.link && (
               <a
                 href={current.link}

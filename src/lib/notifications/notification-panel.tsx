@@ -199,7 +199,7 @@ function statusIcon(status: StatementImport["status"]) {
   }
 }
 
-function fileBadgeTone(status: StatementImport["files"][number]["status"]): string {
+function fileBadgeTone(status: NonNullable<StatementImport["files"]>[number]["status"]): string {
   switch (status) {
     case "success":
       return "success";

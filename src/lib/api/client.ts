@@ -13,6 +13,7 @@ const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
 /** Access token en memoria (XSS-safe vs localStorage). */
 let memoryAccessToken: string | null = null;
 let memoryUserId: string | null = null;
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Check if response has ApiResponseDto shape */
 function isApiResponseEnvelope(json: unknown): json is {
@@ -59,26 +60,105 @@ export function getAccessToken(): string | null {
   return memoryAccessToken;
 }
 
-export function setTokens(access: string, _refresh?: string, userId?: number | string) {
+export function setTokens(
+  access: string,
+  _refresh?: string,
+  userId?: number | string,
+  expiresIn?: number,
+) {
   memoryAccessToken = access;
   if (userId !== undefined) memoryUserId = String(userId);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+  }
+  if (expiresIn && expiresIn > 0) {
+    scheduleProactiveRefresh(expiresIn);
   }
 }
 
 export function clearTokens() {
   memoryAccessToken = null;
   memoryUserId = null;
+  cancelProactiveRefresh();
+}
+
+// ---------------------------------------------------------------------------
+// Proactive refresh — schedules a refresh ~60 s before access token expiry
+// ---------------------------------------------------------------------------
+
+function scheduleProactiveRefresh(expiresIn: number) {
+  cancelProactiveRefresh();
+  const REFRESH_BUFFER_MS = 60_000; // 60 seconds before expiry
+  const delayMs = expiresIn * 1000 - REFRESH_BUFFER_MS;
+  if (delayMs <= 0) {
+    // Token already near-expired; refresh immediately
+    void refreshTokens().catch(() => {});
+    return;
+  }
+  proactiveRefreshTimer = setTimeout(() => {
+    proactiveRefreshTimer = null;
+    void refreshTokens().catch(() => {});
+  }, delayMs);
+}
+
+function cancelProactiveRefresh() {
+  if (proactiveRefreshTimer !== null) {
+    clearTimeout(proactiveRefreshTimer);
+    proactiveRefreshTimer = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tab BroadcastChannel — only one tab refreshes; others wait
+// ---------------------------------------------------------------------------
+let broadcastChannel: BroadcastChannel | null = null;
+let waitingForBroadcast: ((token: string) => void) | null = null;
+
+function getBroadcastChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined" || !("BroadcastChannel" in window)) return null;
+  if (!broadcastChannel) {
+    broadcastChannel = new BroadcastChannel("cm-auth");
+    broadcastChannel.onmessage = (event: MessageEvent) => {
+      if (event.data?.type === "cm:new-token" && event.data.token) {
+        waitingForBroadcast?.(event.data.token);
+        waitingForBroadcast = null;
+      }
+      if (event.data?.type === "cm:session-expired") {
+        handleSessionExpired();
+      }
+    };
+  }
+  return broadcastChannel;
+}
+
+function broadcastNewToken(token: string) {
+  getBroadcastChannel()?.postMessage({ type: "cm:new-token", token });
+}
+
+function broadcastSessionExpired() {
+  getBroadcastChannel()?.postMessage({ type: "cm:session-expired" });
+}
+
+// ---------------------------------------------------------------------------
+// Session-expired event — dispatched so AuthContext can toast + redirect
+// ---------------------------------------------------------------------------
+let sessionExpiredDispatched = false;
+
+function handleSessionExpired() {
+  if (sessionExpiredDispatched) return;
+  sessionExpiredDispatched = true;
+  clearTokens();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cm:session-expired"));
+  }
+}
+
+export function resetSessionExpiredFlag() {
+  sessionExpiredDispatched = false;
 }
 
 export function getStoredUserId(): string | null {
   return memoryUserId;
-}
-
-function getRefreshToken(): string | null {
-  // Refresh vive en cookie httpOnly; el cliente no lo lee.
-  return null;
 }
 
 export function setStoredUserId(userId: string | number | null) {
@@ -96,16 +176,34 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
   });
 
   if (!refreshRes.ok) {
-    clearTokens();
+    handleSessionExpired();
+    broadcastSessionExpired();
     throw new Error("Session expired. Please log in again.");
   }
 
   const refreshJson = await refreshRes.json();
   const tokens = isApiResponseEnvelope(refreshJson)
-    ? (refreshJson.data[0] as { access_token: string; refresh_token?: string; userId?: number })
-    : (refreshJson as { access_token: string; refresh_token?: string; userId?: number });
+    ? (refreshJson.data[0] as {
+        access_token: string;
+        refresh_token?: string;
+        userId?: number;
+        expires_in?: number;
+      })
+    : (refreshJson as {
+        access_token: string;
+        refresh_token?: string;
+        userId?: number;
+        expires_in?: number;
+      });
 
-  setTokens(tokens.access_token, tokens.refresh_token, tokens.userId ?? memoryUserId ?? undefined);
+  setTokens(
+    tokens.access_token,
+    tokens.refresh_token,
+    tokens.userId ?? memoryUserId ?? undefined,
+    tokens.expires_in,
+  );
+  broadcastNewToken(tokens.access_token);
+  resetSessionExpiredFlag();
   return tokens;
 }
 
@@ -118,20 +216,64 @@ function refreshTokens(): Promise<{ access_token: string; refresh_token?: string
   return refreshInFlight;
 }
 
+/**
+ * Refresh tokens with BroadcastChannel coordination.
+ * This is only invoked after a 401, so we always force a real refresh;
+ * reusing the in-memory token here would just retry with the rejected token.
+ */
+function refreshTokensCoordinated(): Promise<{ access_token: string; refresh_token?: string }> {
+  // If refresh is in-flight, wait for it via BroadcastChannel
+  if (refreshInFlight) {
+    const channel = getBroadcastChannel();
+    if (channel) {
+      return new Promise((resolve) => {
+        waitingForBroadcast = (token: string) => {
+          resolve({ access_token: token });
+        };
+        // Timeout: if broadcast doesn't arrive in 5s, fall through to own refresh
+        setTimeout(() => {
+          if (waitingForBroadcast) {
+            waitingForBroadcast = null;
+            resolve(refreshTokens());
+          }
+        }, 5000);
+      });
+    }
+  }
+  return refreshTokens();
+}
+
 export interface ValidationErrorDetail {
   property: string;
   constraints: Record<string, string>;
 }
 
+export interface ApiErrorMeta {
+  code?: string;
+  account_id?: number;
+  name?: string;
+  current?: number;
+  amount?: number;
+}
+
 export class ApiError extends Error {
   status: number;
   details: ValidationErrorDetail[];
+  code?: string;
+  meta: ApiErrorMeta;
 
-  constructor(message: string, status: number, details: ValidationErrorDetail[] = []) {
+  constructor(
+    message: string,
+    status: number,
+    details: ValidationErrorDetail[] = [],
+    meta: ApiErrorMeta = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.details = details;
+    this.code = meta.code;
+    this.meta = meta;
   }
 }
 
@@ -146,8 +288,14 @@ export async function tryRestoreSession(): Promise<boolean> {
   }
 }
 
+export function onSessionExpired(callback: () => void): () => void {
+  const handler = () => callback();
+  window.addEventListener("cm:session-expired", handler);
+  return () => window.removeEventListener("cm:session-expired", handler);
+}
+
 async function refreshAndRetry(url: string, options: RequestInit): Promise<Response> {
-  const tokens = await refreshTokens();
+  const tokens = await refreshTokensCoordinated();
 
   const retryOptions = {
     ...options,
@@ -194,16 +342,22 @@ async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}
   if (!res.ok) {
     let message = `API error ${res.status}`;
     let details: ValidationErrorDetail[] = [];
+    const meta: ApiErrorMeta = {};
     try {
       const err = await res.json();
       message = err.message ?? err.error ?? message;
       if (Array.isArray(err.details)) {
         details = err.details;
       }
+      if (typeof err.code === "string") meta.code = err.code;
+      if (typeof err.account_id === "number") meta.account_id = err.account_id;
+      if (typeof err.name === "string") meta.name = err.name;
+      if (typeof err.current === "number") meta.current = err.current;
+      if (typeof err.amount === "number") meta.amount = err.amount;
     } catch {
       // ignore JSON parse errors
     }
-    throw new ApiError(message, res.status, details);
+    throw new ApiError(message, res.status, details, meta);
   }
 
   if (res.status === 204) return undefined as T;
