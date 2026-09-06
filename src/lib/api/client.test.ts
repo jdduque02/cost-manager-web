@@ -148,3 +148,58 @@ describe("api helpers", () => {
     expect(result).toEqual({ id: 1, name: "item" });
   });
 });
+
+describe("same-tab refresh coordination", () => {
+  beforeEach(() => {
+    clearTokens();
+    vi.restoreAllMocks();
+  });
+
+  it("dedupes concurrent 401s in the same tab to a single refresh call and resolves promptly", async () => {
+    let refreshCalls = 0;
+    let endpointCalls = 0;
+
+    const mockFetch = vi.fn((url: string) => {
+      if (url.includes("auth/refresh")) {
+        refreshCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              status: true,
+              data: [{ access_token: "new-token", expires_in: 3600 }],
+              message: "ok",
+              timestamp: "",
+            }),
+        });
+      }
+
+      endpointCalls += 1;
+      // Both initial (pre-refresh) requests get a 401; retries after the
+      // shared refresh succeed.
+      if (endpointCalls <= 2) {
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ status: true, data: [{ ok: true }], message: "ok", timestamp: "" }),
+      });
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const start = Date.now();
+    await Promise.all([api.get("protected-a"), api.get("protected-b")]);
+    const elapsedMs = Date.now() - start;
+
+    // Only one real refresh call should happen for two concurrent 401s in
+    // the same tab (see refreshTokensCoordinated in client.ts).
+    expect(refreshCalls).toBe(1);
+    // Previously this same-tab case waited on a BroadcastChannel message
+    // that never arrives in the originating tab, stalling for the 5s
+    // timeout before falling back. It should now resolve almost instantly.
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+});
