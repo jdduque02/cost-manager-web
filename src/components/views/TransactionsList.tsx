@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { parseCurrency } from "@/lib/format";
+import { fmtCurrency, isInsufficientBalance, parseCurrency } from "@/lib/format";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
@@ -103,10 +103,11 @@ function getCategoryIcon(categoryName?: string) {
   return Tag;
 }
 
-interface MonthGroup {
+export interface MonthGroup {
   key: string;
-  income: number;
-  expenses: number;
+  /** Totals keyed by currency (e.g. "COP", "USD") — never mixed together. */
+  incomeByCurrency: Record<string, number>;
+  expensesByCurrency: Record<string, number>;
   items: TransactionRecord[];
 }
 
@@ -152,7 +153,8 @@ function toMovement(record: TransactionRecord, side: "source" | "destination"): 
 
 function recordsToTransfer(pair: TransactionRecord[]): TransferResponse {
   const source = pair.find((r) => r.origin_account_id != null) ?? pair[0];
-  const destination = pair.find((r) => r.destination_account_id != null || r.liability_id != null) ?? pair[0];
+  const destination =
+    pair.find((r) => r.destination_account_id != null || r.liability_id != null) ?? pair[0];
   return {
     transfer_group_id: source.transfer_group_id ?? "",
     amount: source.amount,
@@ -254,17 +256,28 @@ function groupTransactions(
   return { displayItems: items, groupMemberIds: memberIds, transferPairs: groups };
 }
 
-function groupByMonth(items: TransactionRecord[]): MonthGroup[] {
+export function groupByMonth(items: TransactionRecord[]): MonthGroup[] {
   const map = new Map<string, MonthGroup>();
   for (const t of items) {
     const key = t.transaction_date?.slice(0, 7) ?? "s/fecha";
-    const entry = map.get(key) ?? { key, income: 0, expenses: 0, items: [] };
-    if (t.type === "income") entry.income += t.amount;
-    else if (t.type === "expense") entry.expenses += t.amount;
+    const entry = map.get(key) ?? { key, incomeByCurrency: {}, expensesByCurrency: {}, items: [] };
+    const currency = t.currency || "COP";
+    if (t.type === "income") {
+      entry.incomeByCurrency[currency] = (entry.incomeByCurrency[currency] ?? 0) + t.amount;
+    } else if (t.type === "expense") {
+      entry.expensesByCurrency[currency] = (entry.expensesByCurrency[currency] ?? 0) + t.amount;
+    }
     entry.items.push(t);
     map.set(key, entry);
   }
   return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
+}
+
+/** Union of currencies present in a month's income/expense totals, sorted for stable rendering. */
+export function monthCurrencies(month: MonthGroup): string[] {
+  return [
+    ...new Set([...Object.keys(month.incomeByCurrency), ...Object.keys(month.expensesByCurrency)]),
+  ].sort();
 }
 
 function getIconBgClass(isPendingTx: boolean, isTransfer: boolean, type: string): string {
@@ -362,7 +375,7 @@ interface TransactionRowProps {
   onClone: (t: TransactionRecord) => void;
   onCloneTransfer?: (t: TransactionRecord) => void;
   cloneTx: ReturnType<typeof useCloneTransaction>;
-  fmtAmount: (amount: number) => string;
+  fmtAmount: ReturnType<typeof useFormattedAmount>;
 }
 
 function TransactionRow({
@@ -401,23 +414,14 @@ function TransactionRow({
         aria-label="Seleccionar transacción"
         className="shrink-0"
       />
-      <div
-        className={cn(
-          "flex h-10 w-10 items-center justify-center rounded-xl",
-          iconBgClass,
-        )}
-      >
+      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", iconBgClass)}>
         <Icon className="h-4.5 w-4.5" size={18} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
-          {t.description ?? "Sin descripcion"}
-        </p>
+        <p className="truncate text-sm font-medium">{t.description ?? "Sin descripcion"}</p>
         <p className="text-xs text-muted-foreground">
           {categoryName}
-          {t.installments && t.installments > 1
-            ? ` · ${t.installments} cuotas`
-            : ""}
+          {t.installments && t.installments > 1 ? ` · ${t.installments} cuotas` : ""}
           {" · "}
           {formatDate(t.transaction_date)}
         </p>
@@ -442,11 +446,11 @@ function TransactionRow({
         )}
       >
         {amountSign}
-        {fmtAmount(t.amount)}
+        {fmtAmount(t.amount, { currency: t.currency })}
       </span>
       <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
         <button
-          onClick={() => isTransfer && onCloneTransfer ? onCloneTransfer(t) : onClone(t)}
+          onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(t) : onClone(t))}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
           title={isTransfer ? "Clonar transferencia" : "Clonar transacción"}
         >
@@ -485,7 +489,7 @@ interface MonthSectionProps {
   onClone: (t: TransactionRecord) => void;
   onCloneTransfer?: (t: TransactionRecord) => void;
   cloneTx: ReturnType<typeof useCloneTransaction>;
-  fmtAmount: (amount: number) => string;
+  fmtAmount: ReturnType<typeof useFormattedAmount>;
 }
 
 function MonthSection({
@@ -513,15 +517,28 @@ function MonthSection({
   return (
     <section key={month.key}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-        <h3 className="font-display text-lg font-semibold capitalize">
-          {monthLabel(month.key)}
-        </h3>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-success tabular-nums">+{fmtAmount(month.income)}</span>
-          <span className="text-destructive tabular-nums">-{fmtAmount(month.expenses)}</span>
-          <span className="text-muted-foreground tabular-nums">
-            Balance {fmtAmount(month.income - month.expenses)}
-          </span>
+        <h3 className="font-display text-lg font-semibold capitalize">{monthLabel(month.key)}</h3>
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          {monthCurrencies(month).map((cur) => {
+            const income = month.incomeByCurrency[cur] ?? 0;
+            const expenses = month.expensesByCurrency[cur] ?? 0;
+            return (
+              <span key={cur} className="flex items-center gap-3">
+                {monthCurrencies(month).length > 1 && (
+                  <span className="font-semibold text-muted-foreground">{cur}</span>
+                )}
+                <span className="text-success tabular-nums">
+                  +{fmtAmount(income, { currency: cur })}
+                </span>
+                <span className="text-destructive tabular-nums">
+                  -{fmtAmount(expenses, { currency: cur })}
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  Balance {fmtAmount(income - expenses, { currency: cur })}
+                </span>
+              </span>
+            );
+          })}
           <span className="mx-1 h-4 w-px bg-border" />
           <button
             onClick={() => handleDeleteMonth(month)}
@@ -581,7 +598,11 @@ export function TransactionsList() {
   const [dateFrom, setDateFrom] = useQueryState("from", parseAsString.withDefault(""));
   const [dateTo, setDateTo] = useQueryState("to", parseAsString.withDefault(""));
 
-  const { data: transactions = [], isLoading, error } = useTransactions({
+  const {
+    data: transactions = [],
+    isLoading,
+    error,
+  } = useTransactions({
     limit: 500,
     ...(dateFrom ? { date_from: dateFrom } : {}),
     ...(dateTo ? { date_to: dateTo } : {}),
@@ -604,9 +625,18 @@ export function TransactionsList() {
     "type",
     parseAsStringEnum(["all", "income", "expense", "investment"] as const).withDefault("all"),
   );
-  const [companyFilter, setCompanyFilter] = useQueryState("company", parseAsString.withDefault("all"));
-  const [uncategorizedOnly, setUncategorizedOnly] = useQueryState("uncategorized", parseAsBoolean.withDefault(false));
-  const [view, setView] = useQueryState("view", parseAsStringEnum(["list", "calendar"] as const).withDefault("list"));
+  const [companyFilter, setCompanyFilter] = useQueryState(
+    "company",
+    parseAsString.withDefault("all"),
+  );
+  const [uncategorizedOnly, setUncategorizedOnly] = useQueryState(
+    "uncategorized",
+    parseAsBoolean.withDefault(false),
+  );
+  const [view, setView] = useQueryState(
+    "view",
+    parseAsStringEnum(["list", "calendar"] as const).withDefault("list"),
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transferEditOpen, setTransferEditOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -622,31 +652,41 @@ export function TransactionsList() {
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
-    categories.forEach((c) => { map[c.id] = c.name; });
+    categories.forEach((c) => {
+      map[c.id] = c.name;
+    });
     return map;
   }, [categories]);
 
   const objectiveMap = useMemo(() => {
     const map: Record<number, string> = {};
-    objectives.forEach((o) => { map[o.id] = o.name; });
+    objectives.forEach((o) => {
+      map[o.id] = o.name;
+    });
     return map;
   }, [objectives]);
 
   const accountMap = useMemo(() => {
     const map: Record<number, string> = {};
-    bankAccounts.forEach((a) => { map[a.id] = `${a.bank_name} · ${a.masked_account_number}`; });
+    bankAccounts.forEach((a) => {
+      map[a.id] = `${a.bank_name} · ${a.masked_account_number}`;
+    });
     return map;
   }, [bankAccounts]);
 
   const assetMap = useMemo(() => {
     const map: Record<number, string> = {};
-    assets.forEach((a) => { map[a.id] = a.name; });
+    assets.forEach((a) => {
+      map[a.id] = a.name;
+    });
     return map;
   }, [assets]);
 
   const liabilityMap = useMemo(() => {
     const map: Record<number, string> = {};
-    liabilities.forEach((l) => { map[l.id] = l.name; });
+    liabilities.forEach((l) => {
+      map[l.id] = l.name;
+    });
     return map;
   }, [liabilities]);
 
@@ -767,7 +807,8 @@ export function TransactionsList() {
   const listTabContent = useMemo(() => {
     if (isLoading) return <LoadingSpinner className="h-32" />;
     if (error) return <ErrorMessage className="h-32" />;
-    if (groupedByMonth.length === 0) return <EmptyState hasTransactions={transactions.length > 0} />;
+    if (groupedByMonth.length === 0)
+      return <EmptyState hasTransactions={transactions.length > 0} />;
     return (
       <div className="space-y-6">
         {groupedByMonth.map((month) => (
@@ -828,7 +869,16 @@ export function TransactionsList() {
         onDelete={setDeletingTx}
       />
     );
-  }, [isLoading, error, displayItems, categoryMap, objectiveMap, accountMap, assetMap, liabilityMap]);
+  }, [
+    isLoading,
+    error,
+    displayItems,
+    categoryMap,
+    objectiveMap,
+    accountMap,
+    assetMap,
+    liabilityMap,
+  ]);
 
   return (
     <div className="space-y-7">
@@ -865,7 +915,10 @@ export function TransactionsList() {
             />
             {(dateFrom || dateTo) && (
               <button
-                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
                 className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
               >
                 Limpiar
@@ -1133,7 +1186,13 @@ interface CloneTransactionDialogProps {
   sourceAccount?: { id?: number; display_balance?: string };
   categories: { id: number; name: string }[];
   empresas: { id: number; name: string }[];
-  onClone: (dto: { transaction_date?: string; amount?: number; description?: string; category_id?: number; company_id?: number }) => void;
+  onClone: (dto: {
+    transaction_date?: string;
+    amount?: number;
+    description?: string;
+    category_id?: number;
+    company_id?: number;
+  }) => void;
   isLoading: boolean;
 }
 
@@ -1171,11 +1230,7 @@ function CloneTransactionDialog({
   const cloneAmount = parseCurrency(amount);
   const sourceBalance = sourceAccount ? Number(sourceAccount.display_balance ?? 0) : 0;
   const insufficientBalance =
-    isTransfer &&
-    sourceAccount &&
-    cloneAmount > 0 &&
-    sourceBalance > 0 &&
-    cloneAmount > sourceBalance;
+    isTransfer && !!sourceAccount && isInsufficientBalance(cloneAmount, sourceBalance);
 
   if (!transaction) return null;
 
@@ -1198,7 +1253,7 @@ function CloneTransactionDialog({
             <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
             {insufficientBalance && (
               <p className="text-xs font-medium text-destructive">
-                Saldo insuficiente (disponible ${sourceBalance.toLocaleString("es-CO")})
+                Saldo insuficiente (disponible {fmtCurrency(sourceBalance)})
               </p>
             )}
           </div>
