@@ -112,7 +112,19 @@ function cancelProactiveRefresh() {
 // Multi-tab BroadcastChannel — only one tab refreshes; others wait
 // ---------------------------------------------------------------------------
 let broadcastChannel: BroadcastChannel | null = null;
-let waitingForBroadcast: ((token: string) => void) | null = null;
+
+/**
+ * Adopts a token broadcast by ANOTHER tab. `onmessage` never fires in the
+ * tab that called `postMessage`, so this only ever runs in tabs that did not
+ * originate the refresh — i.e. genuinely different tabs, which never share
+ * this tab's `refreshInFlight` JS variable in the first place.
+ */
+function adoptBroadcastToken(token: string) {
+  memoryAccessToken = token;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+  }
+}
 
 function getBroadcastChannel(): BroadcastChannel | null {
   if (typeof window === "undefined" || !("BroadcastChannel" in window)) return null;
@@ -120,8 +132,7 @@ function getBroadcastChannel(): BroadcastChannel | null {
     broadcastChannel = new BroadcastChannel("cm-auth");
     broadcastChannel.onmessage = (event: MessageEvent) => {
       if (event.data?.type === "cm:new-token" && event.data.token) {
-        waitingForBroadcast?.(event.data.token);
-        waitingForBroadcast = null;
+        adoptBroadcastToken(event.data.token);
       }
       if (event.data?.type === "cm:session-expired") {
         handleSessionExpired();
@@ -220,25 +231,20 @@ function refreshTokens(): Promise<{ access_token: string; refresh_token?: string
  * Refresh tokens with BroadcastChannel coordination.
  * This is only invoked after a 401, so we always force a real refresh;
  * reusing the in-memory token here would just retry with the rejected token.
+ *
+ * `refreshInFlight` lives in this tab's JS memory, so it can only ever be
+ * truthy when THIS SAME TAB already kicked off a refresh (e.g. two
+ * concurrent 401s in the same tab). In that same-tab case we must await
+ * `refreshInFlight` directly — `BroadcastChannel#onmessage` never fires in
+ * the tab that called `postMessage`, so waiting on the broadcast here would
+ * just stall for 5s (the timeout) before falling back. BroadcastChannel
+ * coordination is only meaningful for genuinely different tabs, which never
+ * observe a truthy `refreshInFlight` from another tab's refresh in the
+ * first place (see `getBroadcastChannel`'s `onmessage` for that path).
  */
 function refreshTokensCoordinated(): Promise<{ access_token: string; refresh_token?: string }> {
-  // If refresh is in-flight, wait for it via BroadcastChannel
   if (refreshInFlight) {
-    const channel = getBroadcastChannel();
-    if (channel) {
-      return new Promise((resolve) => {
-        waitingForBroadcast = (token: string) => {
-          resolve({ access_token: token });
-        };
-        // Timeout: if broadcast doesn't arrive in 5s, fall through to own refresh
-        setTimeout(() => {
-          if (waitingForBroadcast) {
-            waitingForBroadcast = null;
-            resolve(refreshTokens());
-          }
-        }, 5000);
-      });
-    }
+    return refreshInFlight;
   }
   return refreshTokens();
 }
