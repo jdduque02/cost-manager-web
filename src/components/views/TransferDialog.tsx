@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { parseCurrency } from "@/lib/format";
+import { fmtCurrency, isInsufficientBalance, parseCurrency } from "@/lib/format";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -103,18 +103,15 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       setCompanyId(transfer.source.company_id ? String(transfer.source.company_id) : "");
       setIsFixed(transfer.is_fixed ?? false);
       setFrequency(transfer.frequency ?? "");
-      setDueDay(
-        String(transfer.due_day ?? ""),
-      );
-      setReminderDays(
-        String(transfer.reminder_days ?? "3"),
-      );
+      setDueDay(String(transfer.due_day ?? ""));
+      setReminderDays(String(transfer.reminder_days ?? "3"));
     }
   }, [open, transfer]);
 
   const sourceAccount = bankAccounts.find((a) => String(a.id) === sourceAccountId);
   const destAccount = bankAccounts.find((a) => String(a.id) === destinationAccountId);
   const linkableObjectives = objectives.filter((o) => o.type !== "loan");
+  const availableDestinationAccounts = bankAccounts.filter((a) => String(a.id) !== sourceAccountId);
 
   let objectivePlaceholder: string;
   if (loadingObjectives) {
@@ -129,7 +126,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
 
   const sourceBalance = sourceAccount ? Number(sourceAccount.display_balance) : 0;
   const transferAmount = amount ? parseCurrency(amount) : 0;
-  const insufficientBalance = transferAmount > 0 && sourceBalance > 0 && transferAmount > sourceBalance;
+  const insufficientBalance = isInsufficientBalance(transferAmount, sourceBalance);
 
   function buildDto() {
     const fixedOpt = <T,>(val: T | undefined | ""): T | undefined =>
@@ -142,7 +139,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       objective_id: objectiveId ? Number(objectiveId) : undefined,
       company_id: companyId ? Number(companyId) : undefined,
       is_fixed: isFixed || undefined,
-      fixed_type: isFixed ? "deduction" as const : undefined,
+      fixed_type: isFixed ? ("deduction" as const) : undefined,
       frequency: fixedOpt(frequency as FixedFrequency),
       due_day: fixedOpt(dueDay ? Number(dueDay) : undefined),
       reminder_days: fixedOpt(reminderDays ? Number(reminderDays) : undefined),
@@ -232,7 +229,8 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     !amount ||
     parseCurrency(amount) <= 0 ||
     insufficientBalance ||
-    (destinationType === "account" && (!destinationAccountId || sourceAccountId === destinationAccountId)) ||
+    (destinationType === "account" &&
+      (!destinationAccountId || sourceAccountId === destinationAccountId)) ||
     (destinationType === "liability" && !destinationLiabilityId) ||
     isPendingSubmit;
 
@@ -265,12 +263,12 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               </Select>
               {sourceAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo: ${Number(sourceAccount.display_balance).toLocaleString("es-CO")}
+                  Saldo: {fmtCurrency(Number(sourceAccount.display_balance))}
                 </p>
               )}
               {insufficientBalance && (
                 <p className="text-xs font-medium text-destructive">
-                  Saldo insuficiente (disponible ${sourceBalance.toLocaleString("es-CO")})
+                  Saldo insuficiente (disponible {fmtCurrency(sourceBalance)})
                 </p>
               )}
             </div>
@@ -314,24 +312,37 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                 </div>
               )}
               {destinationType === "account" ? (
-                <Select
-                  value={destinationAccountId}
-                  onValueChange={setDestinationAccountId}
-                  disabled={isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bankAccounts
-                      .filter((a) => String(a.id) !== sourceAccountId)
-                      .map((a) => (
+                <>
+                  <Select
+                    value={destinationAccountId}
+                    onValueChange={setDestinationAccountId}
+                    disabled={isEditing || availableDestinationAccounts.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          availableDestinationAccounts.length === 0
+                            ? "Sin cuentas disponibles"
+                            : "Seleccionar..."
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDestinationAccounts.map((a) => (
                         <SelectItem key={a.id} value={String(a.id)}>
                           {a.bank_name} · {a.masked_account_number}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                  {!isEditing && availableDestinationAccounts.length === 0 && (
+                    <p className="text-xs font-medium text-warning">
+                      {creditCards.length > 0
+                        ? 'No hay otra cuenta bancaria disponible. Usa "Tarjeta de crédito" como destino.'
+                        : "No hay ninguna otra cuenta o tarjeta de crédito disponible como destino."}
+                    </p>
+                  )}
+                </>
               ) : (
                 <Select
                   value={destinationLiabilityId}
@@ -352,7 +363,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               )}
               {destAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo: ${Number(destAccount.display_balance).toLocaleString("es-CO")}
+                  Saldo: {fmtCurrency(Number(destAccount.display_balance))}
                 </p>
               )}
             </div>
@@ -461,10 +472,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
             <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Periodicidad</Label>
-                <Select
-                  value={frequency}
-                  onValueChange={(v) => setFrequency(v as FixedFrequency)}
-                >
+                <Select value={frequency} onValueChange={(v) => setFrequency(v as FixedFrequency)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
@@ -493,9 +501,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                   max={30}
                   placeholder="Ej. 3"
                   value={reminderDays}
-                  onChange={(e) =>
-                    setReminderDays(e.target.value.replace(/\D/g, "").slice(0, 2))
-                  }
+                  onChange={(e) => setReminderDays(e.target.value.replace(/\D/g, "").slice(0, 2))}
                 />
               </div>
             </div>
