@@ -10,11 +10,11 @@ export function useFormattedAmount() {
   const { mode } = useVisibility();
 
   const format = useCallback(
-    (value: number, opts?: { prefix?: string; suffix?: string }) => {
+    (value: number, opts?: { prefix?: string; suffix?: string; currency?: string }) => {
       if (mode === "visible") {
         const prefix = opts?.prefix ?? "";
         const suffix = opts?.suffix ?? "";
-        return `${prefix}${fmtCurrency(value)}${suffix}`;
+        return `${prefix}${fmtCurrency(value, opts?.currency ?? "COP")}${suffix}`;
       }
       // masked or encrypted — show dots
       return MASKED;
