@@ -39,3 +39,12 @@ export const parseCurrency = (s: string): number => {
 };
 
 export const MASKED = "\u2022\u2022\u2022\u2022\u2022\u2022";
+
+/**
+ * Whether a proposed amount would exceed the available balance of the
+ * source account/liability. Balances <= 0 are treated as "unknown" (e.g.
+ * not loaded yet) rather than insufficient, matching the existing
+ * transfer/clone dialogs' behavior.
+ */
+export const isInsufficientBalance = (amount: number, balance: number): boolean =>
+  amount > 0 && balance > 0 && amount > balance;
