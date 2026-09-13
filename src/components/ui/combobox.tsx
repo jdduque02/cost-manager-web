@@ -32,6 +32,7 @@ interface ComboboxProps {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  id?: string;
 }
 
 function ScrollButtons({ listRef }: { listRef: React.RefObject<HTMLDivElement | null> }) {
@@ -102,6 +103,7 @@ export function Combobox({
   emptyText = "Sin resultados",
   disabled = false,
   className,
+  id,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -116,6 +118,7 @@ export function Combobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           ref={triggerRef}
           variant="outline"
           role="combobox"

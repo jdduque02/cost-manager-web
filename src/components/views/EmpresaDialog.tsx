@@ -108,8 +108,9 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Nombre</Label>
+            <Label htmlFor="empresa-name">Nombre</Label>
             <Input
+              id="empresa-name"
               placeholder="Ej. Acme Corp"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -119,9 +120,9 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
           </div>
 
           <div className="space-y-1.5">
-            <Label>Categoría por defecto (opcional)</Label>
+            <Label htmlFor="empresa-default-category">Categoría por defecto (opcional)</Label>
             <Select value={defaultCategoryId} onValueChange={setDefaultCategoryId}>
-              <SelectTrigger>
+              <SelectTrigger id="empresa-default-category">
                 <SelectValue placeholder="Sin categoría por defecto" />
               </SelectTrigger>
               <SelectContent>

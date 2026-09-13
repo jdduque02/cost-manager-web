@@ -216,9 +216,7 @@ export function TransactionDialog({
     setDescription(tx.description ?? "");
     setPaymentMethod(tx.payment_method ?? "");
     setIsFixed(tx.is_fixed ?? false);
-    setFixedType(
-      tx.fixed_type ?? (tx.type === "income" ? "fixed_income" : "deduction"),
-    );
+    setFixedType(tx.fixed_type ?? (tx.type === "income" ? "fixed_income" : "deduction"));
     setFrequency(tx.frequency ?? "");
     setDueDay(toStr(tx.due_day));
     setReminderDays(tx.reminder_days != null ? String(tx.reminder_days) : "3");
@@ -415,11 +413,21 @@ export function TransactionDialog({
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label>Monto</Label>
+                    <Label htmlFor="tx-amount">Monto</Label>
                     <div className="flex gap-2">
-                      <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required className="flex-1" />
-                      <Select value={currency} onValueChange={(v) => setCurrency(v as "COP" | "USD")}>
-                        <SelectTrigger className="w-24">
+                      <CurrencyInput
+                        id="tx-amount"
+                        value={amount}
+                        onChange={setAmount}
+                        placeholder="0"
+                        required
+                        className="flex-1"
+                      />
+                      <Select
+                        value={currency}
+                        onValueChange={(v) => setCurrency(v as "COP" | "USD")}
+                      >
+                        <SelectTrigger id="tx-currency" className="w-24">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -432,7 +440,7 @@ export function TransactionDialog({
 
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
-                      <Label>Categoría</Label>
+                      <Label htmlFor="tx-category">Categoría</Label>
                       <InlineCategoryCreator
                         groupType={type === "transfer" ? "expense" : type}
                         onCreated={(id) => {
@@ -442,6 +450,7 @@ export function TransactionDialog({
                       />
                     </div>
                     <Combobox
+                      id="tx-category"
                       value={categoryId}
                       onValueChange={(v) => {
                         setCategoryId(v);
@@ -462,13 +471,14 @@ export function TransactionDialog({
                   {categoryId && (
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <Label>Subcategoría</Label>
+                        <Label htmlFor="tx-subcategory">Subcategoría</Label>
                         <InlineSubcategoryCreator
                           categoryId={Number(categoryId)}
                           onCreated={(id) => setSubcategoryId(String(id))}
                         />
                       </div>
                       <Combobox
+                        id="tx-subcategory"
                         value={subcategoryId}
                         onValueChange={setSubcategoryId}
                         items={subcategoryItems}
@@ -488,8 +498,9 @@ export function TransactionDialog({
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label>Descripción</Label>
+                    <Label htmlFor="tx-description">Descripción</Label>
                     <Input
+                      id="tx-description"
                       placeholder="Ej. Almuerzo"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -497,9 +508,9 @@ export function TransactionDialog({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>Método de pago</Label>
+                    <Label htmlFor="tx-payment-method">Método de pago</Label>
                     <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
+                      <SelectTrigger id="tx-payment-method">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
@@ -513,8 +524,9 @@ export function TransactionDialog({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>Fecha de la transacción</Label>
+                    <Label htmlFor="tx-date">Fecha de la transacción</Label>
                     <DatePicker
+                      id="tx-date"
                       value={date}
                       onChange={(d) => d && setDate(d)}
                       disabled={isPending}
@@ -526,8 +538,9 @@ export function TransactionDialog({
                 {(paymentMethod === "credit_card" || installments !== "" || isEditing) && (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label>N.º de cuotas</Label>
+                      <Label htmlFor="tx-installments">N.º de cuotas</Label>
                       <Input
+                        id="tx-installments"
                         type="number"
                         min={1}
                         max={120}
@@ -539,8 +552,9 @@ export function TransactionDialog({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Valor por cuota</Label>
+                      <Label htmlFor="tx-installment-value">Valor por cuota</Label>
                       <CurrencyInput
+                        id="tx-installment-value"
                         value={installmentValue}
                         onChange={setInstallmentValue}
                         placeholder="Opcional"
@@ -557,7 +571,7 @@ export function TransactionDialog({
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label>Meta asociada</Label>
+                    <Label htmlFor="tx-objective">Meta asociada</Label>
                     <Select
                       value={objectiveId}
                       onValueChange={(v) => {
@@ -568,7 +582,7 @@ export function TransactionDialog({
                         setObjectiveId(v);
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="tx-objective">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
@@ -583,7 +597,7 @@ export function TransactionDialog({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>Empresa</Label>
+                    <Label htmlFor="tx-company">Empresa</Label>
                     <Select
                       value={companyId}
                       onValueChange={(v) => {
@@ -601,7 +615,7 @@ export function TransactionDialog({
                         }
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="tx-company">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
@@ -620,7 +634,7 @@ export function TransactionDialog({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>Patrimonio asociado</Label>
+                    <Label htmlFor="tx-patrimony">Patrimonio asociado</Label>
                     <Select
                       value={patrimony}
                       onValueChange={(v) => {
@@ -636,7 +650,7 @@ export function TransactionDialog({
                         setPatrimony(v);
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="tx-patrimony">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
                       <SelectContent>
@@ -714,9 +728,9 @@ export function TransactionDialog({
                 {isFixed && (
                   <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label>Tipo fijo</Label>
+                      <Label htmlFor="tx-fixed-type">Tipo fijo</Label>
                       <Select value={fixedType} onValueChange={(v) => setFixedType(v as FixedType)}>
-                        <SelectTrigger>
+                        <SelectTrigger id="tx-fixed-type">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -726,12 +740,12 @@ export function TransactionDialog({
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Periodicidad</Label>
+                      <Label htmlFor="tx-frequency">Periodicidad</Label>
                       <Select
                         value={frequency}
                         onValueChange={(v) => setFrequency(v as FixedFrequency)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="tx-frequency">
                           <SelectValue placeholder="Seleccionar..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -741,8 +755,9 @@ export function TransactionDialog({
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Día de vencimiento</Label>
+                      <Label htmlFor="tx-due-day">Día de vencimiento</Label>
                       <Input
+                        id="tx-due-day"
                         type="number"
                         min={1}
                         max={31}
@@ -752,8 +767,9 @@ export function TransactionDialog({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Anticipación (días)</Label>
+                      <Label htmlFor="tx-reminder-days">Anticipación (días)</Label>
                       <Input
+                        id="tx-reminder-days"
                         type="number"
                         min={0}
                         max={30}
@@ -772,16 +788,18 @@ export function TransactionDialog({
                     <p className="text-xs font-medium text-muted-foreground">Entidad de origen</p>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label>Banco / entidad</Label>
+                        <Label htmlFor="tx-source-bank">Banco / entidad</Label>
                         <Input
+                          id="tx-source-bank"
                           placeholder="Ej. Banco Lulo"
                           value={sourceBank}
                           onChange={(e) => setSourceBank(e.target.value)}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Cuenta / referencia</Label>
+                        <Label htmlFor="tx-source-account">Cuenta / referencia</Label>
                         <Input
+                          id="tx-source-account"
                           placeholder="Ej. Cuenta de ahorros 1234"
                           value={sourceAccount}
                           onChange={(e) => setSourceAccount(e.target.value)}

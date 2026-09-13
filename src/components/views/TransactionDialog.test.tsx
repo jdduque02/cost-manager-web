@@ -155,6 +155,16 @@ describe("TransactionDialog", () => {
     expect(screen.getByRole("button", { name: /guardar/i })).toBeInTheDocument();
   });
 
+  it("associates the amount label with its input via id", () => {
+    render(<TransactionDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Monto")).toBeInTheDocument();
+  });
+
+  it("associates the description label with its input via id", () => {
+    render(<TransactionDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Descripción")).toBeInTheDocument();
+  });
+
   it("shows edit title when transaction provided", () => {
     render(
       <TransactionDialog

@@ -111,8 +111,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Nombre</Label>
+            <Label htmlFor="category-name">Nombre</Label>
             <Input
+              id="category-name"
               placeholder="Ej. Alimentación"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -122,9 +123,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tipo</Label>
+            <Label htmlFor="category-type">Tipo</Label>
             <Select value={groupType} onValueChange={(v) => setGroupType(v as GroupType)}>
-              <SelectTrigger>
+              <SelectTrigger id="category-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -136,9 +137,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
           </div>
 
           <div className="space-y-1.5">
-            <Label>Rango del perfil financiero</Label>
+            <Label htmlFor="category-profile-bucket">Rango del perfil financiero</Label>
             <Select value={profileBucket} onValueChange={(v) => setProfileBucket(v)}>
-              <SelectTrigger>
+              <SelectTrigger id="category-profile-bucket">
                 <SelectValue placeholder="Sin clasificar" />
               </SelectTrigger>
               <SelectContent>

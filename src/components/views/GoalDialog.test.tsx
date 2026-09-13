@@ -101,6 +101,16 @@ describe("GoalDialog", () => {
     expect(screen.getByRole("button", { name: /crear meta/i })).toBeInTheDocument();
   });
 
+  it("associates the name label with its input via id", () => {
+    render(<GoalDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
+  });
+
+  it("associates the target amount label with its input via id", () => {
+    render(<GoalDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Monto objetivo (opcional)")).toBeInTheDocument();
+  });
+
   it("renders edit title when goal provided", () => {
     render(
       <GoalDialog

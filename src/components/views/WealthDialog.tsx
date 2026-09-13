@@ -362,8 +362,9 @@ export function WealthDialog({
           {entityType === "account" && (
             <>
               <div className="space-y-1.5">
-                <Label>Banco</Label>
+                <Label htmlFor="wealth-account-bank">Banco</Label>
                 <Input
+                  id="wealth-account-bank"
                   placeholder="Ej. Bancolombia"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
@@ -374,9 +375,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo de cuenta</Label>
+                <Label htmlFor="wealth-account-type">Tipo de cuenta</Label>
                 <Select value={accountType} onValueChange={setAccountType}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-account-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -392,8 +393,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Número de cuenta</Label>
+                <Label htmlFor="wealth-account-number">Número de cuenta</Label>
                 <Input
+                  id="wealth-account-number"
                   placeholder="Opcional"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
@@ -401,15 +403,22 @@ export function WealthDialog({
                 <p className="text-xs text-muted-foreground">Opcional. Solo visible para ti.</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Saldo</Label>
-                <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                <Label htmlFor="wealth-account-balance">Saldo</Label>
+                <CurrencyInput
+                  id="wealth-account-balance"
+                  value={amount}
+                  onChange={setAmount}
+                  placeholder="0"
+                  required
+                />
                 <p className="text-xs text-muted-foreground">
                   Saldo actual disponible en la cuenta.
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tasa de interés anual %</Label>
+                <Label htmlFor="wealth-account-annual-rate">Tasa de interés anual %</Label>
                 <Input
+                  id="wealth-account-annual-rate"
                   type="number"
                   step="any"
                   min="0"
@@ -423,9 +432,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Frecuencia del rendimiento</Label>
+                <Label htmlFor="wealth-account-yield-frequency">Frecuencia del rendimiento</Label>
                 <Select value={yieldFrequency} onValueChange={setYieldFrequency}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-account-yield-frequency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -439,9 +448,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo de tasa</Label>
+                <Label htmlFor="wealth-account-rate-type">Tipo de tasa</Label>
                 <Select value={rateType} onValueChange={setRateType}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-account-rate-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -471,8 +480,9 @@ export function WealthDialog({
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>Plazo (días)</Label>
+                      <Label htmlFor="wealth-account-term-days">Plazo (días)</Label>
                       <Input
+                        id="wealth-account-term-days"
                         type="number"
                         min="1"
                         placeholder="Ej. 360"
@@ -480,27 +490,29 @@ export function WealthDialog({
                         onChange={(e) => setTermDays(e.target.value)}
                         required={accountType === "cdt"}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Plazo del CDT en días.
-                      </p>
+                      <p className="text-xs text-muted-foreground">Plazo del CDT en días.</p>
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Fecha inicio</Label>
+                      <Label htmlFor="wealth-account-start-date">Fecha inicio</Label>
                       <Input
+                        id="wealth-account-start-date"
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         required={accountType === "cdt"}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Fecha de inicio del CDT.
-                      </p>
+                      <p className="text-xs text-muted-foreground">Fecha de inicio del CDT.</p>
                     </div>
                   </div>
                   {maturityDate && (
                     <div className="space-y-1.5">
-                      <Label>Vencimiento</Label>
-                      <Input type="date" value={maturityDate} disabled />
+                      <Label htmlFor="wealth-account-maturity-date">Vencimiento</Label>
+                      <Input
+                        id="wealth-account-maturity-date"
+                        type="date"
+                        value={maturityDate}
+                        disabled
+                      />
                       <p className="text-xs text-muted-foreground">
                         Calculada automáticamente (inicio + plazo).
                       </p>
@@ -522,9 +534,9 @@ export function WealthDialog({
                 </>
               )}
               <div className="space-y-1.5">
-                <Label>Moneda</Label>
+                <Label htmlFor="wealth-account-currency">Moneda</Label>
                 <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-account-currency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -570,8 +582,9 @@ export function WealthDialog({
           {entityType === "asset" && (
             <>
               <div className="space-y-1.5">
-                <Label>Nombre</Label>
+                <Label htmlFor="wealth-asset-name">Nombre</Label>
                 <Input
+                  id="wealth-asset-name"
                   placeholder="Ej. Portafolio de inversiones"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -582,9 +595,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo de activo</Label>
+                <Label htmlFor="wealth-asset-type">Tipo de activo</Label>
                 <Select value={assetType} onValueChange={setAssetType}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-asset-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -600,17 +613,23 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Valor actual</Label>
-                <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                <Label htmlFor="wealth-asset-value">Valor actual</Label>
+                <CurrencyInput
+                  id="wealth-asset-value"
+                  value={amount}
+                  onChange={setAmount}
+                  placeholder="0"
+                  required
+                />
                 <p className="text-xs text-muted-foreground">
                   Valor estimado actual del activo en el mercado.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Moneda</Label>
+                  <Label htmlFor="wealth-asset-currency">Moneda</Label>
                   <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger>
+                    <SelectTrigger id="wealth-asset-currency">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -626,8 +645,9 @@ export function WealthDialog({
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Rendimiento actual %</Label>
+                  <Label htmlFor="wealth-asset-yield">Rendimiento actual %</Label>
                   <Input
+                    id="wealth-asset-yield"
                     type="number"
                     step="any"
                     min="0"
@@ -642,8 +662,9 @@ export function WealthDialog({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Símbolo (opcional)</Label>
+                  <Label htmlFor="wealth-asset-symbol">Símbolo (opcional)</Label>
                   <Input
+                    id="wealth-asset-symbol"
                     placeholder="Ej. NU, AAPL, USDT"
                     value={symbol}
                     onChange={(e) => setSymbol(e.target.value)}
@@ -653,9 +674,9 @@ export function WealthDialog({
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Fuente</Label>
+                  <Label htmlFor="wealth-asset-quote-source">Fuente</Label>
                   <Select value={quoteSource} onValueChange={setQuoteSource}>
-                    <SelectTrigger>
+                    <SelectTrigger id="wealth-asset-quote-source">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -671,8 +692,9 @@ export function WealthDialog({
           {entityType === "liability" && (
             <>
               <div className="space-y-1.5">
-                <Label>Nombre</Label>
+                <Label htmlFor="wealth-liability-name">Nombre</Label>
                 <Input
+                  id="wealth-liability-name"
                   placeholder="Ej. Tarjeta Visa"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -683,9 +705,9 @@ export function WealthDialog({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label>Tipo de deuda</Label>
+                <Label htmlFor="wealth-liability-type">Tipo de deuda</Label>
                 <Select value={liabilityType} onValueChange={setLiabilityType}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-liability-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -702,13 +724,20 @@ export function WealthDialog({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Saldo actual</Label>
-                  <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
+                  <Label htmlFor="wealth-liability-balance">Saldo actual</Label>
+                  <CurrencyInput
+                    id="wealth-liability-balance"
+                    value={amount}
+                    onChange={setAmount}
+                    placeholder="0"
+                    required
+                  />
                   <p className="text-xs text-muted-foreground">Saldo pendiente por pagar.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Tasa de interés %</Label>
+                  <Label htmlFor="wealth-liability-interest-rate">Tasa de interés %</Label>
                   <Input
+                    id="wealth-liability-interest-rate"
                     type="number"
                     step="any"
                     min="0"
@@ -722,9 +751,9 @@ export function WealthDialog({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Moneda</Label>
+                <Label htmlFor="wealth-liability-currency">Moneda</Label>
                 <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger>
+                  <SelectTrigger id="wealth-liability-currency">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

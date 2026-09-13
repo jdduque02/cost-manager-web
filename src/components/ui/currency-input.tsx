@@ -9,6 +9,7 @@ interface CurrencyInputProps {
   min?: number;
   disabled?: boolean;
   required?: boolean;
+  id?: string;
 }
 
 /**
@@ -28,7 +29,10 @@ function parseUserInput(input: string): string {
     s = s.replace(/\./g, "");
     const i = s.indexOf(",");
     const intPart = s.slice(0, i).replace(/\D/g, "");
-    const decPart = s.slice(i + 1).replace(/\D/g, "").slice(0, 2);
+    const decPart = s
+      .slice(i + 1)
+      .replace(/\D/g, "")
+      .slice(0, 2);
     if (!intPart && !decPart) return "";
     return `${intPart || "0"}.${decPart}`;
   }
@@ -76,6 +80,7 @@ export function CurrencyInput({
   min,
   disabled,
   required,
+  id,
 }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState(() => formatDisplay(value));
 
@@ -100,6 +105,7 @@ export function CurrencyInput({
     <div className={cn("relative flex items-center", className)}>
       <span className="pointer-events-none absolute left-3 text-sm text-muted-foreground">$</span>
       <input
+        id={id}
         type="text"
         inputMode="decimal"
         value={displayValue}

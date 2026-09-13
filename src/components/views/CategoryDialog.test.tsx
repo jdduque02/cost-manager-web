@@ -71,6 +71,11 @@ describe("CategoryDialog", () => {
     expect(screen.getByDisplayValue("Transporte")).toBeInTheDocument();
   });
 
+  it("associates the name label with its input via id", () => {
+    render(<CategoryDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
+  });
+
   it("renders submit button", () => {
     render(<CategoryDialog {...defaultProps} />);
     expect(screen.getByRole("button", { name: /crear/i })).toBeInTheDocument();

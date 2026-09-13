@@ -186,8 +186,9 @@ function GoalFormFields({
   return (
     <>
       <div className="space-y-1.5">
-        <Label>Nombre</Label>
+        <Label htmlFor="goal-name">Nombre</Label>
         <Input
+          id="goal-name"
           placeholder="Ej. Ahorrar para la moto"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -197,9 +198,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tipo</Label>
+        <Label htmlFor="goal-type">Tipo</Label>
         <Select value={type} onValueChange={setType}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -214,30 +215,50 @@ function GoalFormFields({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Monto objetivo (opcional)</Label>
-          <CurrencyInput value={targetAmount} onChange={setTargetAmount} placeholder="0" />
+          <Label htmlFor="goal-target-amount">Monto objetivo (opcional)</Label>
+          <CurrencyInput
+            id="goal-target-amount"
+            value={targetAmount}
+            onChange={setTargetAmount}
+            placeholder="0"
+          />
         </div>
         <div className="space-y-1.5">
-          <Label>Ahorrado actual</Label>
-          <CurrencyInput value={currentBalance} onChange={setCurrentBalance} placeholder="0" />
+          <Label htmlFor="goal-current-balance">Ahorrado actual</Label>
+          <CurrencyInput
+            id="goal-current-balance"
+            value={currentBalance}
+            onChange={setCurrentBalance}
+            placeholder="0"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Fecha inicio</Label>
-          <DatePicker value={startDate} onChange={setStartDate} placeholder="Seleccionar" />
+          <Label htmlFor="goal-start-date">Fecha inicio</Label>
+          <DatePicker
+            id="goal-start-date"
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Seleccionar"
+          />
         </div>
         <div className="space-y-1.5">
-          <Label>Fecha fin (opcional)</Label>
-          <DatePicker value={endDate} onChange={setEndDate} placeholder="Seleccionar" />
+          <Label htmlFor="goal-end-date">Fecha fin (opcional)</Label>
+          <DatePicker
+            id="goal-end-date"
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="Seleccionar"
+          />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label>Frecuencia de cuotas</Label>
+        <Label htmlFor="goal-frequency">Frecuencia de cuotas</Label>
         <Select value={frequency} onValueChange={(v) => setFrequency(v as QuotaFrequency)}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-frequency">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -251,9 +272,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Cuenta bancaria (opcional)</Label>
+        <Label htmlFor="goal-account">Cuenta bancaria (opcional)</Label>
         <Select value={accountId} onValueChange={handleAccountChange}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-account">
             <SelectValue placeholder="Sin cuenta vinculada" />
           </SelectTrigger>
           <SelectContent>
@@ -275,8 +296,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tasa de interés anual % (opcional)</Label>
+        <Label htmlFor="goal-interest-rate">Tasa de interés anual % (opcional)</Label>
         <Input
+          id="goal-interest-rate"
           type="number"
           min="0"
           max="100"
