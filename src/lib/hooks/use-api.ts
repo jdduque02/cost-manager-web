@@ -61,6 +61,8 @@ const qk = {
     ["subcategories", userId, categoryId] as const,
   financialSummary: (userId: string) => ["financialSummary", userId] as const,
   taxSummary: (userId: string, year?: number) => ["taxSummary", userId, year] as const,
+  financialAiAnalysis: (userId: string, periodId?: number) =>
+    ["financialAiAnalysis", userId, periodId ?? null] as const,
   empresas: (userId: string) => ["empresas", userId] as const,
   news: ["news"] as const,
   statementImports: (userId: string) => ["statement-imports", userId] as const,
@@ -792,7 +794,7 @@ export function useCloneTransfer() {
 
 // ─── Intelligence Hooks ───────────────────────────────────────────────────────
 
-import { api } from "@/lib/api/client";
+import { api, apiFetchBlob, downloadBlob } from "@/lib/api/client";
 
 export interface TaxSummary {
   id: number;
@@ -835,6 +837,130 @@ export function useTaxSummary(year?: number) {
       return normalizeTaxSummary(Array.isArray(result) ? result[0] : result);
     },
     enabled: !!userId,
+  });
+}
+
+export interface UpdateTaxSummaryDto {
+  total_income?: number;
+  total_assets?: number;
+  total_liabilities?: number;
+  uvt_value?: number;
+  estimated_tax?: number;
+  must_declare?: boolean;
+}
+
+export function useCalculateTaxSummary() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params?: { year?: number; uvt?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.year) qs.set("year", String(params.year));
+      if (params?.uvt) qs.set("uvt", String(params.uvt));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return api.post<TaxSummary>(
+        `users/${userId}/intelligence/tax-summary/calculate${suffix}`,
+        {},
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.taxSummary(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateTaxSummary() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: UpdateTaxSummaryDto }) =>
+      api.put<TaxSummary>(`users/${userId}/intelligence/tax-summary/${id}`, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.taxSummary(userId ?? "") });
+    },
+  });
+}
+
+export interface FinancialInsight {
+  type: string;
+  severity: string;
+  message: string;
+  category_id?: number;
+  suggested_action?: string;
+}
+
+export interface FinancialAiAnalysis {
+  id: number;
+  user_id: number;
+  financial_period_id: number;
+  total_income: number;
+  total_expense: number;
+  total_debt: number;
+  net_worth: number;
+  expense_ratio: number | null;
+  debt_ratio: number | null;
+  savings_rate: number | null;
+  recommended_max_expense: number | null;
+  recommended_savings: number | null;
+  is_over_spending: boolean;
+  is_over_indebted: boolean;
+  insights: FinancialInsight[];
+  calculated_at: string | null;
+  is_final: boolean;
+  narrative: string;
+  recommendations: string[];
+  provider: string;
+  generated_at: string;
+}
+
+function buildPeriodQuery(periodId?: number): string {
+  return periodId ? `?periodId=${periodId}` : "";
+}
+
+function normalizeFinancialAiAnalysis(
+  a: FinancialAiAnalysis | undefined,
+): FinancialAiAnalysis | undefined {
+  if (!a) return undefined;
+  return {
+    ...a,
+    total_income: Number(a.total_income ?? 0),
+    total_expense: Number(a.total_expense ?? 0),
+    total_debt: Number(a.total_debt ?? 0),
+    net_worth: Number(a.net_worth ?? 0),
+    expense_ratio: a.expense_ratio != null ? Number(a.expense_ratio) : null,
+    debt_ratio: a.debt_ratio != null ? Number(a.debt_ratio) : null,
+    savings_rate: a.savings_rate != null ? Number(a.savings_rate) : null,
+    recommended_max_expense:
+      a.recommended_max_expense != null ? Number(a.recommended_max_expense) : null,
+    recommended_savings: a.recommended_savings != null ? Number(a.recommended_savings) : null,
+    recommendations: Array.isArray(a.recommendations) ? a.recommendations : [],
+  };
+}
+
+export function useFinancialAiAnalysis(periodId?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.financialAiAnalysis(userId ?? "", periodId),
+    queryFn: async () => {
+      const result = await api.get<FinancialAiAnalysis[]>(
+        `users/${userId}/intelligence/ai-analysis${buildPeriodQuery(periodId)}`,
+      );
+      return normalizeFinancialAiAnalysis(Array.isArray(result) ? result[0] : result);
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useDownloadFinancialAiReport() {
+  const { userId } = useAuth();
+  return useMutation({
+    mutationFn: async (periodId?: number) => {
+      if (!userId) throw new Error("No hay un usuario autenticado.");
+      const { blob, filename } = await apiFetchBlob(
+        `users/${userId}/intelligence/report${buildPeriodQuery(periodId)}`,
+      );
+      downloadBlob(blob, filename ?? `reporte-financiero-${userId}.pdf`);
+    },
   });
 }
 

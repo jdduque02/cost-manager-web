@@ -417,6 +417,61 @@ async function parseResponseError(res: Response): Promise<ApiError> {
   return new ApiError(message, res.status, details);
 }
 
+/**
+ * Fetches a binary response (e.g. a generated PDF) with the same Bearer +
+ * 401-refresh handling as `apiFetch`, but WITHOUT the JSON envelope unwrap
+ * (the response body is not `ApiResponseDto` JSON, it's raw bytes).
+ * Returns the Blob plus the filename parsed from `Content-Disposition`, if any.
+ */
+export async function apiFetchBlob(
+  path: string,
+  token?: string | null,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const authToken = token ?? getAccessToken();
+
+  const headers: HeadersInit = {
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  };
+
+  const url = `${BASE_URL}${path}`;
+  let res = await fetch(url, { method: "GET", headers, credentials: "include" });
+
+  if (res.status === 401) {
+    try {
+      res = await refreshAndRetry(url, { method: "GET", headers });
+    } catch {
+      // fall through to error handling below (mirrors apiFetch)
+    }
+  }
+
+  if (!res.ok) {
+    throw await parseResponseError(res);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="([^"]+)"|filename=([^;]+)/);
+  const filename = match ? ((match[1] ?? match[2])?.trim() ?? null) : null;
+  return { blob, filename };
+}
+
+/**
+ * Triggers a browser download of a Blob via a temporary object URL. The
+ * object URL is revoked right after the click so it never lingers reachable
+ * from outside this function (no token or session data is embedded in it —
+ * it just references an in-memory Blob).
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export async function apiPostForm<T = unknown>(
   path: string,
   formData: FormData,

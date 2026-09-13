@@ -6,6 +6,8 @@ import {
   getStoredUserId,
   ApiError,
   api,
+  apiFetchBlob,
+  downloadBlob,
 } from "./client";
 
 describe("token management", () => {
@@ -146,6 +148,119 @@ describe("api helpers", () => {
 
     const result = await api.getOne<{ id: number; name: string }>("test-endpoint");
     expect(result).toEqual({ id: 1, name: "item" });
+  });
+});
+
+describe("apiFetchBlob", () => {
+  beforeEach(() => {
+    clearTokens();
+    vi.restoreAllMocks();
+  });
+
+  it("returns the blob and parses the filename from Content-Disposition", async () => {
+    const fakeBlob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="reporte-financiero-1.pdf"',
+      }),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await apiFetchBlob("users/1/intelligence/report");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("users/1/intelligence/report"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.blob).toBe(fakeBlob);
+    expect(result.filename).toBe("reporte-financiero-1.pdf");
+  });
+
+  it("parses an unquoted filename without swallowing trailing attributes", async () => {
+    const fakeBlob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "Content-Disposition": "attachment; filename=reporte.pdf",
+      }),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await apiFetchBlob("users/1/intelligence/report");
+    expect(result.filename).toBe("reporte.pdf");
+  });
+
+  it("returns a null filename when Content-Disposition is missing", async () => {
+    const fakeBlob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await apiFetchBlob("users/1/intelligence/report");
+    expect(result.filename).toBeNull();
+  });
+
+  it("falls through to error handling when refresh-on-401 itself fails", async () => {
+    const mockFetch = vi.fn((url: string) => {
+      if (url.includes("auth/refresh")) {
+        return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        json: () => Promise.resolve({ message: "Unauthorized" }),
+      });
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiFetchBlob("users/1/intelligence/report")).rejects.toThrow(ApiError);
+  });
+
+  it("throws ApiError when the response is not ok", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+      json: () => Promise.resolve({ message: "boom" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiFetchBlob("users/1/intelligence/report")).rejects.toThrow(ApiError);
+  });
+});
+
+describe("downloadBlob", () => {
+  it("creates an object URL, clicks a temporary link, then revokes the URL", () => {
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+
+    const clickSpy = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === "a") el.click = clickSpy;
+      return el;
+    });
+
+    downloadBlob(new Blob(["x"]), "reporte.pdf");
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+
+    vi.restoreAllMocks();
   });
 });
 
