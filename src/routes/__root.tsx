@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
+import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications/context";
 import { VisibilityProvider } from "@/lib/visibility-context";
@@ -105,13 +106,14 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <LoadingBar />
+      <Toaster richColors closeButton position="top-right" />
       <AuthProvider>
         <VisibilityProvider>
-        <NotificationProvider>
-          <NuqsAdapter>
-            <Outlet />
-          </NuqsAdapter>
-        </NotificationProvider>
+          <NotificationProvider>
+            <NuqsAdapter>
+              <Outlet />
+            </NuqsAdapter>
+          </NotificationProvider>
         </VisibilityProvider>
       </AuthProvider>
     </QueryClientProvider>
