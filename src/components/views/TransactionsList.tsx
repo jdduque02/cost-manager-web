@@ -405,6 +405,7 @@ function TransactionRow({
       key={t.id}
       className={cn(
         "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
+        "animate-in fade-in slide-in-from-top-1 duration-200",
         isPendingTx && "bg-warning/[0.03]",
       )}
     >
