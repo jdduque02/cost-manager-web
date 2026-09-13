@@ -34,6 +34,21 @@ Este agente es independiente de cualquier agente backend (`cost-manager-develope
 - **UI**: reusar los 32 componentes de `src/components/ui` (shadcn/ui "new-york") antes de crear uno nuevo.
 - **Testing obligatorio**: todo componente/hook nuevo o modificado lleva test Vitest; todo flujo de `e2e/` que cambie de comportamiento lleva su Playwright actualizado.
 
+## brain-sprig — memoria persistente del proyecto
+
+El cerebro de Sprig vive en `C:\DLLO\brain-sprig` (repo git hermano, complementa a `api-cost-manager` y `cost-manager-web`). **Cada vez que encuentres o produzcas información relevante no obvia** durante una tarea de este repo (una decisión de arquitectura/contrato, un gotcha, una deuda detectada, un cambio operativo o el cierre de una sesión sustancial), regístrala ahí antes de reportar el trabajo como terminado.
+
+Regla de oro del brain: **no duplicar** lo que se puede derivar leyendo el código o este `CLAUDE.md`/agentes — ahí va solo el *por qué*, lo aprendido y el estado en el tiempo.
+
+- **Decisión de diseño / API / arquitectura no trivial** → `decisiones/NNN-titulo.md`, copiando `decisiones/TEMPLATE.md`. Un ADR = un archivo.
+- **Gotcha o deuda descubierta** (p. ej. en `src/lib/auth`, `client.ts`, formateo COP, tests frágiles) → `aprendizajes/gotchas-tecnicos.md` / `aprendizajes/deuda-tecnica.md`.
+- **Conocimiento estable no obvio** (nuevo módulo, patrón del frontend, regla de negocio nueva) → `conocimientos/` (con `conocimientos/modulos/` si aplica).
+- **Cambio operativo** (deploy/CI, envs, secretos, seguridad — p. ej. el despliegue SSR con srvx en Docker) → `manejo/despliegue-cicd.md`, `manejo/entornos.md` o `manejo/seguridad-operativa.md`.
+- **Fin de sesión/hito sustancial** → `historial/YYYY-MM-DD-tema.md` (formato en `historial/README.md`).
+- **Nuevo repo/MCP disponible** → `referencias/repos-y-mcp.md`.
+
+Procedimiento: prepara el cambio, verifica en código que lo que vas a citar sea real, propón el contenido al usuario y **confirma con Conventional Commits + Gitmoji en el repo `brain-sprig`** solo cuando el usuario lo apruebe — nunca hagas push a su nombre. Las entradas pasadas no se editan (se abre una nueva).
+
 ## Deuda técnica / gaps conocidos
 
 - `eslint.config.js` tiene `"@typescript-eslint/no-unused-vars": "off"` — no lo actives sin confirmar con el usuario (podría generar mucho ruido de golpe).
