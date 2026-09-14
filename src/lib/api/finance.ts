@@ -104,7 +104,7 @@ export interface CreateTransactionDto {
   company_id?: number;
 }
 
-type FinancialObjectiveType = "loan" | "savings" | "goal";
+type FinancialObjectiveType = "loan" | "savings" | "goal" | "emergency_fund";
 type Frequency = "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
 export type QuotaFrequency = "weekly" | "biweekly" | "monthly";
 
@@ -123,6 +123,7 @@ export interface FinancialObjective {
   owner?: string;
   bank?: string | null;
   current_profitability?: number | null;
+  months_of_expenses_covered?: number | null;
   account_id?: number | null;
   frequency?: Frequency;
   due_day?: number;
@@ -331,6 +332,8 @@ export const financeApi = {
         monthly_payment: o.monthly_payment != null ? Number(o.monthly_payment) : undefined,
         current_profitability:
           o.current_profitability != null ? Number(o.current_profitability) : null,
+        months_of_expenses_covered:
+          o.months_of_expenses_covered != null ? Number(o.months_of_expenses_covered) : null,
       })),
     ),
   createObjective: (userId: string, dto: CreateObjectiveDto) =>
