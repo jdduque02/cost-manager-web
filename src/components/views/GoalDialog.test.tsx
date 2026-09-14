@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { GoalDialog } from "./GoalDialog";
 
 vi.mock("@/lib/hooks/use-api", () => {
@@ -109,6 +110,14 @@ describe("GoalDialog", () => {
   it("associates the target amount label with its input via id", () => {
     render(<GoalDialog {...defaultProps} />);
     expect(screen.getByLabelText("Monto objetivo (opcional)")).toBeInTheDocument();
+  });
+
+  it("includes 'Fondo de emergencia' as a type option in the type selector", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<GoalDialog {...defaultProps} />);
+
+    await user.click(screen.getByLabelText("Tipo"));
+    expect(await screen.findByRole("option", { name: "Fondo de emergencia" })).toBeInTheDocument();
   });
 
   it("renders edit title when goal provided", () => {

@@ -51,11 +51,16 @@ interface GoalDialogProps {
   onCreated?: (objective: FinancialObjective) => void;
 }
 
-const goalTypes = [
+export const goalTypes = [
   { value: "savings", label: "Ahorro" },
   { value: "loan", label: "Préstamo" },
   { value: "goal", label: "Meta" },
+  { value: "emergency_fund", label: "Fondo de emergencia" },
 ];
+
+export const GOAL_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  goalTypes.map((gt) => [gt.value, gt.label]),
+);
 
 const frequencyOptions: { value: QuotaFrequency; label: string; perMonth: string }[] = [
   { value: "weekly", label: "Semanal", perMonth: "~4.33/mes" },
@@ -699,7 +704,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
 
     const payload = {
       name: name.trim(),
-      type: type as "savings" | "loan" | "goal",
+      type: type as FinancialObjective["type"],
       target_amount: targetAmount ? Number(targetAmount) : null,
       current_balance: currentBalance ? Number(currentBalance) : 0,
       start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,

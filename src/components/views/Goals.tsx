@@ -9,7 +9,7 @@ import {
   useTransactions,
   useCategories,
 } from "@/lib/hooks/use-api";
-import { GoalDialog } from "./GoalDialog";
+import { GoalDialog, GOAL_TYPE_LABELS } from "./GoalDialog";
 import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -76,7 +76,7 @@ function GoalCard({
           {isComplete ? (
             <Badge tone="success">Meta completada</Badge>
           ) : (
-            <Badge tone="primary">{goal.type}</Badge>
+            <Badge tone="primary">{GOAL_TYPE_LABELS[goal.type] ?? goal.type}</Badge>
           )}
           <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100 ml-2">
             <button
@@ -109,6 +109,11 @@ function GoalCard({
           <span className="text-sm text-muted-foreground">acumulado</span>
         )}
       </div>
+      {goal.type === "emergency_fund" && goal.months_of_expenses_covered != null && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {goal.months_of_expenses_covered.toFixed(1)} meses de gastos cubiertos
+        </p>
+      )}
 
       <div className="mt-4 border-t border-border/60 pt-3">
         <p className="text-xs font-medium text-muted-foreground">
