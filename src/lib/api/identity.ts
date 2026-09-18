@@ -89,7 +89,28 @@ function normalizeProfile(p: FinancialProfile): FinancialProfile {
   };
 }
 
+export interface CreateUserDto {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  phone?: string;
+  address?: string;
+  document_id?: string;
+  locale?: string;
+  timezone?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateUserResponse {
+  id: string;
+  external_id: string;
+  username: string;
+  email: string;
+}
+
 export const identityApi = {
+  createUser: (dto: CreateUserDto) => api.post<CreateUserResponse>("user", dto),
   getStatus: async () => {
     const result = await api.get<{ status: string }[]>("user/public/status");
     return Array.isArray(result) ? result[0] : result;

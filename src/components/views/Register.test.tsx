@@ -24,7 +24,6 @@ vi.mock("@/lib/api/client", async () => {
   const actual = await vi.importActual("@/lib/api/client");
   return {
     ...actual,
-    api: { post: vi.fn() },
     tryRestoreSession: vi.fn().mockResolvedValue(false),
     getAccessToken: vi.fn().mockReturnValue(null),
     getStoredUserId: vi.fn().mockReturnValue(null),
@@ -39,10 +38,10 @@ vi.mock("@/lib/api/auth", () => ({
 }));
 
 vi.mock("@/lib/api/identity", () => ({
-  identityApi: { getUser: vi.fn().mockResolvedValue(null) },
+  identityApi: { getUser: vi.fn().mockResolvedValue(null), createUser: vi.fn() },
 }));
 
-import { api } from "@/lib/api/client";
+import { identityApi } from "@/lib/api/identity";
 
 function renderRegister() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -113,7 +112,7 @@ describe("Register", () => {
 
   it("submits successfully with valid data", async () => {
     const user = userEvent.setup();
-    vi.mocked(api.post).mockResolvedValue({
+    vi.mocked(identityApi.createUser).mockResolvedValue({
       id: "1",
       external_id: "ext-1",
       username: "juan",
@@ -131,6 +130,15 @@ describe("Register", () => {
     await waitFor(() => {
       expect(screen.getByText("Cuenta creada")).toBeInTheDocument();
     });
+    expect(identityApi.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "juan",
+        email: "juan@test.com",
+        password: "TestPass123!",
+        full_name: "Juan Perez",
+        timezone: expect.any(String),
+      }),
+    );
   });
 
   it("renders link to login", () => {

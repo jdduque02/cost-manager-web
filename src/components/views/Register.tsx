@@ -3,15 +3,9 @@ import { useAuth } from "@/lib/auth";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Check, X } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
-import { api, ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 import type { ValidationErrorDetail } from "@/lib/api/client";
-
-interface CreateUserResponse {
-  id: string;
-  external_id: string;
-  username: string;
-  email: string;
-}
+import { identityApi } from "@/lib/api/identity";
 
 const PASSWORD_RULES = [
   { key: "minLength", test: (p: string) => p.length >= 8, label: "Minimo 8 caracteres" },
@@ -104,7 +98,7 @@ export function Register() {
     setFieldDetails([]);
 
     try {
-      await api.post<CreateUserResponse>("user", {
+      await identityApi.createUser({
         username,
         email,
         password,
@@ -113,7 +107,7 @@ export function Register() {
         address: address || undefined,
         document_id: documentId || undefined,
         locale: "es",
-        timezone: `${username}_${new Date().getFullYear()}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         metadata: {
           prefered_theme: "dark",
           notifications: true,
