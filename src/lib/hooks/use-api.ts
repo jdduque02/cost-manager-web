@@ -32,6 +32,7 @@ import {
   type UpdateSubcategoryDto,
 } from "@/lib/api/catalog";
 import { newsApi } from "@/lib/api/news";
+import { authApi } from "@/lib/api/auth";
 import { statementImportApi, type StatementImportProgress } from "@/lib/api/statement-imports";
 import { useAuth } from "@/lib/auth";
 import { getSocket, NEWS_EVENTS, STATEMENT_IMPORT_PROGRESS } from "@/lib/socket";
@@ -68,6 +69,8 @@ const qk = {
   statementImports: (userId: string) => ["statement-imports", userId] as const,
   statementImportJob: (userId: string, id: number | null) =>
     ["statement-import", userId, id] as const,
+  sessions: (userId: string) => ["auth-sessions", userId] as const,
+  accessHistory: (userId: string) => ["auth-access-history", userId] as const,
 };
 
 // ─── Finance Hooks ────────────────────────────────────────────────────────────
@@ -984,5 +987,36 @@ export function useNews(limit?: number) {
     queryKey: [...qk.news, limit],
     queryFn: () => newsApi.getNews(limit),
     staleTime: 60_000,
+  });
+}
+
+// ─── Auth Hooks - Sessions & Access History ───────────────────────────────────
+
+export function useSessions() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.sessions(userId ?? ""),
+    queryFn: () => authApi.getSessions(),
+    enabled: !!userId,
+  });
+}
+
+export function useRevokeSession() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => authApi.revokeSession(sessionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.sessions(userId ?? "") });
+    },
+  });
+}
+
+export function useAccessHistory() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.accessHistory(userId ?? ""),
+    queryFn: () => authApi.getAccessHistory(),
+    enabled: !!userId,
   });
 }

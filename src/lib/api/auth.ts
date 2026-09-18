@@ -22,6 +22,22 @@ export interface LoginResult {
   userId?: number;
 }
 
+export interface Session {
+  id: string;
+  ipAddress: string;
+  browser: string;
+  start: string;
+  lastAccess: string | null;
+}
+
+export interface AccessEvent {
+  type: string;
+  ipAddress: string;
+  time: string;
+  error: string | null;
+  details: Record<string, unknown>;
+}
+
 export const authApi = {
   async encryptPassword(password: string): Promise<string> {
     const result = await api.post<unknown>("auth/encrypt", { password });
@@ -77,4 +93,10 @@ export const authApi = {
       currentPassword,
       newPassword,
     }),
+
+  getSessions: () => api.get<Session[]>("auth/sessions"),
+
+  revokeSession: (sessionId: string) => api.delete<void>(`auth/sessions/${sessionId}`),
+
+  getAccessHistory: () => api.get<AccessEvent[]>("auth/access-history"),
 };
