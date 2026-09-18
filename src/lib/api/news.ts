@@ -55,5 +55,5 @@ export const newsApi = {
   delete: (id: number) => api.delete(`news/${id}`),
 
   broadcast: (subject: string, htmlBody: string) =>
-    api.post<BroadcastEmailResult>("broadcast-email", { subject, html_body: htmlBody }),
+    api.post<BroadcastEmailResult>("admin/emails/broadcast", { subject, html_body: htmlBody }),
 };
