@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useNetWorth, useTransactions, useCategories } from "@/lib/hooks/use-api";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
+import { useCountUp } from "@/hooks/use-count-up";
 import { useMemo, useState } from "react";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
@@ -190,6 +191,11 @@ export function Dashboard() {
     .reduce((acc, t) => acc + t.amount, 0);
   const savingsRate =
     monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
+
+  const animatedNetWorth = useCountUp(netWorthValue, { duration: 800 });
+  const animatedMonthlyIncome = useCountUp(monthlyIncome, { duration: 800, delay: 60 });
+  const animatedMonthlyExpenses = useCountUp(monthlyExpenses, { duration: 800, delay: 120 });
+  const animatedSavingsRate = useCountUp(savingsRate, { duration: 800, delay: 180 });
 
   // Build monthly chart data from transactions (last 6 months)
   const monthlyChartData = useMemo(() => {
@@ -403,28 +409,28 @@ export function Dashboard() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KPI
             label="Patrimonio"
-            value={fmtAmount(netWorthValue)}
+            value={fmtAmount(animatedNetWorth)}
             delta="Tiempo real"
             positive
             icon={Wallet}
           />
           <KPI
             label="Ingresos del mes"
-            value={fmtAmount(monthlyIncome)}
+            value={fmtAmount(animatedMonthlyIncome)}
             delta="Este mes"
             positive
             icon={TrendingUp}
           />
           <KPI
             label="Gastos del mes"
-            value={fmtAmount(monthlyExpenses)}
+            value={fmtAmount(animatedMonthlyExpenses)}
             delta="Este mes"
             positive={false}
             icon={ArrowDownRight}
           />
           <KPI
             label="Tasa de ahorro"
-            value={`${savingsRate.toFixed(1)}%`}
+            value={`${animatedSavingsRate.toFixed(1)}%`}
             delta="Este mes"
             positive={savingsRate > 0}
             icon={PiggyBank}
