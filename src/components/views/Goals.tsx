@@ -96,7 +96,10 @@ function GoalCard({
       </div>
       {hasTarget && (
         <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-surface-2">
-          <div className="h-full bg-gradient-primary" style={{ width: `${pct}%` }} />
+          <div
+            className="h-full bg-gradient-primary transition-all duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
         </div>
       )}
       <div className="mt-3 flex items-baseline justify-between">
