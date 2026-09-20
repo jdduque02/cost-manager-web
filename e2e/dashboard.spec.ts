@@ -1,9 +1,9 @@
 import { expect } from "@playwright/test";
-import { test } from "../fixtures";
+import { test } from "./fixtures/index";
 
 test.describe("Dashboard", () => {
   test("muestra resumen financiero", async ({ authenticatedPage: page }) => {
-    await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /resumen/i })).toBeVisible({ timeout: 10000 });
     const cards = page.locator("[class*='card']");
     await expect(cards.first()).toBeVisible({ timeout: 5000 });
   });

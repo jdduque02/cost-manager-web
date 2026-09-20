@@ -8,18 +8,18 @@ export class AuthHelper {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByPlaceholder("tu@ejemplo.com");
+    this.emailInput = page.getByPlaceholder("juan_perez");
     this.passwordInput = page.getByPlaceholder("••••••••");
-    this.submitButton = page.getByRole("button", { name: /iniciar sesion|entrar/i });
+    this.submitButton = page.getByRole("button", { name: /iniciar sesión|iniciar sesion|entrar/i });
   }
 
   async gotoLogin() {
-    await this.page.goto("/auth/login");
+    await this.page.goto("/login");
     await this.page.waitForLoadState("networkidle");
   }
 
   async gotoRegister() {
-    await this.page.goto("/auth/register");
+    await this.page.goto("/register");
     await this.page.waitForLoadState("networkidle");
   }
 

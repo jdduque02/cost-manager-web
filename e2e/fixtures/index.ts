@@ -16,11 +16,11 @@ export const test = base.extend<TestFixtures>({
     await use(new NavHelper(page));
   },
   authenticatedPage: async ({ page }, use) => {
-    await page.goto("/auth/login");
+    await page.goto("/login");
     await page.waitForLoadState("networkidle");
-    await page.getByPlaceholder("tu@ejemplo.com").fill("test@example.com");
+    await page.getByPlaceholder("juan_perez").fill("test@example.com");
     await page.getByPlaceholder("••••••••").fill("Test1234!");
-    await page.getByRole("button", { name: /iniciar sesion|entrar/i }).click();
+    await page.getByRole("button", { name: /iniciar sesión|iniciar sesion|entrar/i }).click();
     await page.waitForURL("**/dashboard", { timeout: 15000 });
     await use(page);
   },

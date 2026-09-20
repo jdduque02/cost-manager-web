@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "../fixtures";
+import { test } from "./fixtures/index";
 
 test.describe("Autenticación", () => {
   test("muestra formulario de login", async ({ auth }) => {
@@ -21,13 +21,13 @@ test.describe("Autenticación", () => {
   });
 
   test("muestra formulario de forgot password", async ({ page }) => {
-    await page.goto("/auth/forgot-password");
-    await expect(page.getByPlaceholder("tu@ejemplo.com")).toBeVisible();
+    await page.goto("/forgot-password");
+    await expect(page.getByPlaceholder("tu@correo.com")).toBeVisible();
     await expect(page.getByRole("button", { name: /enviar|restablecer/i })).toBeVisible();
   });
 
   test("muestra formulario de reset password", async ({ page }) => {
-    await page.goto("/auth/reset-password");
+    await page.goto("/reset-password?email=test@example.com");
     await expect(page.getByPlaceholder("000000")).toBeVisible();
   });
 });

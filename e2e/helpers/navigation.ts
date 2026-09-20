@@ -13,17 +13,17 @@ export class NavHelper {
   }
 
   async gotoTransactions() {
-    await this.page.goto("/dashboard/transactions");
+    await this.page.goto("/transactions");
     await this.page.waitForLoadState("networkidle");
   }
 
   async gotoCategories() {
-    await this.page.goto("/dashboard/categories");
+    await this.page.goto("/categories");
     await this.page.waitForLoadState("networkidle");
   }
 
   async gotoRegister() {
-    await this.page.goto("/dashboard/register");
+    await this.page.goto("/transactions");
     await this.page.waitForLoadState("networkidle");
   }
 
