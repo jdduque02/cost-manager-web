@@ -1,4 +1,18 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 export function AmbientBackground() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(query.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    query.addEventListener("change", handler);
+    return () => query.removeEventListener("change", handler);
+  }, []);
+
   return (
     <div aria-hidden className="ambient">
       <div className="ambient__grid" />
@@ -13,11 +27,13 @@ export function AmbientBackground() {
         />
         <use href="#ambient-path" className="ambient__stroke ambient__stroke--a" />
         <use href="#ambient-path" className="ambient__stroke ambient__stroke--b" />
-        <circle className="ambient__dot" r="3.5" cx="0" cy="0">
-          <animateMotion dur="30s" begin="3s" repeatCount="indefinite">
-            <mpath href="#ambient-path" />
-          </animateMotion>
-        </circle>
+        {!reducedMotion && (
+          <circle className="ambient__dot" r="3.5" cx="0" cy="0">
+            <animateMotion dur="30s" begin="3s" repeatCount="indefinite">
+              <mpath href="#ambient-path" />
+            </animateMotion>
+          </circle>
+        )}
       </svg>
     </div>
   );
