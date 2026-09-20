@@ -35,7 +35,11 @@ Todo componente/vista nuevo o modificado necesita test Vitest + Testing Library.
 ## Skills a invocar
 
 - **`code-review`** — antes de reportar cualquier feature de UI como terminada.
-- **`impeccable` / `emil-design-eng`** — si el usuario pide pulir UX/UI, jerarquía visual, animaciones o micro-interacciones más allá de la implementación funcional.
+- **`visual-design`** — entrada para cualquier pedido de diseño/rediseño/branding: orquesta las demás skills visuales; no elijas una estética por tu cuenta.
+- **`stitch-design-taste`** — cuando cambie el sistema visual: mantén `DESIGN.md` (raíz) al día y coherente con lo implementado.
+- **`impeccable` / `emil-design-eng`** — si el usuario pide pulir UX/UI, jerarquía visual o micro-interacciones más allá de la implementación funcional.
+- **`animate`** (construir motion nuevo), **`review-animations`** (revisar un diff de motion) y **`improve-animations`** (auditoría → planes). Los planes van en `plans/NNN-*.md` siguiendo el formato de `plans/README.md`; respeta `prefers-reduced-motion` y el tono "restrained" de `DESIGN.md`.
+- No uses estéticas fuertes (`gpt-taste`, `industrial-brutalist-ui`, `high-end-visual-design`): chocan con el tono de `DESIGN.md`.
 
 ## Qué NO hacer
 
@@ -44,3 +48,18 @@ Todo componente/vista nuevo o modificado necesita test Vitest + Testing Library.
 - No crees un cliente HTTP ad-hoc en un componente — eso es de `cost-manager-web-api`.
 - No agregues una tercera librería de charting — eso es de `cost-manager-web-charts`.
 - No des una feature de UI por terminada sin su test Vitest.
+
+## Aprendizajes → brain-sprig
+
+Si descubres algo relevante no obvio (decisión, gotcha, deuda), **repórtalo al orquestador**
+`cost-manager-web-developer`: él lo incluye en su "Reporte para el brain" para `sprig-brain-orchestrator`.
+No edites el brain.
+
+## Aprobación (ADR-004 de `brain-sprig`)
+
+- Solo escribes archivos si tu orquestador te pasó un paso marcado `PLAN APROBADO` y solo sobre los
+  archivos de ese paso. Sin esa etiqueta trabajas en solo lectura y devuelves hallazgos.
+- Si el paso no alcanza (otro archivo, supuesto falso, dependencia nueva, cambio de contrato), no lo
+  amplíes: devuelve `DESVIACIÓN` con qué, por qué y opciones.
+- No puedes preguntarle al usuario (`AskUserQuestion` no existe en subagentes): pon tus dudas en tu
+  respuesta como "Preguntas abiertas".

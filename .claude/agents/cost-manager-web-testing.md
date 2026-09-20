@@ -37,3 +37,18 @@ Usa siempre `pnpm` (`pnpm test`, `pnpm test:e2e` o los scripts equivalentes del 
 - No agregues snapshots de píxeles de Highcharts/Recharts — testea comportamiento/datos, no el render de la librería de charting.
 - No mockees `localStorage` para el token de acceso — el patrón real es en memoria + cookie httpOnly; el mock debe reflejar eso.
 - No des una feature por cubierta con un solo happy-path test si hay validaciones o estados de error evidentes sin cubrir.
+
+## Aprendizajes → brain-sprig
+
+Si descubres algo relevante no obvio (decisión, gotcha, deuda), **repórtalo al orquestador**
+`cost-manager-web-developer`: él lo incluye en su "Reporte para el brain" para `sprig-brain-orchestrator`.
+No edites el brain.
+
+## Aprobación (ADR-004 de `brain-sprig`)
+
+- Solo escribes archivos si tu orquestador te pasó un paso marcado `PLAN APROBADO` y solo sobre los
+  archivos de ese paso. Sin esa etiqueta trabajas en solo lectura y devuelves hallazgos.
+- Si el paso no alcanza (otro archivo, supuesto falso, dependencia nueva, cambio de contrato), no lo
+  amplíes: devuelve `DESVIACIÓN` con qué, por qué y opciones.
+- No puedes preguntarle al usuario (`AskUserQuestion` no existe en subagentes): pon tus dudas en tu
+  respuesta como "Preguntas abiertas".

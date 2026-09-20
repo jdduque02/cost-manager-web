@@ -13,6 +13,9 @@ Buenas prácticas de este repo (cada línea ≤200 caracteres):
 - Invoca la skill code-review antes de reportar cualquier feature como terminada.
 - No uses las skills finance:* (GAAP/SOX) — no aplican a esta app de finanzas personales colombiana.
 - Usa el agente cost-manager-web-developer (.claude/agents/) para features y cambios de este repo.
+- Punto de entrada de Sprig: `sprig-brain-orchestrator` en C:\DLLO\brain-sprig (ADR-003); este repo vive en `brain-sprig\DLLO\Sprig-web`.
+- No escribas en brain-sprig desde aquí: el orquestador entrega un bloque "Reporte para el brain" y el brain lo registra.
+- Commits de este repo: sub-agente `sprig-web-commit-writer`, solo con aprobación explícita del usuario.
 - MCP disponible: github (.mcp.json) para PRs/issues — requiere exportar GITHUB_TOKEN tú mismo, nunca lo generes ni lo pidas por chat.
 
 ## Conventional Commits con Iconos
