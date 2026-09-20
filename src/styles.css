@@ -40,6 +40,7 @@
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 :root {
@@ -356,6 +357,20 @@
     }
     html {
       scroll-behavior: auto;
+    }
+  }
+
+  /* neutralize Radix enter/exit transform+scale, keep opacity fade */
+  @media (prefers-reduced-motion: reduce) {
+    [data-state] {
+      --tw-enter-translate-x: 0 !important;
+      --tw-enter-translate-y: 0 !important;
+      --tw-enter-scale: 1 !important;
+      --tw-enter-rotate: 0 !important;
+      --tw-exit-translate-x: 0 !important;
+      --tw-exit-translate-y: 0 !important;
+      --tw-exit-scale: 1 !important;
+      --tw-exit-rotate: 0 !important;
     }
   }
 }

@@ -1,4 +1,11 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
 import { Toaster } from "sonner";
@@ -117,6 +124,14 @@ export const Route = createRootRoute({
   errorComponent: ErrorComponent,
 });
 
+export const AMBIENT_ROUTES = new Set([
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+]);
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -124,14 +139,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="bg-background text-foreground antialiased">
-        <ThemeProvider>
-          <AmbientBackground />
-          {children}
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
         <Scripts />
       </body>
     </html>
   );
+}
+
+export function ScopedAmbientBackground() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (!AMBIENT_ROUTES.has(pathname)) return null;
+  return <AmbientBackground />;
 }
 
 function RootComponent() {
@@ -139,6 +157,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <LoadingBar />
       <Toaster richColors closeButton position="top-right" />
+      <ScopedAmbientBackground />
       <AuthProvider>
         <VisibilityProvider>
           <NotificationProvider>
