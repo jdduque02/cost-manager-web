@@ -8,6 +8,8 @@ import {
   api,
   apiFetchBlob,
   downloadBlob,
+  tryRestoreSession,
+  resetSessionExpiredFlag,
 } from "./client";
 
 describe("token management", () => {
@@ -316,5 +318,81 @@ describe("same-tab refresh coordination", () => {
     // that never arrives in the originating tab, stalling for the 5s
     // timeout before falling back. It should now resolve almost instantly.
     expect(elapsedMs).toBeLessThan(1000);
+  });
+});
+
+describe("session restore without an active session", () => {
+  beforeEach(() => {
+    clearTokens();
+    resetSessionExpiredFlag();
+    vi.restoreAllMocks();
+  });
+
+  it("does not dispatch session-expired when auth/refresh 401s without an in-memory token", async () => {
+    const events: string[] = [];
+    const listener = () => events.push("event");
+    window.addEventListener("cm:session-expired", listener);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 401, json: () => Promise.resolve({}) }),
+    );
+
+    const restored = await tryRestoreSession();
+
+    expect(restored).toBe(false);
+    // Public routes (landing/login) bootstrap with no token: a 401 from
+    // auth/refresh means "not logged in", not an expired session, so it must
+    // not trigger the reload loop (cm:session-expired -> location = /login).
+    expect(events).toEqual([]);
+    expect(getAccessToken()).toBeNull();
+
+    window.removeEventListener("cm:session-expired", listener);
+    vi.unstubAllGlobals();
+  });
+
+  it("dispatches session-expired exactly once when refresh 401s with an active session", async () => {
+    setTokens("stale-access-token");
+    const events: string[] = [];
+    const listener = () => events.push("event");
+    window.addEventListener("cm:session-expired", listener);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 401, json: () => Promise.resolve({}) }),
+    );
+
+    const restored = await tryRestoreSession();
+
+    expect(restored).toBe(false);
+    expect(events).toEqual(["event"]);
+    expect(getAccessToken()).toBeNull();
+
+    window.removeEventListener("cm:session-expired", listener);
+    vi.unstubAllGlobals();
+  });
+
+  it("restores tokens when auth/refresh succeeds and stores the userId", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            status: true,
+            data: [{ access_token: "fresh-token", userId: 7, expires_in: 3600 }],
+            message: "ok",
+            timestamp: "",
+          }),
+      }),
+    );
+
+    const restored = await tryRestoreSession();
+
+    expect(restored).toBe(true);
+    expect(getAccessToken()).toBe("fresh-token");
+    expect(getStoredUserId()).toBe("7");
+    vi.unstubAllGlobals();
   });
 });

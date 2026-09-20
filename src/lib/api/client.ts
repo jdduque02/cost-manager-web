@@ -179,6 +179,12 @@ export function setStoredUserId(userId: string | number | null) {
 let refreshInFlight: Promise<{ access_token: string; refresh_token?: string }> | null = null;
 
 async function requestNewTokens(): Promise<{ access_token: string; refresh_token?: string }> {
+  // Only a session that we actually hold can "expire". On bootstrapping
+  // (tryRestoreSession) there is no in-memory token yet, and a 401 from
+  // auth/refresh simply means "not logged in" — dispatching the
+  // session-expired event there caused AuthProvider to hard-reload the
+  // page forever on every public page (see cm:session-expired listener).
+  const hadSession = !!memoryAccessToken;
   const refreshRes = await fetch(`${BASE_URL}auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -187,8 +193,10 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
   });
 
   if (!refreshRes.ok) {
-    handleSessionExpired();
-    broadcastSessionExpired();
+    if (hadSession) {
+      handleSessionExpired();
+      broadcastSessionExpired();
+    }
     throw new Error("Session expired. Please log in again.");
   }
 
