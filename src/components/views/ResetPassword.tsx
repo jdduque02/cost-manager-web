@@ -47,8 +47,8 @@ export function ResetPassword() {
       setError("Ingresa la nueva contraseña");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres");
+    if (newPassword.length < 12) {
+      setError("La contraseña debe tener al menos 12 caracteres");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -135,7 +135,7 @@ export function ResetPassword() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-primary"
-              placeholder="Mínimo 8 caracteres"
+              placeholder="Mínimo 12 caracteres"
               disabled={loading}
               autoFocus
             />

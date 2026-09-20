@@ -115,7 +115,7 @@ describe("ResetPassword", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Nueva contraseña" })).toBeInTheDocument();
     });
-    expect(screen.getByPlaceholderText("Mínimo 8 caracteres")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Mínimo 12 caracteres")).toBeInTheDocument();
   });
 
   it("shows error when OTP verification fails", async () => {

@@ -8,7 +8,7 @@ import type { ValidationErrorDetail } from "@/lib/api/client";
 import { identityApi } from "@/lib/api/identity";
 
 const PASSWORD_RULES = [
-  { key: "minLength", test: (p: string) => p.length >= 8, label: "Minimo 8 caracteres" },
+  { key: "minLength", test: (p: string) => p.length >= 12, label: "Minimo 12 caracteres" },
   {
     key: "upperCase",
     test: (p: string) => (p.match(/[A-Z]/g) ?? []).length >= 2,
@@ -262,7 +262,7 @@ export function Register() {
               className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
                 passwordError ? "border-destructive" : "border-border"
               }`}
-              placeholder="Minimo 8 caracteres"
+              placeholder="Minimo 12 caracteres"
               disabled={loading}
             />
             <PasswordHints password={password} />

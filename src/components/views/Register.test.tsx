@@ -70,7 +70,7 @@ describe("Register", () => {
 
   it("shows password validation hints", () => {
     renderRegister();
-    expect(screen.getByText("Minimo 8 caracteres")).toBeInTheDocument();
+    expect(screen.getByText("Minimo 12 caracteres")).toBeInTheDocument();
     expect(screen.getByText("2 mayusculas")).toBeInTheDocument();
     expect(screen.getByText("2 minusculas")).toBeInTheDocument();
     expect(screen.getByText("2 numeros")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("Register", () => {
     await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
     await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
     await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
-    await user.type(screen.getByPlaceholderText("Minimo 8 caracteres"), "TestPass123!");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
     await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "Different123!");
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
     expect(screen.getByText("Las contrasenas no coinciden")).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe("Register", () => {
     await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
     await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
     await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
-    await user.type(screen.getByPlaceholderText("Minimo 8 caracteres"), "weak");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "weak");
     await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "weak");
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
     expect(screen.getByText("La contrasena no cumple con los requisitos")).toBeInTheDocument();
@@ -123,7 +123,7 @@ describe("Register", () => {
     await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
     await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
     await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
-    await user.type(screen.getByPlaceholderText("Minimo 8 caracteres"), "TestPass123!");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
     await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
 

@@ -250,6 +250,45 @@ describe("Settings", () => {
     });
   });
 
+  describe("security tab — change password", () => {
+    it("shows the 'Mínimo 12 caracteres' hint once the new password field has input", async () => {
+      const { user } = setup();
+      await goToTab(user, "Seguridad");
+
+      await user.type(screen.getByLabelText("Nueva contraseña"), "a");
+
+      expect(screen.getByText("Mínimo 12 caracteres")).toBeInTheDocument();
+    });
+
+    it("keeps submit disabled when the new password is under 12 characters, even with good composition", async () => {
+      const { user } = setup();
+      await goToTab(user, "Seguridad");
+
+      await user.type(screen.getByLabelText("Contraseña actual"), "CurrentPass1!");
+      // 11 chars, but has uppercase/lowercase/number/special — only fails the length hint
+      await user.type(screen.getByLabelText("Nueva contraseña"), "Aa1!Aa1!Aa1");
+      await user.type(screen.getByLabelText("Confirmar nueva contraseña"), "Aa1!Aa1!Aa1");
+
+      const hintRow = screen.getByText("Mínimo 12 caracteres").closest("div");
+      expect(hintRow).toHaveTextContent("✗");
+      expect(screen.getByRole("button", { name: "Cambiar contraseña" })).toBeDisabled();
+    });
+
+    it("enables submit once the new password reaches 12 characters with good composition", async () => {
+      const { user } = setup();
+      await goToTab(user, "Seguridad");
+
+      await user.type(screen.getByLabelText("Contraseña actual"), "CurrentPass1!");
+      // 12 chars, meets all hints
+      await user.type(screen.getByLabelText("Nueva contraseña"), "Aa1!Aa1!Aa1!");
+      await user.type(screen.getByLabelText("Confirmar nueva contraseña"), "Aa1!Aa1!Aa1!");
+
+      const hintRow = screen.getByText("Mínimo 12 caracteres").closest("div");
+      expect(hintRow).toHaveTextContent("✓");
+      expect(screen.getByRole("button", { name: "Cambiar contraseña" })).toBeEnabled();
+    });
+  });
+
   describe("security tab — 2FA", () => {
     it("shows 'Proximamente' for 2FA and does not render an interactive toggle", async () => {
       const { user } = setup();

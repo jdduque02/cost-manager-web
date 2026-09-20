@@ -811,7 +811,7 @@ function ChangePasswordSection() {
   const [saved, setSaved] = useState(false);
 
   const hints = [
-    { label: "Mínimo 8 caracteres", test: (p: string) => p.length >= 8 },
+    { label: "Mínimo 12 caracteres", test: (p: string) => p.length >= 12 },
     { label: "2 letras mayúsculas", test: (p: string) => (p.match(/[A-Z]/g) || []).length >= 2 },
     { label: "2 letras minúsculas", test: (p: string) => (p.match(/[a-z]/g) || []).length >= 2 },
     { label: "2 números", test: (p: string) => (p.match(/\d/g) || []).length >= 2 },
