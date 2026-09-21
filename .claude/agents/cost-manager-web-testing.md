@@ -29,7 +29,14 @@ Usa siempre `pnpm` (`pnpm test`, `pnpm test:e2e` o los scripts equivalentes del 
 ## Skills a invocar
 
 - **`playwright-skill`** — para escribir o depurar tests e2e nuevos, o cuando un flujo de `e2e/` necesite automatización de browser más allá de lo que ya cubre el repo.
-- **`code-review`** — antes de reportar la cobertura de tests como terminada.
+- **`agent-skills:test-driven-development`** — patrón Prove-It para bugs: primero el test que falla y reproduce el bug, y solo después el arreglo.
+- **`agent-skills:debugging-and-error-recovery`** — cuando un test falle o un fallo no quede explicado tras una lectura del código.
+- **`agent-skills:webperf`** — auditoría de rendimiento antes de cerrar rutas o pantallas pesadas (listas largas, dashboards con varias gráficas).
+- **`agent-skills:ship`** — checklist go/no-go antes de un despliegue.
+- **`ponytail:ponytail-review`** (intensidad `lite`) — sobre el diff, **antes** de `code-review`: detecta sobre-ingeniería y código que no necesitaba existir.
+- **`code-review`** — antes de reportar la cobertura de tests como terminada. El cierre de toda feature es `ponytail:ponytail-review` → `code-review`, en ese orden; si omites alguna de las dos, di por qué en tu reporte al orquestador.
+- **Límite de ponytail**: no puede recortar validaciones de formularios, manejo de errores de red ni estados de carga/vacío/error de la UI (ni los tests que los cubren) en nombre de la concisión. Tampoco toca `src/lib/auth` ni `src/lib/api/client.ts` sin pasar antes por `security-review`.
+- **No reemplazan ADR-004 ni `code-review`**: `agent-skills:plan` y `agent-skills:review` no se usan en Sprig.
 
 ## Qué NO hacer
 
@@ -37,6 +44,7 @@ Usa siempre `pnpm` (`pnpm test`, `pnpm test:e2e` o los scripts equivalentes del 
 - No agregues snapshots de píxeles de Highcharts/Recharts — testea comportamiento/datos, no el render de la librería de charting.
 - No mockees `localStorage` para el token de acceso — el patrón real es en memoria + cookie httpOnly; el mock debe reflejar eso.
 - No des una feature por cubierta con un solo happy-path test si hay validaciones o estados de error evidentes sin cubrir.
+- No arregles un bug sin antes escribir el test que lo reproduce y falla (Prove-It).
 
 ## Aprendizajes → brain-sprig
 

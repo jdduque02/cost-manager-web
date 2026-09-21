@@ -83,6 +83,12 @@ Solo lo no derivable del código, de este `CLAUDE.md`/agentes o del `git log`. *
 - **`security-review`** — antes de cerrar cualquier cambio en `src/lib/auth/` o `src/lib/api/client.ts` (normalmente vía `cost-manager-web-api`, pero verifica que se haya invocado antes de dar el cambio por cerrado).
 - **`code-review`** — antes de reportar cualquier feature como terminada, sin importar cuántos sub-agentes participaron.
 - **`run`** — para levantar la app y verificar visualmente una vista o gráfico antes de darlo por terminado (mismo criterio que en móvil: no basta con que compile).
+- **`ponytail:ponytail-review`** (intensidad `lite`) — sobre el diff de la feature, **antes** de `code-review`: detecta sobre-ingeniería y código que no necesitaba existir. El cierre de toda feature es `ponytail:ponytail-review` → `code-review`, en ese orden; si omites alguna de las dos, di por qué en el "Reporte para el brain".
+- **Límite de ponytail**: no puede recortar validaciones de formularios, manejo de errores de red ni estados de carga/vacío/error de la UI en nombre de la concisión. Tampoco toca `src/lib/auth/` ni `src/lib/api/client.ts` sin pasar antes por `security-review`.
+- **`agent-skills:webperf`** — auditoría de rendimiento antes de cerrar rutas o pantallas pesadas (listas largas, dashboards con varias gráficas).
+- **`agent-skills:debugging-and-error-recovery`** — cuando un fallo no quede explicado tras una lectura del código.
+- **`agent-skills:ship`** — checklist go/no-go antes de un despliegue.
+- **No reemplazan ADR-004 ni `code-review`**: `agent-skills:plan` y `agent-skills:review` no se usan en Sprig.
 - **`task-observer`** — registra patrones y correcciones del usuario en `skill-observations/`, que ya existe en este repo.
 - **No uses las skills `finance:*`** (GAAP/SOX) — no aplican a esta app de finanzas personales colombiana.
 
@@ -99,4 +105,5 @@ Solo lo no derivable del código, de este `CLAUDE.md`/agentes o del `git log`. *
 - No introduzcas una tercera librería de gráficos ni un segundo cliente HTTP.
 - No dupliques formateo de moneda fuera de `src/lib/format.ts`.
 - No muevas el token de acceso a `localStorage`/`sessionStorage`.
-- No des una feature por terminada sin sus tests (Vitest y, si aplica, Playwright) ni sin pasar por `code-review`.
+- No des una feature por terminada sin sus tests (Vitest y, si aplica, Playwright) ni sin pasar por `ponytail:ponytail-review` y después `code-review`.
+- No dejes que `ponytail:ponytail-review` elimine validaciones de formulario, manejo de errores de red o estados de carga/vacío/error por "simplificar".
