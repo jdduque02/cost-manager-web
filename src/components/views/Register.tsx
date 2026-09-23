@@ -6,6 +6,8 @@ import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { ApiError } from "@/lib/api/client";
 import type { ValidationErrorDetail } from "@/lib/api/client";
 import { identityApi } from "@/lib/api/identity";
+import { PhoneField, isPhoneValid } from "@/components/ui/phone-field";
+import { AddressFields } from "@/components/ui/address-fields";
 
 const PASSWORD_RULES = [
   { key: "minLength", test: (p: string) => p.length >= 12, label: "Minimo 12 caracteres" },
@@ -25,7 +27,7 @@ const PASSWORD_RULES = [
 
 function PasswordHints({ password }: { password: string }) {
   return (
-    <ul className="mt-1.5 space-y-0.5">
+    <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
       {PASSWORD_RULES.map((rule) => {
         const ok = rule.test(password);
         return (
@@ -65,6 +67,7 @@ export function Register() {
   const [documentId, setDocumentId] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [localPhoneError, setLocalPhoneError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldDetails, setFieldDetails] = useState<ValidationErrorDetail[]>([]);
@@ -92,6 +95,13 @@ export function Register() {
       setError("La contrasena no cumple con los requisitos");
       return;
     }
+
+    if (phone && !isPhoneValid(phone)) {
+      setLocalPhoneError("Ingresa un numero de telefono valido");
+      setError("");
+      return;
+    }
+    setLocalPhoneError("");
 
     setLoading(true);
     setError("");
@@ -152,12 +162,12 @@ export function Register() {
   const usernameError = fieldErrors(fieldDetails, "username");
   const emailError = fieldErrors(fieldDetails, "email");
   const passwordError = fieldErrors(fieldDetails, "password");
-  const phoneError = fieldErrors(fieldDetails, "phone");
+  const phoneError = localPhoneError || fieldErrors(fieldDetails, "phone");
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-        <div className="mb-8 flex flex-col items-center">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-4">
+      <div className="w-full max-w-3xl rounded-2xl border border-border bg-surface/60 p-6 md:p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="mb-4 flex flex-col items-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-glow">
             <SprigIsotipo className="h-6 w-6" />
           </div>
@@ -165,7 +175,7 @@ export function Register() {
           <p className="mt-1 text-sm text-muted-foreground">Registrate en Sprig</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="grid gap-x-6 gap-y-3.5 md:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
               Nombre completo *
@@ -228,30 +238,11 @@ export function Register() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">Telefono</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={`w-full rounded-xl border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary ${
-                phoneError ? "border-destructive" : "border-border"
-              }`}
-              placeholder="+57 310 123 4567"
-              disabled={loading}
-            />
+            <PhoneField onChange={setPhone} invalid={!!phoneError} disabled={loading} />
             {phoneError && <p className="mt-1 text-xs text-destructive">{phoneError}</p>}
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Direccion</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
-              placeholder="Cra 10 #5-20, Bogota"
-              disabled={loading}
-            />
-          </div>
+          <AddressFields onChange={setAddress} disabled={loading} />
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">Contrasena *</label>
@@ -283,18 +274,22 @@ export function Register() {
             />
           </div>
 
-          {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
+          {error && (
+            <p className="text-sm text-destructive text-center font-medium md:col-span-2">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
+            className="flex w-full md:col-span-2 items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear cuenta"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-muted-foreground">
           Ya tienes cuenta?{" "}
           <a href="/login" className="font-medium text-primary hover:underline">
             Iniciar sesion

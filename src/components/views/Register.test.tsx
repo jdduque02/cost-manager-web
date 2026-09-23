@@ -141,6 +141,52 @@ describe("Register", () => {
     );
   });
 
+  it("sends phone in E.164 and address serialized", async () => {
+    const user = userEvent.setup();
+    vi.mocked(identityApi.createUser).mockResolvedValue({
+      id: "1",
+      external_id: "ext-1",
+      username: "juan",
+      email: "juan@test.com",
+    });
+    renderRegister();
+
+    await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
+    await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
+    await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
+    await user.type(screen.getByLabelText("Telefono"), "3101234567");
+    await user.type(screen.getByLabelText("Numero de via"), "97A");
+    await user.type(screen.getByLabelText("Numero de cruce"), "76");
+    await user.type(screen.getByLabelText("Numero de placa"), "5");
+    await user.selectOptions(screen.getByLabelText("Departamento"), "Antioquia");
+    await user.selectOptions(screen.getByLabelText("Ciudad"), "Medellín");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
+    await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+    await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+    await waitFor(() => expect(identityApi.createUser).toHaveBeenCalled());
+    expect(identityApi.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phone: "+573101234567",
+        address: "Cl 97A # 76-5, Medellín, Antioquia",
+      }),
+    );
+  });
+
+  it("blocks submit with an invalid phone", async () => {
+    const user = userEvent.setup();
+    renderRegister();
+    await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
+    await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
+    await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
+    await user.type(screen.getByLabelText("Telefono"), "123");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
+    await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+    await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+    expect(screen.getByText("Ingresa un numero de telefono valido")).toBeInTheDocument();
+    expect(identityApi.createUser).not.toHaveBeenCalled();
+  });
+
   it("renders link to login", () => {
     renderRegister();
     expect(screen.getByText("Iniciar sesion")).toHaveAttribute("href", "/login");
