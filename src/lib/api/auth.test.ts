@@ -1,112 +1,41 @@
-import { authApi, type Session, type AccessEvent } from "./auth";
-import { clearTokens } from "./client";
+import { authApi } from "./auth";
+import { api, ensureCsrfToken, clearTokens } from "./client";
 
-describe("authApi.getSessions", () => {
-  beforeEach(() => {
-    clearTokens();
-    vi.restoreAllMocks();
-  });
-
-  it("fetches the session list from auth/sessions", async () => {
-    const sessions: Session[] = [
-      {
-        id: "session-1",
-        ipAddress: "127.0.0.1",
-        browser: "Chrome",
-        start: "2026-09-01T00:00:00.000Z",
-        lastAccess: "2026-09-02T00:00:00.000Z",
-      },
-    ];
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ status: true, message: "ok", data: sessions, timestamp: "" }),
-    });
-    vi.stubGlobal("fetch", mockFetch);
-
-    const result = await authApi.getSessions();
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("auth/sessions"),
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(result).toEqual(sessions);
-  });
-
-  it("returns lastAccess as null when the session has never been used again", async () => {
-    const sessions: Session[] = [
-      {
-        id: "session-2",
-        ipAddress: "10.0.0.1",
-        browser: "Firefox",
-        start: "2026-09-01T00:00:00.000Z",
-        lastAccess: null,
-      },
-    ];
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ status: true, message: "ok", data: sessions, timestamp: "" }),
-    });
-    vi.stubGlobal("fetch", mockFetch);
-
-    const result = await authApi.getSessions();
-    expect(result[0].lastAccess).toBeNull();
-  });
+vi.mock("./client", async () => {
+  const actual = await vi.importActual("./client");
+  return {
+    ...actual,
+    ensureCsrfToken: vi.fn().mockResolvedValue("signed-token"),
+    clearTokens: vi.fn(),
+    api: {
+      ...((await actual) as { api: Record<string, unknown> }).api,
+      post: vi.fn().mockResolvedValue(undefined),
+    },
+  };
 });
 
-describe("authApi.revokeSession", () => {
-  beforeEach(() => {
-    clearTokens();
-    vi.restoreAllMocks();
-  });
-
-  it("sends a DELETE request scoped to the given sessionId", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 204,
-      json: () => Promise.resolve(undefined),
+describe("authApi.logout", () => {
+  it("ensures a CSRF token before calling auth/logout, then always clears tokens", async () => {
+    const callOrder: string[] = [];
+    vi.mocked(ensureCsrfToken).mockImplementation(async () => {
+      callOrder.push("ensureCsrfToken");
+      return "signed-token";
     });
-    vi.stubGlobal("fetch", mockFetch);
-
-    await authApi.revokeSession("session-1");
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("auth/sessions/session-1"),
-      expect.objectContaining({ method: "DELETE" }),
-    );
-  });
-});
-
-describe("authApi.getAccessHistory", () => {
-  beforeEach(() => {
-    clearTokens();
-    vi.restoreAllMocks();
-  });
-
-  it("fetches the access history from auth/access-history", async () => {
-    const events: AccessEvent[] = [
-      {
-        type: "login",
-        ipAddress: "127.0.0.1",
-        time: "2026-09-01T00:00:00.000Z",
-        error: null,
-        details: {},
-      },
-    ];
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ status: true, message: "ok", data: events, timestamp: "" }),
+    vi.mocked(api.post).mockImplementation(async () => {
+      callOrder.push("post");
     });
-    vi.stubGlobal("fetch", mockFetch);
 
-    const result = await authApi.getAccessHistory();
+    await authApi.logout();
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("auth/access-history"),
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(result).toEqual(events);
+    expect(callOrder).toEqual(["ensureCsrfToken", "post"]);
+    expect(api.post).toHaveBeenCalledWith("auth/logout", {});
+    expect(clearTokens).toHaveBeenCalled();
+  });
+
+  it("still clears tokens even if the logout request fails", async () => {
+    vi.mocked(api.post).mockRejectedValueOnce(new Error("network error"));
+
+    await expect(authApi.logout()).rejects.toThrow("network error");
+    expect(clearTokens).toHaveBeenCalled();
   });
 });

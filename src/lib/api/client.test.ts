@@ -10,6 +10,9 @@ import {
   downloadBlob,
   tryRestoreSession,
   resetSessionExpiredFlag,
+  HAS_SESSION_KEY,
+  ensureCsrfToken,
+  resetCsrfToken,
 } from "./client";
 
 describe("token management", () => {
@@ -150,6 +153,142 @@ describe("api helpers", () => {
 
     const result = await api.getOne<{ id: number; name: string }>("test-endpoint");
     expect(result).toEqual({ id: 1, name: "item" });
+  });
+});
+
+describe("ensureCsrfToken", () => {
+  beforeEach(() => {
+    resetCsrfToken();
+    vi.restoreAllMocks();
+  });
+
+  it("fetches the token from GET csrf-token and caches it in memory", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          status: true,
+          data: [{ csrfToken: "signed-token" }],
+          message: "ok",
+          timestamp: "",
+        }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const token = await ensureCsrfToken();
+    expect(token).toBe("signed-token");
+
+    // Second call reuses the cached value: no second network call.
+    const token2 = await ensureCsrfToken();
+    expect(token2).toBe("signed-token");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("dedupes concurrent calls into a single fetch", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          status: true,
+          data: [{ csrfToken: "signed-token" }],
+          message: "ok",
+          timestamp: "",
+        }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const [a, b] = await Promise.all([ensureCsrfToken(), ensureCsrfToken()]);
+    expect(a).toBe("signed-token");
+    expect(b).toBe("signed-token");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves to null (does not throw) when the backend call fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) }),
+    );
+
+    const token = await ensureCsrfToken();
+    expect(token).toBeNull();
+  });
+
+  it("apiFetch sends x-csrf-token once a token has been fetched", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            status: true,
+            data: [{ csrfToken: "signed-token" }],
+            message: "ok",
+            timestamp: "",
+          }),
+      }),
+    );
+    await ensureCsrfToken();
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ status: true, data: [], message: "ok", timestamp: "" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await api.post("auth/logout", {});
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("auth/logout"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-csrf-token": "signed-token" }),
+      }),
+    );
+  });
+});
+
+describe("paginated envelope", () => {
+  beforeEach(() => {
+    clearTokens();
+    vi.restoreAllMocks();
+  });
+
+  const paginated = {
+    status: true,
+    message: "ok",
+    data: [{ id: 1 }, { id: 2 }],
+    total: 57,
+    timestamp: "",
+  };
+
+  it("getPaginated reads total from the envelope root", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(paginated) }),
+    );
+    const result = await api.getPaginated<{ data: { id: number }[]; total: number }>("items");
+    expect(result).toEqual({ data: [{ id: 1 }, { id: 2 }], total: 57 });
+  });
+
+  it("get returns just the items of a paginated envelope", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(paginated) }),
+    );
+    expect(await api.get("items")).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it("getPaginated falls back to data.length when total is missing", async () => {
+    const { total: _omit, ...noTotal } = paginated;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve(noTotal) }),
+    );
+    const result = await api.getPaginated<{ total: number }>("items");
+    expect(result.total).toBe(2);
   });
 });
 
@@ -328,7 +467,22 @@ describe("session restore without an active session", () => {
     vi.restoreAllMocks();
   });
 
+  it("skips the auth/refresh call entirely when the browser has no session marker", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const restored = await tryRestoreSession();
+
+    // First visit to a public route (landing/login): nothing in this browser
+    // says a session ever existed, so don't waste a round trip confirming it.
+    expect(restored).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
   it("does not dispatch session-expired when auth/refresh 401s without an in-memory token", async () => {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
     const events: string[] = [];
     const listener = () => events.push("event");
     window.addEventListener("cm:session-expired", listener);
@@ -341,9 +495,10 @@ describe("session restore without an active session", () => {
     const restored = await tryRestoreSession();
 
     expect(restored).toBe(false);
-    // Public routes (landing/login) bootstrap with no token: a 401 from
-    // auth/refresh means "not logged in", not an expired session, so it must
-    // not trigger the reload loop (cm:session-expired -> location = /login).
+    // A stale session marker (cookie expired/revoked server-side) 401s on
+    // reload before any access token is in memory: still "not logged in",
+    // not an expired session, so it must not trigger the reload loop
+    // (cm:session-expired -> location = /login).
     expect(events).toEqual([]);
     expect(getAccessToken()).toBeNull();
 
@@ -373,6 +528,7 @@ describe("session restore without an active session", () => {
   });
 
   it("restores tokens when auth/refresh succeeds and stores the userId", async () => {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({

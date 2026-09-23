@@ -1,12 +1,8 @@
-import { api, setTokens, clearTokens, setStoredUserId } from "./client";
+import { api, setTokens, clearTokens, setStoredUserId, ensureCsrfToken } from "./client";
 
 export interface LoginPayload {
   username: string;
   password: string;
-}
-
-interface EncryptResult {
-  encrypted_password: string;
 }
 
 export interface AuthTokens {
@@ -39,20 +35,11 @@ export interface AccessEvent {
 }
 
 export const authApi = {
-  async encryptPassword(password: string): Promise<string> {
-    const result = await api.post<unknown>("auth/encrypt", { password });
-    const r = Array.isArray(result) ? result[0] : result;
-    if (typeof r === "string") return r;
-    if (r && typeof r === "object" && "encrypted_password" in r)
-      return (r as EncryptResult).encrypted_password;
-    throw new Error("Formato inesperado de /auth/encrypt");
-  },
-
   async login(payload: LoginPayload): Promise<LoginResult> {
-    const encryptedPassword = await this.encryptPassword(payload.password);
+    // La contraseña viaja en claro dentro de HTTPS; la API ya no expone auth/encrypt.
     const tokens = await api.post<AuthTokens[]>("auth/login", {
       username: payload.username,
-      password: encryptedPassword,
+      password: payload.password,
     });
     const t = Array.isArray(tokens) ? tokens[0] : tokens;
     setTokens(t.access_token, t.refresh_token, t.userId, t.expires_in);
@@ -66,6 +53,9 @@ export const authApi = {
 
   async logout(): Promise<void> {
     try {
+      // El backend exige token CSRF en logout: es la única mutación que puede
+      // llegar sin Bearer (access token ya expirado, solo cookie de refresh).
+      await ensureCsrfToken();
       await api.post<void>("auth/logout", {});
     } finally {
       clearTokens();

@@ -15,6 +15,47 @@ let memoryAccessToken: string | null = null;
 let memoryUserId: string | null = null;
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Token CSRF (doble-submit cookie) en memoria. Lo exige el backend solo en
+ * `POST /auth/logout` (la única mutación que puede llegar sin Bearer, ver
+ * `csrf.config.ts` del backend); se manda igual en toda request por si acaso,
+ * no tiene costo en las rutas donde el backend lo ignora.
+ */
+let memoryCsrfToken: string | null = null;
+let csrfTokenFetch: Promise<string | null> | null = null;
+
+/**
+ * Marca (no el token, solo un booleano) de que hubo login en este navegador.
+ * La cookie de refresh es httpOnly (JS no puede leerla), así que este flag es
+ * la única señal disponible para evitar llamar `auth/refresh` en visitantes
+ * que nunca han iniciado sesión (p. ej. la primera carga de una página pública).
+ */
+export const HAS_SESSION_KEY = "cm:has-session";
+
+function markSessionPresent(): void {
+  try {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
+  } catch {
+    // Modo privado / cuota llena: sin marca, tryRestoreSession igual intentará el refresh.
+  }
+}
+
+function clearSessionMarker(): void {
+  try {
+    window.localStorage.removeItem(HAS_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function hasStoredSession(): boolean {
+  try {
+    return window.localStorage.getItem(HAS_SESSION_KEY) === "1";
+  } catch {
+    return true; // sin acceso a localStorage: no se puede descartar, deja intentar el refresh
+  }
+}
+
 /** Check if response has ApiResponseDto shape */
 function isApiResponseEnvelope(json: unknown): json is {
   status: boolean;
@@ -33,27 +74,16 @@ function isApiResponseEnvelope(json: unknown): json is {
 }
 
 /**
- * Unwrap the ApiResponseDto envelope.
- * - Paginated: data = [{ data: [...items], total: N }] → returns items array by default
- * - All others: data = [item1, ...] → returns the array as-is
- * Use `preservePaginated: true` in apiFetch to keep `{ data, total }`.
+ * Unwrap the ApiResponseDto envelope `{ status, message, data: T[], total?, timestamp }`.
+ * Paginated responses carry `total` at the envelope ROOT (not inside `data`).
+ * By default returns the `data` array; with `preservePaginated: true` returns
+ * `{ data, total }` (total falls back to `data.length` when the API omits it).
  */
 function unwrapEnvelope<T>(json: Record<string, unknown>, preservePaginated = false): T {
   const data = json.data as unknown[];
-  if (data.length === 0) return [] as unknown as T;
-  if (data.length === 1) {
-    const single = data[0];
-    if (
-      single !== null &&
-      typeof single === "object" &&
-      "data" in single &&
-      "total" in single &&
-      Array.isArray((single as Record<string, unknown>).data)
-    ) {
-      return (preservePaginated ? single : (single as Record<string, unknown>).data) as T;
-    }
-  }
-  return data as unknown as T;
+  if (!preservePaginated) return data as unknown as T;
+  const total = typeof json.total === "number" ? json.total : data.length;
+  return { data, total } as unknown as T;
 }
 
 export function getAccessToken(): string | null {
@@ -68,6 +98,7 @@ export function setTokens(
 ) {
   memoryAccessToken = access;
   if (userId !== undefined) memoryUserId = String(userId);
+  markSessionPresent();
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
   }
@@ -80,6 +111,7 @@ export function clearTokens() {
   memoryAccessToken = null;
   memoryUserId = null;
   cancelProactiveRefresh();
+  clearSessionMarker();
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +198,12 @@ function handleSessionExpired() {
 
 export function resetSessionExpiredFlag() {
   sessionExpiredDispatched = false;
+}
+
+/** Solo para tests: limpia el token CSRF cacheado en memoria. */
+export function resetCsrfToken() {
+  memoryCsrfToken = null;
+  csrfTokenFetch = null;
 }
 
 export function getStoredUserId(): string | null {
@@ -293,6 +331,7 @@ export class ApiError extends Error {
 
 /** Intenta recuperar sesión vía cookie de refresh (p. ej. al recargar). */
 export async function tryRestoreSession(): Promise<boolean> {
+  if (!hasStoredSession()) return false;
   try {
     await refreshTokens();
     return !!memoryAccessToken;
@@ -340,6 +379,7 @@ async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}
     "Content-Type": "application/json",
     ...(fetchOptions.headers ?? {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(memoryCsrfToken ? { "x-csrf-token": memoryCsrfToken } : {}),
   };
 
   const url = `${BASE_URL}${path}`;
@@ -409,6 +449,27 @@ export const api = {
     return Array.isArray(result) ? result[0] : (result as unknown as T);
   },
 };
+
+/**
+ * Garantiza que haya un token CSRF en memoria, pidiéndolo a `GET /csrf-token`
+ * si falta. Idempotente: llamadas concurrentes comparten el mismo fetch.
+ */
+export async function ensureCsrfToken(): Promise<string | null> {
+  if (memoryCsrfToken) return memoryCsrfToken;
+  if (!csrfTokenFetch) {
+    csrfTokenFetch = api
+      .getOne<{ csrfToken: string }>("csrf-token")
+      .then((result) => {
+        memoryCsrfToken = result?.csrfToken ?? null;
+        return memoryCsrfToken;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfTokenFetch = null;
+      });
+  }
+  return csrfTokenFetch;
+}
 
 async function parseResponseError(res: Response): Promise<ApiError> {
   let message = `API error ${res.status}`;
