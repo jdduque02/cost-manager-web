@@ -5,13 +5,14 @@ import { FileText, Sparkles, ShieldCheck, Loader2, Brain, Download, Pencil } fro
 import { cn } from "@/lib/utils";
 import {
   useFinancialBudgetProfile,
-  useTransactions,
+  useTransactionSummary,
   useTaxSummary,
   useCalculateTaxSummary,
   useFinancialAiAnalysis,
   useDownloadFinancialAiReport,
 } from "@/lib/hooks/use-api";
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { FinancialEducation } from "./FinancialEducation";
 import { LifeStageGuide } from "./LifeStageGuide";
@@ -68,7 +69,15 @@ function BudgetBar({
 
 export function Intelligence() {
   const { data: profile, isLoading: loadProfile } = useFinancialBudgetProfile();
-  const { data: txs = [], isLoading: loadTxs } = useTransactions();
+  const monthQuery = useMemo(() => {
+    const now = new Date();
+    return {
+      date_from: format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd"),
+      date_to: format(now, "yyyy-MM-dd"),
+    };
+  }, []);
+  // Totales del mes agregados en servidor (el listado paginado los truncaba).
+  const { data: monthSummary, isLoading: loadTxs } = useTransactionSummary(monthQuery);
   const { data: taxSummary, isLoading: loadTax } = useTaxSummary();
   const {
     data: aiAnalysis,
@@ -111,18 +120,8 @@ export function Intelligence() {
   const budgetData = useMemo(() => {
     if (!profile) return null;
 
-    const now = new Date();
-    const currentMonthTxs = txs.filter((t) => {
-      const d = new Date(t.created_at);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-
-    const monthlyIncome = currentMonthTxs
-      .filter((t) => t.type === "income")
-      .reduce((acc, t) => acc + t.amount, 0);
-    const monthlyExpenses = currentMonthTxs
-      .filter((t) => t.type === "expense")
-      .reduce((acc, t) => acc + t.amount, 0);
+    const monthlyIncome = monthSummary?.totals.income ?? 0;
+    const monthlyExpenses = monthSummary?.totals.expenses ?? 0;
 
     const needsLimit = monthlyIncome * (profile.needs_ratio / 100);
     const wantsLimit = monthlyIncome * (profile.wants_ratio / 100);
@@ -153,7 +152,7 @@ export function Intelligence() {
         tone: "warning",
       },
     ];
-  }, [profile, txs]);
+  }, [profile, monthSummary]);
 
   if (isLoading) {
     return (

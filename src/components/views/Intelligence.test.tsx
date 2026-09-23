@@ -12,7 +12,7 @@ const mockCalculateTaxSummary = vi.fn();
 
 vi.mock("@/lib/hooks/use-api", () => ({
   useFinancialBudgetProfile: () => ({ data: null, isLoading: false }),
-  useTransactions: () => ({ data: [], isLoading: false }),
+  useTransactionSummary: () => ({ data: undefined, isLoading: false }),
   useTaxSummary: vi.fn(),
   useCalculateTaxSummary: () => ({ mutate: mockCalculateTaxSummary, isPending: false }),
   useFinancialAiAnalysis: vi.fn(),

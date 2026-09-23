@@ -22,11 +22,17 @@ import { Button } from "@/components/ui/button";
 import { RevealSection } from "@/components/ui/reveal-section";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
-import { useNetWorth, useTransactions, useCategories } from "@/lib/hooks/use-api";
+import {
+  useNetWorth,
+  useTransactions,
+  useTransactionSummary,
+  useCategories,
+} from "@/lib/hooks/use-api";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import { useCountUp } from "@/hooks/use-count-up";
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
 
@@ -153,7 +159,28 @@ function KPI({
 }
 
 export function Dashboard() {
-  const { data: txs = [] } = useTransactions();
+  // Totales y gráficas salen de transactions/summary (agregado en servidor):
+  // el listado está paginado (limit 20 por defecto) y truncaba las sumas.
+  const now = useMemo(() => new Date(), []);
+  const monthQuery = useMemo(
+    () => ({
+      date_from: format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd"),
+      date_to: format(now, "yyyy-MM-dd"),
+    }),
+    [now],
+  );
+  const sixMonthQuery = useMemo(
+    () => ({
+      date_from: format(new Date(now.getFullYear(), now.getMonth() - 5, 1), "yyyy-MM-dd"),
+      date_to: format(now, "yyyy-MM-dd"),
+      group_by: "month" as const,
+    }),
+    [now],
+  );
+  const { data: monthSummary } = useTransactionSummary(monthQuery);
+  const { data: sixMonthSummary } = useTransactionSummary(sixMonthQuery);
+  // La API ordena por transaction_date DESC: basta con las 5 más recientes.
+  const { data: txs = [] } = useTransactions({ limit: 5 });
   const { summary: nw } = useNetWorth();
   const { data: categories = [] } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -170,25 +197,8 @@ export function Dashboard() {
     return map;
   }, [categories]);
 
-  function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
-    const iso = t.transaction_date ?? t.created_at ?? "";
-    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  // Calculate this month's income and expenses
-  const now = useMemo(() => new Date(), []);
-  const currentMonthTxs = txs.filter((t) => {
-    const d = txDate(t);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-
-  const monthlyIncome = currentMonthTxs
-    .filter((t) => t.type === "income")
-    .reduce((acc, t) => acc + t.amount, 0);
-  const monthlyExpenses = currentMonthTxs
-    .filter((t) => t.type === "expense")
-    .reduce((acc, t) => acc + t.amount, 0);
+  const monthlyIncome = monthSummary?.totals.income ?? 0;
+  const monthlyExpenses = monthSummary?.totals.expenses ?? 0;
   const savingsRate =
     monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
 
@@ -197,39 +207,32 @@ export function Dashboard() {
   const animatedMonthlyExpenses = useCountUp(monthlyExpenses, { duration: 800, delay: 120 });
   const animatedSavingsRate = useCountUp(savingsRate, { duration: 800, delay: 180 });
 
-  // Build monthly chart data from transactions (last 6 months)
+  // Last 6 months; months without movements come back absent from the series.
   const monthlyChartData = useMemo(() => {
+    const byKey = new Map((sixMonthSummary?.series ?? []).map((i) => [i.key, i]));
     const months: { month: string; income: number; expenses: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const label = d.toLocaleDateString("es-CO", { month: "short" });
-      const monthTxs = txs.filter((t) => {
-        const td = txDate(t);
-        return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
-      });
+      const bucket = byKey.get(format(d, "yyyy-MM-dd"));
       months.push({
-        month: label,
-        income: monthTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
-        expenses: monthTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+        month: d.toLocaleDateString("es-CO", { month: "short" }),
+        income: bucket?.income ?? 0,
+        expenses: bucket?.expenses ?? 0,
       });
     }
     return months;
-  }, [txs, now]);
+  }, [sixMonthSummary, now]);
 
-  // Spending by category
-  const categorySpending = useMemo(() => {
-    const map: Record<number, number> = {};
-    currentMonthTxs
-      .filter((t) => t.type === "expense")
-      .forEach((t) => {
-        const catId = t.category_id ?? -1;
-        map[catId] = (map[catId] ?? 0) + t.amount;
-      });
-    return Object.entries(map)
-      .map(([catId, amt]) => ({ cat: categoryMap[Number(catId)] ?? "Por editar", amt }))
-      .sort((a, b) => b.amt - a.amt)
-      .slice(0, 6);
-  }, [currentMonthTxs, categoryMap]);
+  // Spending by category (current month)
+  const categorySpending = useMemo(
+    () =>
+      (monthSummary?.by_category ?? [])
+        .filter((c) => c.expenses > 0)
+        .map((c) => ({ cat: categoryMap[c.category_id] ?? "Por editar", amt: c.expenses }))
+        .sort((a, b) => b.amt - a.amt)
+        .slice(0, 6),
+    [monthSummary, categoryMap],
+  );
 
   const colors = useChartColors();
   const PIE_COLORS = [
@@ -519,7 +522,7 @@ export function Dashboard() {
                   </Button>
                 </li>
               ) : (
-                txs.slice(0, 5).map((t) => {
+                txs.map((t) => {
                   const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
                   const Icon = getCategoryIcon(categoryName);
 
