@@ -117,9 +117,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { access_token: result.accessToken, refresh_token: result.refreshToken ?? "" };
   }, []);
 
+  // authApi.logout ya limpia los tokens en su finally; si auth/logout falla
+  // (red caída, 5xx) igual cerramos la sesión local para no dejar al usuario atrapado.
   const logout = useCallback(async () => {
-    await authApi.logout();
-    setUser(null);
+    try {
+      await authApi.logout();
+    } catch {
+      // ignorado a propósito: la sesión local se cierra de todas formas
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const refreshUser = useCallback(async () => {

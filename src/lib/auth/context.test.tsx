@@ -25,7 +25,6 @@ vi.mock("@/lib/api/auth", () => ({
     forgotPassword: vi.fn().mockResolvedValue({ message: "sent" }),
     verifyOtp: vi.fn().mockResolvedValue({ reset_token: "reset-tok", expires_in_seconds: 600 }),
     resetPassword: vi.fn().mockResolvedValue({ message: "ok" }),
-    encryptPassword: vi.fn().mockResolvedValue("encrypted"),
   },
 }));
 
@@ -106,6 +105,26 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
     });
 
+    await user.click(screen.getByText("login"));
+    await waitFor(() => {
+      expect(screen.getByTestId("is-authenticated")).toHaveTextContent("true");
+    });
+
+    await user.click(screen.getByText("logout"));
+    await waitFor(() => {
+      expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
+    });
+  });
+
+  it("logout clears the user even when auth/logout fails", async () => {
+    const { authApi } = await import("@/lib/api/auth");
+    vi.mocked(authApi.logout).mockRejectedValueOnce(new Error("network down"));
+    const user = userEvent.setup();
+    renderAuth();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
     await user.click(screen.getByText("login"));
     await waitFor(() => {
       expect(screen.getByTestId("is-authenticated")).toHaveTextContent("true");
