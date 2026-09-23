@@ -34,7 +34,6 @@ vi.mock("@/lib/api/auth", () => ({
   authApi: {
     login: vi.fn(),
     logout: vi.fn().mockResolvedValue(undefined),
-    encryptPassword: vi.fn().mockResolvedValue("encrypted"),
   },
 }));
 
