@@ -34,3 +34,10 @@ dist-ssr
 .env.sonar
 # Strix (reportes de escaneo)
 strix_runs/
+
+# Reportes/artefactos de test runs (Playwright)
+playwright-report/
+test-results/
+
+# Log interno de la skill task-observer
+skill-observations/
