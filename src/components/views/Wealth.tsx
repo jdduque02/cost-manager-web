@@ -38,6 +38,7 @@ import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/
 import { accountTypeLabel } from "@/lib/api/banking";
 import type { TransactionRecord } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 type EntityType = "account" | "asset" | "liability";
 
 function humanizeType(t: string): string {
@@ -381,7 +382,7 @@ export function Wealth() {
       toast.success("Elemento eliminado");
       setDeleteTarget(null);
     };
-    const onError = () => toast.error("Error al eliminar");
+    const onError = () => toast.error(t("err.delete"));
 
     if (type === "account") deleteAccount.mutate(id, { onSuccess, onError });
     else if (type === "asset") deleteAsset.mutate(id, { onSuccess, onError });
@@ -394,7 +395,7 @@ export function Wealth() {
         const ok = quotes.filter((q) => q.success).length;
         toast.success(`Valores actualizados (${ok}/${quotes.length})`);
       },
-      onError: () => toast.error("Error al consultar los valores en línea"),
+      onError: () => toast.error(t("err.wealth.quotes")),
     });
   }
 
@@ -413,7 +414,7 @@ export function Wealth() {
     const validUpdates = updates.filter((u): u is NonNullable<typeof u> => u != null);
     Promise.all(validUpdates.map((u) => updateAccount.mutateAsync(u)))
       .then(() => toast.success(next ? "Cuenta principal actualizada" : "Ya no es principal"))
-      .catch(() => toast.error("Error al actualizar la cuenta principal"));
+      .catch(() => toast.error(t("err.wealth.primary")));
   }
 
   function handleToggleExempt(account: BankAccount) {
@@ -430,7 +431,7 @@ export function Wealth() {
     const validUpdates = updates.filter((u): u is NonNullable<typeof u> => u != null);
     Promise.all(validUpdates.map((u) => updateAccount.mutateAsync(u)))
       .then(() => toast.success(next ? "Cuenta exenta del 4x1000" : "Cuenta ya no exenta"))
-      .catch(() => toast.error("Error al actualizar la exención 4x1000"));
+      .catch(() => toast.error(t("err.wealth.4x1000")));
   }
 
   const hasSymbolizedAssets = assets.some((a) => !!a.symbol);

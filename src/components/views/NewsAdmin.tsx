@@ -16,6 +16,7 @@ import { newsApi } from "@/lib/api/news";
 import type { NewsItem, CreateNewsItemDto } from "@/lib/api/news";
 import { Loader2, Plus, Pencil, Trash2, Send, Newspaper, ExternalLink } from "lucide-react";
 
+import { t } from "@/lib/i18n/errors";
 function NewsForm({
   initial,
   onSave,
@@ -41,7 +42,7 @@ function NewsForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim()) {
-      toast.error("Título y resumen son obligatorios");
+      toast.error(t("err.news.required"));
       return;
     }
     onSave({
@@ -389,7 +390,7 @@ function BroadcastForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !htmlBody.trim()) {
-      toast.error("Asunto y cuerpo son obligatorios");
+      toast.error(t("err.news.mail.required"));
       return;
     }
     onSend(subject.trim(), htmlBody.trim());

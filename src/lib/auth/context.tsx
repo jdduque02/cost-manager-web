@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 
+import { t } from "@/lib/i18n/errors";
 export interface AuthState {
   user: User | null;
   userId: string | null;
@@ -40,8 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetSessionExpiredFlag();
     const unsubscribe = onSessionExpired(() => {
       setUser(null);
-      toast.error("Sesión expirada", {
-        description: "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
+      toast.error(t("err.session.expiredTitle"), {
+        description: t("err.session.expiredDesc"),
         duration: 5000,
       });
       // Redirect to login after a short delay

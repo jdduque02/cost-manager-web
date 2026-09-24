@@ -54,6 +54,7 @@ import type {
   FixedFrequency,
 } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 interface TransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -312,7 +313,7 @@ export function TransactionDialog({
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error("Error al actualizar la transacción"),
+          onError: () => toast.error(t("err.tx.update")),
         },
       );
     } else {
@@ -322,7 +323,7 @@ export function TransactionDialog({
           reset();
           onOpenChange(false);
         },
-        onError: () => toast.error("Error al crear la transacción"),
+        onError: () => toast.error(t("err.tx.create")),
       });
     }
   }

@@ -22,6 +22,7 @@ import {
 import { useCategories, useCreateEmpresa, useUpdateEmpresa } from "@/lib/hooks/use-api";
 import type { Empresa } from "@/lib/api/empresas";
 
+import { t } from "@/lib/i18n/errors";
 interface EmpresaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,7 +72,7 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
         reset();
         onOpenChange(false);
       } catch {
-        toast.error("Error al actualizar la empresa", { id });
+        toast.error(t("err.company.update"), { id });
       }
     } else {
       const id = toast.loading("Creando empresa...");
@@ -83,7 +84,7 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
         onOpenChange(false);
         onCreated?.(created);
       } catch {
-        toast.error("Error al crear la empresa", { id });
+        toast.error(t("err.company.create"), { id });
       }
     }
   }

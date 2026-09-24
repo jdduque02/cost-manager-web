@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { useUpdateTaxSummary, type TaxSummary } from "@/lib/hooks/use-api";
 
+import { t } from "@/lib/i18n/errors";
 interface TaxSummaryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,7 +70,7 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
           toast.error(
             err instanceof Error && err.message
               ? err.message
-              : "Error al actualizar el resumen fiscal",
+              : t("err.tax.update"),
           ),
       },
     );

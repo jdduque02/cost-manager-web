@@ -35,6 +35,7 @@ import { fmtCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WealthDialog } from "./WealthDialog";
 
+import { t } from "@/lib/i18n/errors";
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   ahorros: "Ahorros",
   corriente: "Corriente",
@@ -691,7 +692,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
       setStep(2);
       toast.dismiss(id);
     } catch (err) {
-      toast.error(err instanceof Error && err.message ? err.message : "Error al calcular cuota", {
+      toast.error(err instanceof Error && err.message ? err.message : t("err.goal.quota"), {
         id,
       });
     }
@@ -725,7 +726,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
           },
           onError: (err) =>
             toast.error(
-              err instanceof Error && err.message ? err.message : "Error al actualizar la meta",
+              err instanceof Error && err.message ? err.message : t("err.goal.update"),
             ),
         },
       );
@@ -738,7 +739,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
           onOpenChange(false);
         },
         onError: (err) =>
-          toast.error(err instanceof Error && err.message ? err.message : "Error al crear la meta"),
+          toast.error(err instanceof Error && err.message ? err.message : t("err.goal.create")),
       });
     }
   }

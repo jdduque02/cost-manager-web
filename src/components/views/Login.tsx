@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 
+import { t } from "@/lib/i18n/errors";
 export function Login() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
-      setError("Por favor ingresa el usuario y contraseña");
+      setError(t("err.login.empty"));
       return;
     }
 
@@ -33,7 +34,7 @@ export function Login() {
       await login(username, password);
     } catch (err) {
       console.log(err);
-      setError("Credenciales inválidas o error del servidor");
+      setError(t("err.login.failed"));
     } finally {
       setLoading(false);
     }

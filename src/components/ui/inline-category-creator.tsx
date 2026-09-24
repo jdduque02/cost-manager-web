@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useCreateCategory } from "@/lib/hooks/use-api";
 import type { GroupType } from "@/lib/api/catalog";
 
+import { t } from "@/lib/i18n/errors";
 interface InlineCategoryCreatorProps {
   groupType: GroupType;
   onCreated: (categoryId: number) => void;
@@ -29,7 +30,7 @@ export function InlineCategoryCreator({ groupType, onCreated }: InlineCategoryCr
           setOpen(false);
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Error al crear la categoría");
+          toast.error(err instanceof Error ? err.message : t("err.category.create"));
         },
       },
     );

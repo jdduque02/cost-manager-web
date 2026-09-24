@@ -4,6 +4,7 @@ import { Loader2, Mail, ArrowLeft } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { authApi } from "@/lib/api/auth";
 
+import { t } from "@/lib/i18n/errors";
 export function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -14,7 +15,7 @@ export function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setError("Por favor ingresa tu correo electrónico");
+      setError(t("err.forgot.email"));
       return;
     }
 
@@ -29,7 +30,7 @@ export function ForgotPassword() {
       }, 2000);
     } catch (err) {
       console.error(err);
-      setError("No se pudo enviar el código. Verifica tu correo e intenta de nuevo.");
+      setError(t("err.forgot.send"));
     } finally {
       setLoading(false);
     }

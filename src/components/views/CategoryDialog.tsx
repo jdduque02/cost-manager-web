@@ -23,6 +23,7 @@ import { useCreateCategory, useUpdateCategory } from "@/lib/hooks/use-api";
 import type { Category, GroupType, ProfileBucket } from "@/lib/api/catalog";
 import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
+import { t } from "@/lib/i18n/errors";
 interface CategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,7 +77,7 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
         reset();
         onOpenChange(false);
       } catch {
-        toast.error("Error al actualizar la categoría", { id });
+        toast.error(t("err.category.update"), { id });
       }
     } else {
       const id = toast.loading("Creando categoría...");
@@ -86,7 +87,7 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
         reset();
         onOpenChange(false);
       } catch {
-        toast.error("Error al crear la categoría", { id });
+        toast.error(t("err.category.create"), { id });
       }
     }
   }

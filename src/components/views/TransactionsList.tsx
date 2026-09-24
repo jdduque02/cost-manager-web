@@ -68,6 +68,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { TransactionRecord, TransferMovement, TransferResponse } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName.toLowerCase();
@@ -737,7 +738,7 @@ export function TransactionsList() {
           toast.success("Transferencia eliminada");
           setDeletingTx(null);
         },
-        onError: () => toast.error("Error al eliminar la transferencia"),
+        onError: () => toast.error(t("err.transfer.delete")),
       });
       return;
     }
@@ -746,7 +747,7 @@ export function TransactionsList() {
         toast.success("Transacción eliminada");
         setDeletingTx(null);
       },
-      onError: () => toast.error("Error al eliminar la transacción"),
+      onError: () => toast.error(t("err.tx.delete")),
     });
   };
 
@@ -787,7 +788,7 @@ export function TransactionsList() {
         setBulkMonthLabel(null);
         setBulkConfirmOpen(false);
       },
-      onError: () => toast.error("Error al eliminar las transacciones"),
+      onError: () => toast.error(t("err.tx.deleteMany")),
     });
   };
 
@@ -1150,7 +1151,7 @@ export function TransactionsList() {
                   toast.error(
                     err instanceof Error && err.message
                       ? err.message
-                      : "Error al clonar la transferencia",
+                      : t("err.transfer.clone"),
                   );
                 },
               },
@@ -1168,7 +1169,7 @@ export function TransactionsList() {
                   toast.error(
                     err instanceof Error && err.message
                       ? err.message
-                      : "Error al clonar la transacción",
+                      : t("err.tx.clone"),
                   ),
               },
             );

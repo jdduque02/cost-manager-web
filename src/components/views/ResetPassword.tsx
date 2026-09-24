@@ -4,6 +4,7 @@ import { Loader2, CheckCircle, ArrowLeft, KeyRound } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { authApi } from "@/lib/api/auth";
 
+import { t } from "@/lib/i18n/errors";
 export function ResetPassword() {
   const navigate = useNavigate();
   const { email } = useSearch({ from: "/reset-password" });
@@ -20,7 +21,7 @@ export function ResetPassword() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code || code.length !== 6) {
-      setError("Ingresa el código de 6 dígitos");
+      setError(t("err.reset.code"));
       return;
     }
 
@@ -34,7 +35,7 @@ export function ResetPassword() {
       setStep("password");
     } catch (err) {
       console.error(err);
-      setError("Código inválido o expirado. Intenta de nuevo.");
+      setError(t("err.reset.invalid"));
     } finally {
       setLoading(false);
     }
@@ -44,15 +45,15 @@ export function ResetPassword() {
     e.preventDefault();
 
     if (!newPassword) {
-      setError("Ingresa la nueva contraseña");
+      setError(t("err.reset.newpass"));
       return;
     }
     if (newPassword.length < 12) {
-      setError("La contraseña debe tener al menos 12 caracteres");
+      setError(t("err.reset.min"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      setError(t("err.reset.mismatch"));
       return;
     }
 
@@ -67,7 +68,7 @@ export function ResetPassword() {
       }, 2500);
     } catch (err) {
       console.error(err);
-      setError("No se pudo restablecer la contraseña. Intenta de nuevo.");
+      setError(t("err.reset.fail"));
     } finally {
       setLoading(false);
     }

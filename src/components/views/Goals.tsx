@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { FinancialObjective, TransactionRecord } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 function getGoalIcon(name?: string) {
   if (!name) return Tag;
   const n = name.toLowerCase();
@@ -210,7 +211,7 @@ export function Goals() {
         toast.success("Meta eliminada");
         setDeletingGoal(null);
       },
-      onError: () => toast.error("Error al eliminar la meta"),
+      onError: () => toast.error(t("err.goal.delete")),
     });
   }
 

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { mailApi, OTP_EMAIL_TEMPLATE_KEY, type EmailTemplate } from "@/lib/api/mail";
 import { Save, Eye, PenLine, Loader2, Mail, ArrowLeft, FileCode2 } from "lucide-react";
 
+import { t } from "@/lib/i18n/errors";
 type Mode = "edit" | "preview";
 
 export function EmailTemplates() {
@@ -33,7 +34,7 @@ export function EmailTemplates() {
       })
       .catch((err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "No se pudo cargar la plantilla.");
+        setError(err instanceof Error ? err.message : t("err.template.load"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -73,7 +74,7 @@ export function EmailTemplates() {
       setPreviewHtml(saved.html_body);
       toast.success("Plantilla guardada correctamente.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo guardar la plantilla.");
+      toast.error(err instanceof Error ? err.message : t("err.template.save"));
     } finally {
       setSaving(false);
     }

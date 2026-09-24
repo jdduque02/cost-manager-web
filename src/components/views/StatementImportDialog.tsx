@@ -40,6 +40,7 @@ import type {
 } from "@/lib/api/statement-imports";
 import type { TransactionType } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 interface StatementImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -176,7 +177,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
         `Carga creada: ${job.total_files} archivo(s) en cola. Te avisaremos al terminar.`,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al crear la carga");
+      toast.error(error instanceof Error ? error.message : t("err.import.create"));
     }
   }
 
@@ -204,7 +205,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                       toast.success("Reintento iniciado. Te avisaremos al terminar.");
                     },
                     onError: (error) => {
-                      toast.error(error instanceof Error ? error.message : "Error al reintentar");
+                      toast.error(error instanceof Error ? error.message : t("err.import.retry"));
                     },
                   },
                 );

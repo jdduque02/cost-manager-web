@@ -18,6 +18,7 @@ import { FinancialEducation } from "./FinancialEducation";
 import { LifeStageGuide } from "./LifeStageGuide";
 import { TaxSummaryDialog } from "./TaxSummaryDialog";
 
+import { t } from "@/lib/i18n/errors";
 function BudgetBar({
   name,
   actual,
@@ -99,7 +100,7 @@ export function Intelligence() {
           toast.error(
             err instanceof Error && err.message
               ? err.message
-              : "No se pudo calcular el resumen fiscal",
+              : t("err.tax.calc"),
           ),
       });
       return;
@@ -110,8 +111,8 @@ export function Intelligence() {
   const handleDownloadReport = () => {
     downloadReport.mutate(undefined, {
       onError: () => {
-        toast.error("No se pudo descargar el reporte", {
-          description: "Intenta de nuevo en unos segundos.",
+        toast.error(t("err.report.download"), {
+          description: t("err.retry.seconds"),
         });
       },
     });

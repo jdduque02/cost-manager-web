@@ -34,6 +34,7 @@ import {
 } from "@/lib/hooks/use-api";
 import type { TransferResponse, FixedFrequency } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -154,7 +155,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     if (destinationType === "account" && !destinationAccountId) return false;
     if (destinationType === "liability" && !destinationLiabilityId) return false;
     if (destinationType === "account" && sourceAccountId === destinationAccountId) {
-      toast.error("La cuenta de origen y destino deben ser diferentes");
+      toast.error(t("err.transfer.same"));
       return false;
     }
     return true;
@@ -176,7 +177,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
           },
           onError: (err) => {
             toast.error(
-              err instanceof Error ? err.message : "Error al actualizar la transferencia",
+              err instanceof Error ? err.message : t("err.transfer.update"),
             );
           },
         },
@@ -195,7 +196,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
           onOpenChange(false);
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Error al registrar la transferencia");
+          toast.error(err instanceof Error ? err.message : t("err.transfer.create"));
         },
       },
     );

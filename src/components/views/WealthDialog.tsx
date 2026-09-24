@@ -38,6 +38,7 @@ import type {
   LiabilityType,
 } from "@/lib/api/banking";
 
+import { t } from "@/lib/i18n/errors";
 type EntityType = "account" | "asset" | "liability";
 
 interface WealthDialogProps {
@@ -245,7 +246,7 @@ export function WealthDialog({
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error("Error al actualizar la cuenta"),
+          onError: () => toast.error(t("err.account.update")),
         },
       );
     } else {
@@ -256,7 +257,7 @@ export function WealthDialog({
           onCreated?.(created);
           onOpenChange(false);
         },
-        onError: () => toast.error("Error al crear la cuenta"),
+        onError: () => toast.error(t("err.register.create")),
       });
     }
   }
@@ -280,7 +281,7 @@ export function WealthDialog({
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error("Error al actualizar el activo"),
+          onError: () => toast.error(t("err.asset.update")),
         },
       );
     } else {
@@ -291,7 +292,7 @@ export function WealthDialog({
           onCreated?.(created);
           onOpenChange(false);
         },
-        onError: () => toast.error("Error al crear el activo"),
+        onError: () => toast.error(t("err.asset.create")),
       });
     }
   }
@@ -313,7 +314,7 @@ export function WealthDialog({
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error("Error al actualizar la deuda"),
+          onError: () => toast.error(t("err.debt.update")),
         },
       );
     } else {
@@ -324,7 +325,7 @@ export function WealthDialog({
           onCreated?.(created);
           onOpenChange(false);
         },
-        onError: () => toast.error("Error al crear la deuda"),
+        onError: () => toast.error(t("err.debt.create")),
       });
     }
   }

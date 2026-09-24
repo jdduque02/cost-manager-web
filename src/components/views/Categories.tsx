@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import type { Category, GroupType } from "@/lib/api/catalog";
 import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
+import { t } from "@/lib/i18n/errors";
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName?.toLowerCase() ?? "";
@@ -310,7 +311,7 @@ export function Categories() {
         toast.success("Subcategoría creada", { id });
       })
       .catch(() => {
-        toast.error("Error al crear subcategoría", { id });
+        toast.error(t("err.subcategory.create"), { id });
       });
   }
 
@@ -322,7 +323,7 @@ export function Categories() {
         toast.success("Subcategoría actualizada", { id: toastId });
       })
       .catch(() => {
-        toast.error("Error al actualizar subcategoría", { id: toastId });
+        toast.error(t("err.subcategory.update"), { id: toastId });
       });
   }
 
@@ -336,7 +337,7 @@ export function Categories() {
         setDeleteTarget(null);
       })
       .catch(() => {
-        toast.error("Error al eliminar subcategoría", { id: toastId });
+        toast.error(t("err.subcategory.delete"), { id: toastId });
       });
   }
 
@@ -350,7 +351,7 @@ export function Categories() {
         setDeleteCategoryTarget(null);
       })
       .catch(() => {
-        toast.error("Error al eliminar la categoría", { id: toastId });
+        toast.error(t("err.category.delete"), { id: toastId });
       });
   }
 

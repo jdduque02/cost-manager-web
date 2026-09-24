@@ -9,6 +9,7 @@ import { identityApi } from "@/lib/api/identity";
 import { PhoneField, isPhoneValid } from "@/components/ui/phone-field";
 import { AddressFields } from "@/components/ui/address-fields";
 
+import { t } from "@/lib/i18n/errors";
 const PASSWORD_RULES = [
   { key: "minLength", test: (p: string) => p.length >= 12, label: "Minimo 12 caracteres" },
   {
@@ -84,15 +85,15 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !email || !password || !fullName) {
-      setError("Por favor completa todos los campos obligatorios");
+      setError(t("err.register.required"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Las contrasenas no coinciden");
+      setError(t("err.register.mismatch"));
       return;
     }
     if (!passwordValid) {
-      setError("La contrasena no cumple con los requisitos");
+      setError(t("err.register.weak"));
       return;
     }
 
@@ -129,7 +130,7 @@ export function Register() {
         setFieldDetails(err.details);
         setError(err.message);
       } else {
-        const message = err instanceof Error ? err.message : "Error al crear la cuenta";
+        const message = err instanceof Error ? err.message : t("err.register.create");
         setError(message);
       }
     } finally {
