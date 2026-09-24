@@ -14,6 +14,7 @@ import {
   ensureCsrfToken,
   resetCsrfToken,
 } from "./client";
+import { setLocale } from "@/lib/i18n/errors";
 
 describe("token management", () => {
   beforeEach(() => {
@@ -153,6 +154,91 @@ describe("api helpers", () => {
 
     const result = await api.getOne<{ id: number; name: string }>("test-endpoint");
     expect(result).toEqual({ id: 1, name: "item" });
+  });
+});
+
+describe("localized API errors", () => {
+  beforeEach(() => {
+    clearTokens();
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    setLocale("es");
+    vi.unstubAllGlobals();
+  });
+
+  const ipBlocked = () =>
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ status: 403, message: "auth.IP_NOT_ALLOWED", details: [] }),
+    });
+
+  it("localizes a coded 403 in es and keeps the original code", async () => {
+    setLocale("es");
+    vi.stubGlobal("fetch", ipBlocked());
+    const err = await api.get("x").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe("Tu dirección IP no tiene permiso para acceder.");
+    expect(err.code).toBe("auth.IP_NOT_ALLOWED");
+    expect(err.status).toBe(403);
+  });
+
+  it("localizes a coded 403 in en and keeps the original code", async () => {
+    setLocale("en");
+    vi.stubGlobal("fetch", ipBlocked());
+    const err = await api.get("x").catch((e) => e);
+    expect(err.message).toBe("Your IP address is not allowed to access.");
+    expect(err.code).toBe("auth.IP_NOT_ALLOWED");
+  });
+
+  it("keeps free-text messages and sets no code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ message: "El monto es inválido" }),
+      }),
+    );
+    const err = await api.get("x").catch((e) => e);
+    expect(err.message).toBe("El monto es inválido");
+    expect(err.code).toBeUndefined();
+  });
+
+  it("uses the status fallback when the error body is not JSON", async () => {
+    setLocale("es");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new Error()) }),
+    );
+    const err = await api.get("x").catch((e) => e);
+    expect(err.message).toBe("Error del servidor. Intenta de nuevo más tarde.");
+  });
+
+  it("wraps a network failure as ApiError status 0 with a localized message", async () => {
+    setLocale("en");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const err = await api.get("x").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(0);
+    expect(err.message).toBe("Can't reach the server. Check your connection.");
+  });
+
+  it("does not wrap AbortError", async () => {
+    const abort = Object.assign(new Error("aborted"), { name: "AbortError" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abort));
+    await expect(api.get("x")).rejects.toBe(abort);
+  });
+
+  it("localizes errors from apiFetchBlob too", async () => {
+    setLocale("en");
+    vi.stubGlobal("fetch", ipBlocked());
+    const err = await apiFetchBlob("report").catch((e) => e);
+    expect(err.message).toBe("Your IP address is not allowed to access.");
+    expect(err.code).toBe("auth.IP_NOT_ALLOWED");
   });
 });
 

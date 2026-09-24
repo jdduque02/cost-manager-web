@@ -8,6 +8,8 @@
  * - credentials: 'include' en todos los fetch
  */
 
+import { translateApiMessage } from "@/lib/i18n/errors";
+
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1") + "/";
 
 /** Access token en memoria (XSS-safe vs localStorage). */
@@ -383,7 +385,13 @@ async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}
   };
 
   const url = `${BASE_URL}${path}`;
-  let res = await fetch(url, { ...fetchOptions, headers, credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...fetchOptions, headers, credentials: "include" });
+  } catch (e) {
+    if ((e as { name?: string })?.name === "AbortError") throw e;
+    throw new ApiError(translateApiMessage(undefined, 0), 0);
+  }
 
   if (res.status === 401) {
     try {
@@ -394,12 +402,15 @@ async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}
   }
 
   if (!res.ok) {
-    let message = `API error ${res.status}`;
+    let message = translateApiMessage(undefined, res.status);
     let details: ValidationErrorDetail[] = [];
     const meta: ApiErrorMeta = {};
     try {
       const err = await res.json();
-      message = err.message ?? err.error ?? message;
+      const raw: string | undefined = err.message ?? err.error;
+      message = translateApiMessage(raw, res.status);
+      // Conserva el código original del API cuando el message era un código.
+      if (raw && message !== raw) meta.code = raw;
       if (Array.isArray(err.details)) {
         details = err.details;
       }
@@ -472,18 +483,21 @@ export async function ensureCsrfToken(): Promise<string | null> {
 }
 
 async function parseResponseError(res: Response): Promise<ApiError> {
-  let message = `API error ${res.status}`;
+  let message = translateApiMessage(undefined, res.status);
   let details: ValidationErrorDetail[] = [];
+  let code: string | undefined;
   try {
     const err = await res.json();
-    message = err.message ?? err.error ?? message;
+    const raw: string | undefined = err.message ?? err.error;
+    message = translateApiMessage(raw, res.status);
+    if (raw && message !== raw) code = raw;
     if (Array.isArray(err.details)) {
       details = err.details;
     }
   } catch {
     // ignore JSON parse errors
   }
-  return new ApiError(message, res.status, details);
+  return new ApiError(message, res.status, details, { code });
 }
 
 /**
