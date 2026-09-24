@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Settings } from "./Settings";
 import type { Session, AccessEvent } from "@/lib/api/auth";
+import { getLocale, setLocale } from "@/lib/i18n/errors";
 
 const mockUseAuth = vi.fn();
 vi.mock("@/lib/auth", () => ({
@@ -355,6 +356,34 @@ describe("Settings", () => {
       await waitFor(() => expect(toastError).toHaveBeenCalledWith("No se pudo guardar"));
       await waitFor(() => expect(emailSwitch).toHaveAttribute("aria-checked", "true"));
     });
+  });
+});
+
+describe("language tab", () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({
+      user: { id: "user-1", username: "juan", email: "juan@test.com", metadata: {} },
+      userId: "user-1",
+      refreshUser: vi.fn().mockResolvedValue(undefined),
+    });
+    setLocale("es");
+    window.localStorage.removeItem("cm:locale");
+  });
+  afterEach(() => {
+    setLocale("es");
+    window.localStorage.removeItem("cm:locale");
+  });
+
+  it("changes the language and persists it via setLocale", async () => {
+    const { user } = setup();
+    await goToTab(user, "Idioma y Region");
+
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "English" }));
+
+    expect(getLocale()).toBe("en");
+    expect(window.localStorage.getItem("cm:locale")).toBe("en");
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveTextContent("English"));
   });
 });
 

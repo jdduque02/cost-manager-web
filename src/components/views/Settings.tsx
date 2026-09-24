@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { authApi, type Session, type AccessEvent } from "@/lib/api/auth";
 
+import { t, getLocale, setLocale, type Locale } from "@/lib/i18n/errors";
 const sections = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "financial", label: "Perfil Financiero", icon: Wallet },
@@ -54,6 +55,29 @@ const sections = [
   { id: "language", label: "Idioma y Region", icon: Globe },
   { id: "appearance", label: "Apariencia", icon: Palette },
 ];
+
+function LanguageRow() {
+  const [lang, setLang] = useState<Locale>(getLocale());
+  return (
+    <SettingRow label={t("ui.lang.label")}>
+      <Select
+        value={lang}
+        onValueChange={(v) => {
+          setLocale(v as Locale);
+          setLang(v as Locale);
+        }}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="es">{t("ui.lang.es")}</SelectItem>
+          <SelectItem value="en">{t("ui.lang.en")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </SettingRow>
+  );
+}
 
 function SettingRow({
   label,
@@ -170,7 +194,7 @@ export function Settings() {
               <p className="text-sm text-muted-foreground mb-6">
                 Configura tu idioma preferido, zona horaria y formato de moneda.
               </p>
-              <SettingRow label="Idioma" value="Espanol (Colombia)" />
+              <LanguageRow />
               <SettingRow label="Zona horaria" value="America/Bogota (UTC-5)" />
               <SettingRow label="Formato de fecha" value="DD/MM/YYYY" />
               <SettingRow label="Formato de numeros" value="1.234.567" />
@@ -227,7 +251,7 @@ function ProfileSettings() {
       toast.success("Perfil actualizado correctamente");
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo actualizar el perfil");
+      toast.error(err instanceof Error ? err.message : t("err.profile.update"));
     } finally {
       setSaving(false);
     }
@@ -420,7 +444,7 @@ function NotificationSettings() {
       toast.success("Preferencias de notificacion actualizadas");
     } catch (err) {
       setPrefs(prefs);
-      toast.error(err instanceof Error ? err.message : "No se pudieron guardar las preferencias");
+      toast.error(err instanceof Error ? err.message : t("err.prefs.save"));
     } finally {
       setSavingKey(null);
     }
@@ -678,7 +702,7 @@ function SessionsSection() {
       toast.success("Sesion revocada correctamente");
       setSessionToRevoke(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo revocar la sesion");
+      toast.error(err instanceof Error ? err.message : t("err.session.revoke"));
     }
   };
 
@@ -931,7 +955,7 @@ function ChangePasswordSection() {
           </div>
           {confirmPassword.length > 0 && (
             <p className={`text-xs ${passwordsMatch ? "text-success" : "text-destructive"}`}>
-              {passwordsMatch ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
+              {passwordsMatch ? "Las contraseñas coinciden" : t("err.reset.mismatch")}
             </p>
           )}
         </div>
