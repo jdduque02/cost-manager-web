@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Register } from "./Register";
 import { AuthProvider } from "@/lib/auth/context";
 import { clearTokens } from "@/lib/api/client";
+import { setLocale } from "@/lib/i18n/errors";
+
+// jsdom reports navigator.language=en-US; these tests assert Spanish copy.
+beforeAll(() => setLocale("es"));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
