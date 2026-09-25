@@ -93,3 +93,75 @@ test.describe("Teclado y consentimiento en el registro", () => {
     expect(body).not.toHaveProperty("address");
   });
 });
+
+test.describe("Re-consentimiento legal", () => {
+  const envelope = (data: unknown[]) =>
+    JSON.stringify({ status: true, message: "ok", data, timestamp: "2026-09-24" });
+
+  // Login con `GET user/u1` devolviendo terms_version nulo; todo lo demás responde vacío.
+  async function mockSession(page: import("@playwright/test").Page) {
+    await page.route(/\/api\/v1\//, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      let data: unknown[] = []; // listas vacías para las vistas que cargan tras el login
+      if (url.endsWith("/auth/login")) {
+        data = [{ access_token: "tok", refresh_token: "ref", userId: "u1", expires_in: 900 }];
+      } else if (method === "GET" && url.endsWith("/user/u1")) {
+        data = [
+          {
+            id: "u1",
+            external_id: "e",
+            username: "juan",
+            email: "j@t.co",
+            roles: ["user"],
+            is_active: true,
+            terms_version: null,
+            created_at: "2024-01-01",
+            updated_at: null,
+          },
+        ];
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: envelope(data) });
+    });
+  }
+
+  async function login(page: import("@playwright/test").Page) {
+    await mockSession(page);
+    await page.goto("/login");
+    await page.waitForLoadState("networkidle");
+    await page.getByPlaceholder("juan_perez").fill("juan");
+    await page.getByPlaceholder("••••••••").fill("TestPass123!!");
+    await page.getByRole("button", { name: /iniciar sesión|iniciar sesion|entrar/i }).click();
+  }
+
+  test("bloquea la app: alertdialog, foco atrapado, Escape no cierra, aceptar deshabilitado", async ({
+    page,
+  }) => {
+    await login(page);
+    const dialog = page.getByRole("alertdialog", { name: /documentos legales/i });
+    await expect(dialog).toBeVisible();
+
+    const accept = dialog.getByRole("button", { name: /aceptar y continuar/i });
+    await expect(accept).toBeDisabled();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeVisible();
+
+    // El foco no sale del diálogo tras varios Tab
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press("Tab");
+      await expect(dialog.locator(":focus")).toHaveCount(1);
+    }
+
+    await dialog.getByRole("checkbox").check();
+    await expect(accept).toBeEnabled();
+  });
+
+  test('"No acepto" cierra la sesión y lleva a /login', async ({ page }) => {
+    await login(page);
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: /no acepto/i }).click();
+    await page.waitForURL("**/login");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  });
+});
