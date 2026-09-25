@@ -83,7 +83,8 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
           <DialogTitle>Editar resumen fiscal {taxSummary?.fiscal_year}</DialogTitle>
           <DialogDescription>
             Ajusta manualmente los valores calculados. La obligación de declarar se recalcula con
-            los umbrales UVT vigentes según los montos que dejes aquí.
+            los umbrales UVT vigentes según los montos que dejes aquí. Es una estimación informativa
+            y no reemplaza la asesoría de un contador.
           </DialogDescription>
         </DialogHeader>
 

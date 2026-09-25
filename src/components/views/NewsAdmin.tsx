@@ -116,7 +116,12 @@ function NewsForm({
           value={image_url}
           onChange={(e) => setImageUrl(e.target.value)}
           placeholder="https://..."
+          aria-describedby="news-image-help"
         />
+        <p id="news-image-help" className="text-xs text-muted-foreground">
+          Usa solo imágenes propias, con licencia o de uso libre. Copiar imágenes de otros sitios
+          puede infringir derechos de autor.
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="news-link">URL del artículo original</Label>

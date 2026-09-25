@@ -146,6 +146,19 @@ export function CurrencyConverter({ className }: { className?: string }) {
           No se pudo consultar la tasa automática; usa la tasa manual.
         </p>
       )}
+      <p className="mt-3 text-xs text-muted-foreground">
+        Tasas de referencia de{" "}
+        <a
+          href="https://www.exchangerate-api.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          ExchangeRate-API
+          <span className="sr-only"> (se abre en una pestaña nueva)</span>
+        </a>
+        . Son informativas y pueden diferir de las de tu banco.
+      </p>
     </Card>
   );
 }

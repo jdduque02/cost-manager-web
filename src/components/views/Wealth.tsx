@@ -518,6 +518,19 @@ export function Wealth() {
       </div>
 
       <CurrencyConverter />
+      <p className="-mt-2 text-xs text-muted-foreground">
+        Cotizaciones de activos obtenidas de Yahoo Finance y{" "}
+        <a
+          href="https://www.coingecko.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          CoinGecko
+          <span className="sr-only"> (se abre en una pestaña nueva)</span>
+        </a>
+        . Son informativas y pueden tener retraso.
+      </p>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">

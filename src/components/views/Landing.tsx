@@ -52,13 +52,20 @@ function HeroMockup() {
   const growth = useCountUp(8.2, { duration: 1200, delay: 450 });
 
   return (
-    <div className="relative mx-auto mt-16 w-full max-w-3xl motion-reduce:animate-none animate-in fade-in-0 slide-in-from-bottom-6 duration-700 ease-out [animation-delay:250ms]">
+    <div
+      role="img"
+      aria-label="Vista de ejemplo del panel de Sprig con datos ficticios: patrimonio, ingresos, gastos, ahorro y movimientos recientes"
+      className="relative mx-auto mt-16 w-full max-w-3xl motion-reduce:animate-none animate-in fade-in-0 slide-in-from-bottom-6 duration-700 ease-out [animation-delay:250ms]"
+    >
       <div className="glow-border rounded-2xl p-6 shadow-elegant">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Datos de ejemplo
+        </p>
         <div className="flex items-center justify-between border-b border-border pb-4">
           <div>
             <p className="text-xs text-muted-foreground">Patrimonio neto</p>
             <p className="font-display text-2xl font-semibold tracking-tight text-foreground tabular-nums">
-              $ {fmtUsd(netWorth)}
+              {fmtUsd(netWorth)}
             </p>
           </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success tabular-nums">
@@ -139,7 +146,7 @@ function Navbar() {
     <header className="fixed inset-x-0 top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Logo />
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav aria-label="Principal" className="hidden items-center gap-8 md:flex">
           {[
             { href: "#funciones", label: "Funciones" },
             { href: "#como-funciona", label: "Cómo funciona" },
@@ -182,21 +189,21 @@ function Hero() {
         <h1 className="mx-auto mt-6 max-w-3xl font-display text-4xl font-semibold tracking-tight text-balance sm:text-6xl motion-reduce:animate-none animate-[fade-blur-in_0.9s_cubic-bezier(0.16,1,0.3,1)_both] [animation-delay:200ms]">
           Controla tus gastos,{" "}
           <span className="bg-gradient-to-r from-primary to-info bg-clip-text text-transparent">
-            multiplica tu ahorro
+            organiza tu ahorro
           </span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground motion-reduce:animate-none animate-[fade-blur-in_0.9s_cubic-bezier(0.16,1,0.3,1)_both] [animation-delay:300ms] sm:text-lg">
-          Presupuestos, reportes, metas de ahorro e inteligencia fiscal para decisiones informadas.
-          Simple de usar, seguro por diseño.
+          Presupuestos, reportes, metas de ahorro y estimaciones fiscales para tomar decisiones
+          informadas.
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row motion-reduce:animate-none animate-[fade-blur-in_0.9s_cubic-bezier(0.16,1,0.3,1)_both] [animation-delay:400ms]">
           <Link
-            to={isAuthenticated ? "/dashboard" : "/login"}
+            to={isAuthenticated ? "/dashboard" : "/register"}
             className="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-primary px-7 text-base font-semibold text-primary-foreground transition hover:brightness-105 active:scale-[0.98]"
           >
-            {isAuthenticated ? "Ir al panel" : "Comenzar gratis"}
+            {isAuthenticated ? "Ir al panel" : "Crear mi cuenta"}
             <ArrowRight className="h-5 w-5" />
           </Link>
           <a
@@ -208,11 +215,13 @@ function Hero() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground motion-reduce:animate-none animate-[fade-blur-in_0.9s_cubic-bezier(0.16,1,0.3,1)_both] [animation-delay:500ms]">
-          {["Sin tarjeta de crédito", "Tus datos cifrados", "Acceso multidispositivo"].map((t) => (
-            <span key={t} className="inline-flex items-center gap-1.5">
-              <Check className="h-4 w-4 text-success" /> {t}
-            </span>
-          ))}
+          {["Sin tarjeta de crédito", "Datos sensibles cifrados", "Acceso multidispositivo"].map(
+            (t) => (
+              <span key={t} className="inline-flex items-center gap-1.5">
+                <Check className="h-4 w-4 text-success" /> {t}
+              </span>
+            ),
+          )}
         </div>
       </div>
 
@@ -236,7 +245,8 @@ function Features() {
     {
       icon: Sparkles,
       title: "Inteligencia e impuestos",
-      description: "Proyección de impuestos y consejos fiscales con base en tus movimientos.",
+      description:
+        "Estimaciones informativas de impuestos con base en tus movimientos. No constituyen asesoría tributaria.",
     },
     {
       icon: Target,
@@ -245,13 +255,13 @@ function Features() {
     },
     {
       icon: Wallet,
-      title: "Patrimonio en vivo",
+      title: "Patrimonio consolidado",
       description: "Saldos, cuentas y activos consolidados en una sola vista.",
     },
     {
       icon: PiggyBank,
       title: "Ahorro inteligente",
-      description: "Sugerencias automáticas para recortar gastos y aumentar tu ahorro.",
+      description: "Sugerencias basadas en tus movimientos para ver dónde podrías gastar menos.",
     },
   ];
 
@@ -294,18 +304,19 @@ function HowItWorks() {
     {
       step: "01",
       title: "Crea tu cuenta",
-      description: "Regístrate en menos de un minuto. Sin tarjetas, sin complicaciones.",
+      description: "Regístrate con tu correo electrónico. No te pedimos tarjeta.",
     },
     {
       step: "02",
       title: "Registra tus finanzas",
       description:
-        "Agrega tus ingresos y gastos, o importa tus movimientos con nuestras plantillas.",
+        "Agrega tus ingresos y gastos, o importa tus movimientos desde un extracto bancario.",
     },
     {
       step: "03",
       title: "Decide con datos",
-      description: "Revisa reportes, alcanza metas y ahorra más con recomendaciones inteligentes.",
+      description:
+        "Revisa reportes, sigue tus metas de ahorro y toma decisiones con información clara.",
     },
   ];
 
@@ -319,9 +330,7 @@ function HowItWorks() {
           <h2 className="font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Cómo funciona
           </h2>
-          <p className="mt-4 text-base text-muted-foreground">
-            De la idea a tu primer ahorro en tres pasos.
-          </p>
+          <p className="mt-4 text-base text-muted-foreground">Empieza en tres pasos.</p>
         </RevealSection>
 
         <div className="mt-14 grid gap-8 md:grid-cols-3">
@@ -349,17 +358,13 @@ function Security() {
     {
       icon: Lock,
       title: "Cifrado de datos",
-      description: "Tu información viaja y se almacena cifrada, con credenciales protegidas.",
+      description:
+        "Tu conexión va cifrada y los datos personales y financieros sensibles se almacenan cifrados.",
     },
     {
       icon: ShieldCheck,
       title: "Control de acceso",
       description: "Roles y permisos definidos, con sesiones revocables en cualquier momento.",
-    },
-    {
-      icon: TrendingUp,
-      title: "Disponibilidad",
-      description: "Infraestructura preparada para responder rápido, incluso en picos de uso.",
     },
   ];
 
@@ -375,8 +380,12 @@ function Security() {
             Construido para proteger lo que más importa
           </h2>
           <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground">
-            Tu información financiera es sensible. Por eso cada capa de Sprig está diseñada con
-            privacidad y control de acceso desde el primer día.
+            Tu información financiera es sensible. Aplicamos cifrado y control de acceso para
+            protegerla. Conoce cómo tratamos tus datos en nuestra{" "}
+            <Link to="/privacidad" className="font-medium text-primary underline">
+              Política de Privacidad
+            </Link>
+            .
           </p>
         </RevealSection>
 
@@ -421,18 +430,20 @@ function FinalCta() {
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
-                to={isAuthenticated ? "/dashboard" : "/login"}
+                to={isAuthenticated ? "/dashboard" : "/register"}
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-primary px-7 text-base font-semibold text-primary-foreground transition hover:brightness-105 active:scale-[0.98]"
               >
-                {isAuthenticated ? "Ir al panel" : "Comenzar gratis"}
+                {isAuthenticated ? "Ir al panel" : "Crear mi cuenta"}
                 <ArrowRight className="h-5 w-5" />
               </Link>
-              <Link
-                to="/register"
-                className="inline-flex h-12 items-center rounded-xl border border-border bg-background px-7 text-base font-medium text-foreground transition hover:border-ring/50 hover:bg-accent"
-              >
-                Crear cuenta
-              </Link>
+              {!isAuthenticated && (
+                <Link
+                  to="/login"
+                  className="inline-flex h-12 items-center rounded-xl border border-border bg-background px-7 text-base font-medium text-foreground transition hover:border-ring/50 hover:bg-accent"
+                >
+                  Iniciar sesión
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -446,7 +457,10 @@ function Footer() {
     <footer className="border-t border-border px-4 py-10 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
         <Logo />
-        <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+        <nav
+          aria-label="Pie de página"
+          className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2"
+        >
           {[
             { href: "#funciones", label: "Funciones" },
             { href: "#como-funciona", label: "Cómo funciona" },
@@ -460,6 +474,21 @@ function Footer() {
               {item.label}
             </a>
           ))}
+          {(
+            [
+              { to: "/privacidad", label: "Privacidad" },
+              { to: "/terminos", label: "Términos" },
+              { to: "/cookies", label: "Cookies" },
+            ] as const
+          ).map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {item.label}
+            </Link>
+          ))}
           <Link
             to="/login"
             className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
@@ -467,9 +496,12 @@ function Footer() {
             Iniciar sesión
           </Link>
         </nav>
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Sprig. Todos los derechos reservados.
-        </p>
+        <div className="max-w-xs text-center text-xs text-muted-foreground sm:text-right">
+          <p>© {new Date().getFullYear()} Sprig. Todos los derechos reservados.</p>
+          <p className="mt-1">
+            Sprig es una herramienta informativa; no constituye asesoría financiera ni tributaria.
+          </p>
+        </div>
       </div>
     </footer>
   );
@@ -479,7 +511,7 @@ export function Landing() {
   return (
     <div className="relative min-h-screen text-foreground">
       <Navbar />
-      <main>
+      <main id="main">
         <Hero />
         <Features />
         <HowItWorks />
