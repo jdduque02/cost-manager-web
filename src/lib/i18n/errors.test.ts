@@ -156,3 +156,35 @@ describe("t", () => {
     expect(m.t("no.such.key")).toBe("no.such.key");
   });
 });
+
+describe("consent keys", () => {
+  const KEYS = [
+    "ui.consent.title",
+    "ui.consent.desc",
+    "ui.consent.check.pre",
+    "ui.consent.terms",
+    "ui.consent.check.mid1",
+    "ui.consent.privacy",
+    "ui.consent.check.mid2",
+    "ui.consent.cookies",
+    "ui.consent.newTab",
+    "ui.consent.version",
+    "ui.consent.accept",
+    "ui.consent.saving",
+    "ui.consent.decline",
+    "err.consent.save",
+  ];
+
+  it("existen en es y en (paridad)", async () => {
+    const m = await load();
+    for (const key of KEYS) {
+      m.setLocale("es");
+      const es = m.t(key);
+      m.setLocale("en");
+      const en = m.t(key);
+      expect(es, `es ${key}`).not.toBe(key);
+      expect(en, `en ${key}`).not.toBe(key);
+      expect(es, key).not.toBe(en);
+    }
+  });
+});
