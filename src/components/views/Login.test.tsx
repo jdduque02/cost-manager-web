@@ -81,7 +81,10 @@ describe("Login", () => {
 
   it("renders link to forgot password", () => {
     renderLogin();
-    expect(screen.getByText("¿Olvidaste?")).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByText("¿Olvidaste tu contraseña?")).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
   });
 
   it("shows error when submitting empty fields", async () => {

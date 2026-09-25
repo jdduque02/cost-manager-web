@@ -38,7 +38,10 @@ export function ForgotPassword() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <main
+        id="main"
+        className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      >
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-glow">
             <SprigIsotipo className="h-6 w-6" />
@@ -52,7 +55,7 @@ export function ForgotPassword() {
         </div>
 
         {sent ? (
-          <div className="space-y-4 text-center">
+          <div role="status" className="space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
               <Mail className="h-6 w-6 text-green-500" />
             </div>
@@ -65,30 +68,46 @@ export function ForgotPassword() {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
+              <label
+                htmlFor="forgot-email"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
                 Correo electrónico
               </label>
               <input
+                id="forgot-email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary"
+                className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                 placeholder="tu@correo.com"
                 disabled={loading}
                 autoFocus
               />
             </div>
 
-            {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-destructive text-center font-medium">
+                {error}
+              </p>
+            )}
 
             <button
               type="submit"
               disabled={loading}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar código"}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <span className="sr-only">Enviando código…</span>
+                </>
+              ) : (
+                "Enviar código"
+              )}
             </button>
           </form>
         )}
@@ -102,7 +121,7 @@ export function ForgotPassword() {
             Volver al inicio de sesión
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 }

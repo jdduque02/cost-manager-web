@@ -77,7 +77,7 @@ export function ResetPassword() {
   let formContent: React.ReactNode;
   if (success) {
     formContent = (
-      <div className="space-y-4 text-center">
+      <div role="status" className="space-y-4 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
           <CheckCircle className="h-6 w-6 text-green-500" />
         </div>
@@ -88,19 +88,22 @@ export function ResetPassword() {
     );
   } else if (step === "otp") {
     formContent = (
-      <form onSubmit={handleVerifyOtp} className="space-y-4">
+      <form onSubmit={handleVerifyOtp} aria-busy={loading} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
+          <label htmlFor="reset-code" className="mb-1.5 block text-sm font-medium text-foreground">
             Código de verificación
           </label>
           <input
+            id="reset-code"
             type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
             value={code}
             onChange={(e) => {
               const val = e.target.value.replace(/\D/g, "").slice(0, 6);
               setCode(val);
             }}
-            className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-center text-lg tracking-[0.5em] font-mono outline-none transition focus:border-primary"
+            className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-center text-lg tracking-[0.5em] font-mono outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="000000"
             maxLength={6}
             disabled={loading}
@@ -111,31 +114,47 @@ export function ResetPassword() {
           </p>
         </div>
 
-        {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive text-center font-medium">
+            {error}
+          </p>
+        )}
 
         <button
           type="submit"
           disabled={loading}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verificar código"}
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <span className="sr-only">Verificando…</span>
+            </>
+          ) : (
+            "Verificar código"
+          )}
         </button>
       </form>
     );
   } else {
     formContent = (
-      <form onSubmit={handleResetPassword} className="space-y-4">
+      <form onSubmit={handleResetPassword} aria-busy={loading} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
+          <label htmlFor="reset-new" className="mb-1.5 block text-sm font-medium text-foreground">
             Nueva contraseña
           </label>
           <div className="relative">
-            <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <KeyRound
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
             <input
+              id="reset-new"
               type="password"
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Mínimo 12 caracteres"
               disabled={loading}
               autoFocus
@@ -144,30 +163,49 @@ export function ResetPassword() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
+          <label
+            htmlFor="reset-confirm"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
             Confirmar contraseña
           </label>
           <div className="relative">
-            <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <KeyRound
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
             <input
+              id="reset-confirm"
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-primary"
+              className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Repite la contraseña"
               disabled={loading}
             />
           </div>
         </div>
 
-        {error && <p className="text-sm text-destructive text-center font-medium">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive text-center font-medium">
+            {error}
+          </p>
+        )}
 
         <button
           type="submit"
           disabled={loading}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 disabled:opacity-70"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Restablecer contraseña"}
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <span className="sr-only">Restableciendo…</span>
+            </>
+          ) : (
+            "Restablecer contraseña"
+          )}
         </button>
       </form>
     );
@@ -175,7 +213,10 @@ export function ResetPassword() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <main
+        id="main"
+        className="w-full max-w-sm rounded-2xl border border-border bg-surface/60 p-8 shadow-elegant backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      >
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-glow">
             <SprigIsotipo className="h-6 w-6" />
@@ -199,7 +240,7 @@ export function ResetPassword() {
             Volver al inicio de sesión
           </Link>
         </p>
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,3 +1,10 @@
+@import "@fontsource/schibsted-grotesk/latin-400.css";
+@import "@fontsource/schibsted-grotesk/latin-500.css";
+@import "@fontsource/schibsted-grotesk/latin-600.css";
+@import "@fontsource/schibsted-grotesk/latin-700.css";
+@import "@fontsource/space-grotesk/latin-500.css";
+@import "@fontsource/space-grotesk/latin-600.css";
+@import "@fontsource/space-grotesk/latin-700.css";
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -66,13 +73,13 @@
   --accent: #D4A53A;
   --accent-foreground: #1A1A1A;
 
-  --success: #2F7D53;
+  --success: #236B46;
   --success-foreground: #FFFFFF;
-  --warning: #E8B94A;
-  --warning-foreground: #1A1A1A;
-  --destructive: oklch(0.58 0.2 18);
+  --warning: #7A5200;
+  --warning-foreground: #FFFFFF;
+  --destructive: oklch(0.5 0.2 18);
   --destructive-foreground: oklch(0.98 0.005 18);
-  --info: oklch(0.55 0.18 250);
+  --info: oklch(0.5 0.18 250);
   --info-foreground: oklch(0.97 0.005 250);
 
   --border: #E6E8EC;
@@ -112,30 +119,30 @@
   /* Dark mode — Sprig palette */
   --background: #1A1A1A;
   --foreground: #F4F1E7;
-  --surface: #1E5C3A;
+  --surface: #174A2F;
   --surface-2: #2F7D53;
-  --card: #1E5C3A;
+  --card: #174A2F;
   --card-foreground: #F4F1E7;
-  --popover: #1E5C3A;
+  --popover: #174A2F;
   --popover-foreground: #F4F1E7;
 
-  --primary: #D4A53A;
+  --primary: #E8C36A;
   --primary-foreground: #1A1A1A;
   --secondary: #2F7D53;
   --secondary-foreground: #F4F1E7;
-  --muted: #2F7D53;
+  --muted: #2A7049;
   --muted-foreground: #E6EFE6;
   --accent: #D4A53A;
   --accent-foreground: #1A1A1A;
 
-  --success: #D4A53A;
+  --success: #E8C36A;
   --success-foreground: #1A1A1A;
   --warning: #E8B94A;
   --warning-foreground: #1A1A1A;
-  --destructive: oklch(0.68 0.2 18);
-  --destructive-foreground: oklch(0.98 0.005 18);
-  --info: oklch(0.7 0.18 250);
-  --info-foreground: oklch(0.97 0.005 250);
+  --destructive: oklch(0.8 0.17 18);
+  --destructive-foreground: #1A1A1A;
+  --info: oklch(0.78 0.15 250);
+  --info-foreground: #1A1A1A;
 
   --border: #2F7D53;
   --input: #2F7D53;
@@ -176,6 +183,11 @@
   }
   html {
     scroll-behavior: smooth;
+  }
+  /* Los placeholders deben cumplir 4.5:1 (el de Tailwind es currentColor al 50 %). */
+  ::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
   }
   html,
   body {

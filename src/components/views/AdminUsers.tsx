@@ -290,7 +290,13 @@ export function AdminUsers() {
             <SelectItem value="inactive">Inactivos</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="icon" onClick={() => listQuery.refetch()} title="Recargar">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => listQuery.refetch()}
+          title="Recargar"
+          aria-label="Recargar lista de usuarios"
+        >
           <RefreshCw className={cn("h-4 w-4", listQuery.isFetching && "animate-spin")} />
         </Button>
       </div>
@@ -374,8 +380,13 @@ export function AdminUsers() {
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Acciones de ${u.username}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

@@ -121,10 +121,14 @@ export function EmailTemplates() {
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[260px] flex-1 sm:max-w-md">
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          <label
+            htmlFor="email-subject"
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
             Asunto del correo
           </label>
           <Input
+            id="email-subject"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Tu código de recuperación de contraseña"
