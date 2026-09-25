@@ -15,6 +15,9 @@ export interface User {
   roles?: string[];
   is_active: boolean;
   last_login_at?: string | null;
+  /** Última versión legal aceptada (null = nunca aceptó). */
+  terms_version?: string | null;
+  terms_accepted_at?: string | null;
   is_online?: boolean;
   created_at: string;
   updated_at: string | null;
@@ -119,6 +122,12 @@ export const identityApi = {
   },
   getUser: async (id: string, token?: string | null): Promise<User> => {
     const result = await api.get<User[]>(`user/${id}`, token);
+    return Array.isArray(result) ? result[0] : result;
+  },
+  acceptTerms: async (id: string, version: string): Promise<User> => {
+    const result = await api.patch<User[]>(`user/${id}/terms-acceptance`, {
+      accepted_terms_version: version,
+    });
     return Array.isArray(result) ? result[0] : result;
   },
   getUsers: () => api.get<User[]>("user"),

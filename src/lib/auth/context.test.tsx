@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider } from "./context";
 import { useAuth } from "./useAuth";
-import { clearTokens } from "@/lib/api/client";
+import { clearTokens, getAccessToken, getStoredUserId } from "@/lib/api/client";
 
 vi.mock("@/lib/api/client", async () => {
   const actual = await vi.importActual("@/lib/api/client");
@@ -53,6 +53,8 @@ function TestConsumer() {
       <span data-testid="roles">{JSON.stringify(auth.roles)}</span>
       <button onClick={() => auth.login("user", "pass")}>login</button>
       <button onClick={() => auth.logout()}>logout</button>
+      <button onClick={() => auth.refreshUser()}>refresh</button>
+      <span data-testid="terms">{auth.user?.terms_version ?? "null"}</span>
     </div>
   );
 }
@@ -161,5 +163,44 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("is-admin")).toHaveTextContent("true");
     });
     expect(screen.getByTestId("roles")).toHaveTextContent('["admin","user"]');
+  });
+  it("refreshUser actualiza terms_version", async () => {
+    const { identityApi } = await import("@/lib/api/identity");
+    vi.mocked(identityApi.getUser).mockResolvedValueOnce({
+      id: "user-1",
+      username: "testuser",
+      email: "test@example.com",
+      is_active: true,
+      terms_version: null,
+      created_at: "2024-01-01",
+      updated_at: null,
+    });
+    const user = userEvent.setup();
+    renderAuth();
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+    await user.click(screen.getByText("login"));
+    await waitFor(() => {
+      expect(screen.getByTestId("terms")).toHaveTextContent("null");
+    });
+
+    vi.mocked(getAccessToken).mockReturnValue("tok");
+    vi.mocked(getStoredUserId).mockReturnValue("user-1");
+    vi.mocked(identityApi.getUser).mockResolvedValueOnce({
+      id: "user-1",
+      username: "testuser",
+      email: "test@example.com",
+      is_active: true,
+      terms_version: "2026-09-24",
+      created_at: "2024-01-01",
+      updated_at: null,
+    });
+    await user.click(screen.getByText("refresh"));
+    await waitFor(() => {
+      expect(screen.getByTestId("terms")).toHaveTextContent("2026-09-24");
+    });
+    vi.mocked(getAccessToken).mockReturnValue(null);
+    vi.mocked(getStoredUserId).mockReturnValue(null);
   });
 });
