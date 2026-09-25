@@ -13,6 +13,7 @@ let mockObjectives: Partial<FinancialObjective>[] = [];
 
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
   useFormattedAmount: () => (v: number) => `$${v}`,
+  useAmountsHidden: () => false,
 }));
 
 vi.mock("@/lib/hooks/use-api", () => ({

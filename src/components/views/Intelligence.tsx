@@ -1,6 +1,7 @@
 import { Card, Badge } from "@/components/ui/primitives";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
+import { MASKED } from "@/lib/format";
 import { FileText, Sparkles, ShieldCheck, Loader2, Brain, Download, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -88,6 +89,11 @@ export function Intelligence() {
   const downloadReport = useDownloadFinancialAiReport();
   const calculateTaxSummary = useCalculateTaxSummary();
   const fmtAmount = useFormattedAmount();
+  const amountsHidden = useAmountsHidden();
+  const fmtUvt = (n?: number | null) => {
+    if (amountsHidden) return MASKED;
+    return n ? Math.round(n).toLocaleString() : "N/A";
+  };
   const [taxSummaryDialogOpen, setTaxSummaryDialogOpen] = useState(false);
 
   const isLoading = loadProfile || loadTxs || loadTax;
@@ -170,6 +176,10 @@ export function Intelligence() {
         <h1 className="mt-1 font-display text-3xl font-semibold">
           Presupuesto inteligente y proyecciones
         </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Información orientativa calculada con los datos que registras. No constituye asesoría
+          financiera ni tributaria.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -180,7 +190,7 @@ export function Intelligence() {
               <p className="text-sm text-muted-foreground">Tu asignacion ideal vs. gasto real</p>
             </div>
             <Badge tone="primary">
-              <Sparkles className="h-3 w-3" /> Guia de IA
+              <Sparkles className="h-3 w-3" /> Referencia
             </Badge>
           </div>
           <div className="mt-6 space-y-6">
@@ -213,10 +223,7 @@ export function Intelligence() {
               <dt className="text-sm text-muted-foreground">Patrimonio Neto (UVT)</dt>
               <dd className="text-right">
                 <p className="font-display text-lg font-semibold">
-                  {taxSummary?.assets_in_uvt
-                    ? Math.round(taxSummary.assets_in_uvt).toLocaleString()
-                    : "N/A"}{" "}
-                  UVT
+                  {fmtUvt(taxSummary?.assets_in_uvt)} UVT
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {taxSummary?.patrimony ? fmtAmount(taxSummary.patrimony) : "N/A"}
@@ -227,10 +234,7 @@ export function Intelligence() {
               <dt className="text-sm text-muted-foreground">Ingreso Anual (UVT)</dt>
               <dd className="text-right">
                 <p className="font-display text-lg font-semibold">
-                  {taxSummary?.income_in_uvt
-                    ? Math.round(taxSummary.income_in_uvt).toLocaleString()
-                    : "N/A"}{" "}
-                  UVT
+                  {fmtUvt(taxSummary?.income_in_uvt)} UVT
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {taxSummary?.total_income ? fmtAmount(taxSummary.total_income) : "N/A"}

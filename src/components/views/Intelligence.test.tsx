@@ -6,6 +6,7 @@ const mockMutate = vi.fn();
 
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
   useFormattedAmount: () => (v: number) => `$${v}`,
+  useAmountsHidden: () => false,
 }));
 
 const mockCalculateTaxSummary = vi.fn();

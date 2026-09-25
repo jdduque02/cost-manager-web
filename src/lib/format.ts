@@ -40,6 +40,9 @@ export const parseCurrency = (s: string): number => {
 
 export const MASKED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
+/** localStorage: preferencia de UI "Ocultar montos" (no es un dato sensible). */
+export const HIDE_AMOUNTS_KEY = "cm:hide-amounts";
+
 /**
  * Whether a proposed amount would exceed the available balance of the
  * source account/liability. Balances <= 0 are treated as "unknown" (e.g.

@@ -28,7 +28,7 @@ import {
   useTransactionSummary,
   useCategories,
 } from "@/lib/hooks/use-api";
-import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import { useCountUp } from "@/hooks/use-count-up";
 import { useMemo, useState } from "react";
@@ -47,6 +47,8 @@ function kFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
   const v = Number(this.value);
   return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
 }
+
+const hiddenAxisFormatter = () => "";
 
 function tooltipHtml(points: Highcharts.Point[], fmt: (v: number) => string) {
   const rows = points
@@ -185,6 +187,8 @@ export function Dashboard() {
   const { data: categories = [] } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
   const fmtAmount = useFormattedAmount();
+  const amountsHidden = useAmountsHidden();
+  const axisFormatter = amountsHidden ? hiddenAxisFormatter : kFormatter;
 
   const netWorthValue = nw?.netWorth ?? 0;
 
@@ -275,7 +279,7 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: axisFormatter },
       },
       tooltip: {
         ...tooltipStyle,
@@ -307,7 +311,7 @@ export function Dashboard() {
         },
       ],
     }),
-    [monthlyChartData, colors, tooltipStyle, fmtAmount],
+    [monthlyChartData, colors, tooltipStyle, fmtAmount, axisFormatter],
   );
 
   const spendingOptions = useMemo<Highcharts.Options>(
@@ -331,7 +335,7 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: axisFormatter },
       },
       tooltip: {
         ...tooltipStyle,
@@ -349,7 +353,7 @@ export function Dashboard() {
         },
       ],
     }),
-    [categorySpending, colors, tooltipStyle, fmtAmount],
+    [categorySpending, colors, tooltipStyle, fmtAmount, axisFormatter],
   );
 
   const spendingPieOptions = useMemo<Highcharts.Options>(

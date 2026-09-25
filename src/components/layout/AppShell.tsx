@@ -11,7 +11,7 @@ import {
   Menu,
   Loader2,
   Tag,
-  Unlock,
+  Eye,
   EyeOff,
   Newspaper,
   BarChart3,
@@ -25,7 +25,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getAccessToken } from "@/lib/api/client";
 import { useVisibility } from "@/lib/visibility-context";
-import { PasswordDialog } from "@/components/ui/password-dialog";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -55,62 +54,34 @@ const nav: NavItem[] = [
 ];
 
 function VisibilityToggle({ className }: { className?: string }) {
-  const { mode, setEncrypted, setVisible } = useVisibility();
-  const [pwdOpen, setPwdOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  function handleClick() {
-    if (mode === "visible") {
-      setPwdOpen(true);
-    } else {
-      setVisible();
-    }
-  }
-
-  async function handlePasswordSubmit(password: string) {
-    setLoading(true);
-    try {
-      setEncrypted(password);
-      setPwdOpen(false);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { hidden, setHidden } = useVisibility();
 
   return (
-    <>
-      <button
-        onClick={handleClick}
-        className={cn(
-          "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out",
-          mode === "visible"
-            ? "text-muted-foreground hover:bg-surface hover:text-foreground"
-            : "bg-warning/15 text-warning hover:bg-warning/25",
-          className,
-        )}
-        title={mode === "visible" ? "Cifrar datos financieros" : "Mostrar datos financieros"}
-      >
-        {mode === "visible" ? (
-          <>
-            <EyeOff className="h-4 w-4" />
-            <span className="hidden lg:inline">Cifrar</span>
-          </>
-        ) : (
-          <>
-            <Unlock className="h-4 w-4" />
-            <span className="hidden lg:inline">Descifrar</span>
-          </>
-        )}
-      </button>
-
-      <PasswordDialog
-        open={pwdOpen}
-        onOpenChange={setPwdOpen}
-        onSubmit={handlePasswordSubmit}
-        mode="encrypt"
-        loading={loading}
-      />
-    </>
+    <button
+      type="button"
+      onClick={() => setHidden(!hidden)}
+      aria-pressed={hidden}
+      aria-label="Ocultar montos"
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring",
+        hidden
+          ? "bg-warning/15 text-foreground hover:bg-warning/25"
+          : "text-muted-foreground hover:bg-surface hover:text-foreground",
+        className,
+      )}
+    >
+      {hidden ? (
+        <>
+          <Eye className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden lg:inline">Mostrar</span>
+        </>
+      ) : (
+        <>
+          <EyeOff className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden lg:inline">Ocultar</span>
+        </>
+      )}
+    </button>
   );
 }
 
@@ -245,8 +216,13 @@ export function AppShell({
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/70 px-4 py-3 backdrop-blur-xl lg:hidden">
-          <Button variant="outline" size="icon" onClick={() => setOpen(true)}>
-            <Menu className="h-5 w-5" />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Abrir menú"
+            onClick={() => setOpen(true)}
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
           </Button>
           <span className="font-display text-base font-semibold">Sprig</span>
           <div className="ml-auto flex items-center gap-2">
@@ -254,7 +230,9 @@ export function AppShell({
             <VisibilityToggle />
           </div>
         </header>
-        <main className="px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>
+        <main id="main" className="px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ vi.mock("./TransactionDialog", () => ({ TransactionDialog: () => null }));
 vi.mock("@/hooks/use-count-up", () => ({ useCountUp: (v: number) => v }));
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
   useFormattedAmount: () => (v: number) => `$${v}`,
+  useAmountsHidden: () => false,
 }));
 
 const now = new Date();

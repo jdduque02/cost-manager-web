@@ -17,7 +17,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 import { useTransactionSummary, useCategories } from "@/lib/hooks/use-api";
-import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import type { TransactionGroupBy } from "@/lib/api/finance";
 
@@ -163,6 +163,7 @@ export function Reports() {
   const [groupBy, setGroupBy] = useQueryState("groupBy", parseAsStringEnum(["day", "week", "month"] as const));
   const { data: categories = [] } = useCategories();
   const fmtAmount = useFormattedAmount();
+  const amountsHidden = useAmountsHidden();
   const chartColors = useChartColors();
 
   const range = useMemo(
@@ -269,7 +270,7 @@ export function Reports() {
         gridLineDashStyle: "Dash",
         labels: {
           style: { color: chartColors.mutedFg, fontSize: "11px" },
-          formatter: reportsKFormatter,
+          formatter: amountsHidden ? () => "" : reportsKFormatter,
         },
       },
       tooltip: {
@@ -309,7 +310,7 @@ export function Reports() {
         },
       ],
     }),
-    [chartData, chartColors, tooltipStyle, fmtAmount],
+    [chartData, chartColors, tooltipStyle, fmtAmount, amountsHidden],
   );
 
   const pieOptions = useMemo<Highcharts.Options>(
