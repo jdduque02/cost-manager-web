@@ -28,6 +28,7 @@ import { useVisibility } from "@/lib/visibility-context";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ConsentDialog } from "@/components/layout/ConsentDialog";
 
 type NavItem = {
   to: string;
@@ -234,6 +235,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      <ConsentDialog />
     </div>
   );
 }
