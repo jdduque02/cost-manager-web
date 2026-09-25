@@ -87,6 +87,12 @@ describe("Login", () => {
     );
   });
 
+  it("renders links to the privacy policy and terms", () => {
+    renderLogin();
+    expect(screen.getByRole("link", { name: "Privacidad" })).toHaveAttribute("href", "/privacidad");
+    expect(screen.getByRole("link", { name: "Términos" })).toHaveAttribute("href", "/terminos");
+  });
+
   it("shows error when submitting empty fields", async () => {
     const user = userEvent.setup();
     renderLogin();

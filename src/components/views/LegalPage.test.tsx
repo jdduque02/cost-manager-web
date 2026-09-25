@@ -26,6 +26,11 @@ describe("LegalPage", () => {
     expect(nav).not.toHaveTextContent("Cookies");
   });
 
+  it("links back to the home page", () => {
+    render(<LegalPage slug="terminos" />);
+    expect(screen.getByRole("link", { name: "Volver al inicio" })).toHaveAttribute("href", "/");
+  });
+
   it("declares every browser storage key the app actually uses", () => {
     render(<LegalPage slug="cookies" />);
     for (const key of [

@@ -67,6 +67,17 @@ describe("Settings", () => {
     mockHistory = { data: [], isLoading: false, error: null };
   });
 
+  describe("profile tab — legal links", () => {
+    it("links to the privacy policy and terms", () => {
+      setup();
+      expect(screen.getByRole("link", { name: "Política de Privacidad" })).toHaveAttribute(
+        "href",
+        "/privacidad",
+      );
+      expect(screen.getByRole("link", { name: "Términos" })).toHaveAttribute("href", "/terminos");
+    });
+  });
+
   describe("security tab — sessions", () => {
     it("shows a loading state while sessions are being fetched", async () => {
       mockSessions = { data: undefined, isLoading: true, error: null };
