@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EmailsRouteImport } from './routes/emails'
 import { Route as EmpresasRouteImport } from './routes/empresas'
@@ -21,10 +22,12 @@ import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TerminosRouteImport } from './routes/terminos'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as WealthRouteImport } from './routes/wealth'
 
@@ -41,6 +44,11 @@ const AdminRoute = AdminRouteImport.update({
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -88,6 +96,11 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -108,6 +121,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TerminosRoute = TerminosRouteImport.update({
+  id: '/terminos',
+  path: '/terminos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -123,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/categories': typeof CategoriesRoute
+  '/cookies': typeof CookiesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
   '/empresas': typeof EmpresasRoute
@@ -132,10 +151,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/news': typeof NewsRoute
+  '/privacidad': typeof PrivacidadRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/terminos': typeof TerminosRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
 }
@@ -143,6 +164,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/categories': typeof CategoriesRoute
+  '/cookies': typeof CookiesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
   '/empresas': typeof EmpresasRoute
@@ -152,10 +174,12 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/news': typeof NewsRoute
+  '/privacidad': typeof PrivacidadRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/terminos': typeof TerminosRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
 }
@@ -164,6 +188,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/categories': typeof CategoriesRoute
+  '/cookies': typeof CookiesRoute
   '/dashboard': typeof DashboardRoute
   '/emails': typeof EmailsRoute
   '/empresas': typeof EmpresasRoute
@@ -173,10 +198,12 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/news': typeof NewsRoute
+  '/privacidad': typeof PrivacidadRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/terminos': typeof TerminosRoute
   '/transactions': typeof TransactionsRoute
   '/wealth': typeof WealthRoute
 }
@@ -186,6 +213,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/categories'
+    | '/cookies'
     | '/dashboard'
     | '/emails'
     | '/empresas'
@@ -195,10 +223,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/logs'
     | '/news'
+    | '/privacidad'
     | '/register'
     | '/reports'
     | '/reset-password'
     | '/settings'
+    | '/terminos'
     | '/transactions'
     | '/wealth'
   fileRoutesByTo: FileRoutesByTo
@@ -206,6 +236,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/categories'
+    | '/cookies'
     | '/dashboard'
     | '/emails'
     | '/empresas'
@@ -215,10 +246,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/logs'
     | '/news'
+    | '/privacidad'
     | '/register'
     | '/reports'
     | '/reset-password'
     | '/settings'
+    | '/terminos'
     | '/transactions'
     | '/wealth'
   id:
@@ -226,6 +259,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/categories'
+    | '/cookies'
     | '/dashboard'
     | '/emails'
     | '/empresas'
@@ -235,10 +269,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/logs'
     | '/news'
+    | '/privacidad'
     | '/register'
     | '/reports'
     | '/reset-password'
     | '/settings'
+    | '/terminos'
     | '/transactions'
     | '/wealth'
   fileRoutesById: FileRoutesById
@@ -247,6 +283,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   CategoriesRoute: typeof CategoriesRoute
+  CookiesRoute: typeof CookiesRoute
   DashboardRoute: typeof DashboardRoute
   EmailsRoute: typeof EmailsRoute
   EmpresasRoute: typeof EmpresasRoute
@@ -256,10 +293,12 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   LogsRoute: typeof LogsRoute
   NewsRoute: typeof NewsRoute
+  PrivacidadRoute: typeof PrivacidadRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  TerminosRoute: typeof TerminosRoute
   TransactionsRoute: typeof TransactionsRoute
   WealthRoute: typeof WealthRoute
 }
@@ -285,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/categories'
       preLoaderRoute: typeof CategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -350,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -378,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terminos': {
+      id: '/terminos'
+      path: '/terminos'
+      fullPath: '/terminos'
+      preLoaderRoute: typeof TerminosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transactions': {
       id: '/transactions'
       path: '/transactions'
@@ -399,6 +459,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CategoriesRoute: CategoriesRoute,
+  CookiesRoute: CookiesRoute,
   DashboardRoute: DashboardRoute,
   EmailsRoute: EmailsRoute,
   EmpresasRoute: EmpresasRoute,
@@ -408,10 +469,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   LogsRoute: LogsRoute,
   NewsRoute: NewsRoute,
+  PrivacidadRoute: PrivacidadRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  TerminosRoute: TerminosRoute,
   TransactionsRoute: TransactionsRoute,
   WealthRoute: WealthRoute,
 }
