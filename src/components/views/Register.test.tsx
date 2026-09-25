@@ -5,6 +5,7 @@ import { Register } from "./Register";
 import { AuthProvider } from "@/lib/auth/context";
 import { clearTokens } from "@/lib/api/client";
 import { setLocale } from "@/lib/i18n/errors";
+import { LEGAL_VERSION } from "@/content/legal";
 
 // jsdom reports navigator.language=en-US; these tests assert Spanish copy.
 beforeAll(() => setLocale("es"));
@@ -129,6 +130,7 @@ describe("Register", () => {
     await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
     await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
     await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+    await user.click(screen.getByRole("checkbox", { name: /mayor de 18/i }));
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
 
     await waitFor(() => {
@@ -145,7 +147,57 @@ describe("Register", () => {
     );
   });
 
-  it("sends phone in E.164 and address serialized", async () => {
+  it("does not ask for document, phone or address", () => {
+    renderRegister();
+    expect(screen.queryByLabelText(/documento/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/telefono/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/departamento|ciudad|via/i)).not.toBeInTheDocument();
+  });
+
+  it("associates every field with its label", () => {
+    renderRegister();
+    for (const name of [
+      "Nombre completo *",
+      "Usuario *",
+      "Correo electronico *",
+      "Contrasena *",
+      "Confirmar contrasena *",
+    ]) {
+      expect(screen.getByLabelText(name)).toBeInTheDocument();
+    }
+  });
+
+  it("links the legal documents next to the consent checkbox", () => {
+    renderRegister();
+    expect(screen.getByRole("link", { name: /términos y condiciones/i })).toHaveAttribute(
+      "href",
+      "/terminos",
+    );
+    expect(screen.getByRole("link", { name: /política de privacidad/i })).toHaveAttribute(
+      "href",
+      "/privacidad",
+    );
+  });
+
+  it("consent checkbox starts unchecked", () => {
+    renderRegister();
+    expect(screen.getByRole("checkbox", { name: /mayor de 18/i })).not.toBeChecked();
+  });
+
+  it("blocks submit without consent and announces the error", async () => {
+    const user = userEvent.setup();
+    renderRegister();
+    await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
+    await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
+    await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
+    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
+    await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+    await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/debes aceptar los términos/i);
+    expect(identityApi.createUser).not.toHaveBeenCalled();
+  });
+
+  it("sends the accepted terms version as proof of authorization", async () => {
     const user = userEvent.setup();
     vi.mocked(identityApi.createUser).mockResolvedValue({
       id: "1",
@@ -154,41 +206,20 @@ describe("Register", () => {
       email: "juan@test.com",
     });
     renderRegister();
-
     await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
     await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
     await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
-    await user.type(screen.getByLabelText("Telefono"), "3101234567");
-    await user.type(screen.getByLabelText("Numero de via"), "97A");
-    await user.type(screen.getByLabelText("Numero de cruce"), "76");
-    await user.type(screen.getByLabelText("Numero de placa"), "5");
-    await user.selectOptions(screen.getByLabelText("Departamento"), "Antioquia");
-    await user.selectOptions(screen.getByLabelText("Ciudad"), "Medellín");
     await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
     await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+    await user.click(screen.getByRole("checkbox", { name: /mayor de 18/i }));
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
 
     await waitFor(() => expect(identityApi.createUser).toHaveBeenCalled());
-    expect(identityApi.createUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        phone: "+573101234567",
-        address: "Cl 97A # 76-5, Medellín, Antioquia",
-      }),
-    );
-  });
-
-  it("blocks submit with an invalid phone", async () => {
-    const user = userEvent.setup();
-    renderRegister();
-    await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
-    await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
-    await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
-    await user.type(screen.getByLabelText("Telefono"), "123");
-    await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
-    await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
-    await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
-    expect(screen.getByText("Ingresa un numero de telefono valido")).toBeInTheDocument();
-    expect(identityApi.createUser).not.toHaveBeenCalled();
+    const dto = vi.mocked(identityApi.createUser).mock.calls[0][0];
+    expect(dto.accepted_terms_version).toBe(LEGAL_VERSION);
+    expect(dto).not.toHaveProperty("phone");
+    expect(dto).not.toHaveProperty("address");
+    expect(dto).not.toHaveProperty("document_id");
   });
 
   it("renders link to login", () => {

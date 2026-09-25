@@ -32,6 +32,7 @@ export function getLocale(): Locale {
 
 export function setLocale(locale: Locale): void {
   currentLocale = locale;
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
   try {
     window.localStorage.setItem(LOCALE_KEY, locale);
   } catch {
@@ -92,6 +93,8 @@ const messages: Record<Locale, Dict> = {
     "err.register.mismatch": "Las contrasenas no coinciden",
     "err.register.weak": "La contrasena no cumple con los requisitos",
     "err.register.create": "Error al crear la cuenta",
+    "err.register.consent":
+      "Debes aceptar los términos y la política de privacidad, y confirmar que eres mayor de 18 años",
     "err.reset.code": "Ingresa el código de 6 dígitos",
     "err.reset.invalid": "Código inválido o expirado. Intenta de nuevo.",
     "err.reset.newpass": "Ingresa la nueva contraseña",
@@ -173,6 +176,8 @@ const messages: Record<Locale, Dict> = {
     "err.register.mismatch": "Passwords do not match",
     "err.register.weak": "Password does not meet the requirements",
     "err.register.create": "Error creating account",
+    "err.register.consent":
+      "You must accept the terms and privacy policy, and confirm you are over 18",
     "err.reset.code": "Enter the 6-digit code",
     "err.reset.invalid": "Invalid or expired code. Try again.",
     "err.reset.newpass": "Enter the new password",

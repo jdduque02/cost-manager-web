@@ -320,6 +320,22 @@ function ProfileSettings() {
             El correo se sincroniza con tu cuenta de acceso (Keycloak).
           </p>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Documento, teléfono y dirección son opcionales: Sprig funciona sin ellos y solo se guardan
+          si los ingresas. Más información en la{" "}
+          <a href="/privacidad" className="font-medium text-primary underline">
+            Política de Privacidad
+          </a>
+          , los{" "}
+          <a href="/terminos" className="font-medium text-primary underline">
+            Términos
+          </a>{" "}
+          y la{" "}
+          <a href="/cookies" className="font-medium text-primary underline">
+            Política de Cookies
+          </a>
+          .
+        </p>
         <div className="space-y-2">
           <Label htmlFor="document-id">Documento de identidad</Label>
           <Input

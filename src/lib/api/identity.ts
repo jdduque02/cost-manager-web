@@ -97,6 +97,8 @@ export interface CreateUserDto {
   phone?: string;
   address?: string;
   document_id?: string;
+  /** Versión de los términos/política aceptada (prueba de autorización, Ley 1581). */
+  accepted_terms_version?: string;
   locale?: string;
   timezone?: string;
   metadata?: Record<string, unknown>;
