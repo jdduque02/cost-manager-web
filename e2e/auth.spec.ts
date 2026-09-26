@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "./fixtures/index";
+import { test, mockApi, fulfillJson, E2E_USER, E2E_PASSWORD } from "./fixtures/index";
 
 test.describe("Autenticación", () => {
   test("muestra formulario de login", async ({ auth }) => {
@@ -9,9 +9,37 @@ test.describe("Autenticación", () => {
     await expect(auth.submitButton).toBeVisible();
   });
 
-  test("muestra error con credenciales inválidas", async ({ auth }) => {
-    await auth.login("wrong@example.com", "badpassword");
-    await auth.expectLoginError();
+  test("muestra el mensaje del API con credenciales inválidas", async ({ auth, page }) => {
+    await mockApi(page);
+    await page.route(/\/api\/v1\/auth\/(login|refresh)$/, (route) =>
+      fulfillJson(route, 401, { status: false, message: "Usuario o contraseña incorrectos." }),
+    );
+    await auth.login("wrong_user", "badpassword");
+    await expect(page.getByRole("alert")).toHaveText("Usuario o contraseña incorrectos.");
+    expect(page.url()).toContain("/login");
+  });
+
+  test("tras iniciar sesión vuelve a la ruta pedida", async ({ auth, page }) => {
+    await mockApi(page);
+    await page.goto("/goals");
+    await page.waitForURL(/\/login\?redirect=%2Fgoals$/);
+    await auth.emailInput.fill(E2E_USER);
+    await auth.passwordInput.fill(E2E_PASSWORD);
+    await auth.submitButton.click();
+    await page.waitForURL("**/goals");
+    await expect(
+      page.getByRole("heading", { name: /ahorrando para lo que importa/i }),
+    ).toBeVisible();
+  });
+
+  test("ignora un redirect externo", async ({ auth, page }) => {
+    await mockApi(page);
+    await page.goto("/login?redirect=%2F%2Fevil.example.com");
+    await page.waitForLoadState("networkidle");
+    await auth.emailInput.fill(E2E_USER);
+    await auth.passwordInput.fill(E2E_PASSWORD);
+    await auth.submitButton.click();
+    await page.waitForURL("**/dashboard");
   });
 
   test("muestra formulario de registro", async ({ auth }) => {
