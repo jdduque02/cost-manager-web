@@ -13,7 +13,7 @@ const STREET_TYPES = [
 const CONTROL =
   "w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary disabled:opacity-60";
 
-/** Serializa los campos a "Cl 97A # 76-5, Medellín, Antioquia". Devuelve "" si no hay datos. */
+/** Serializa los campos a "Cra 10 # 5-20, Bogotá, Bogotá D.C.". Devuelve "" si no hay datos. */
 export function buildAddress(parts: {
   streetType: string;
   road: string;
@@ -79,7 +79,7 @@ export function AddressFields({ onChange, disabled }: AddressFieldsProps) {
             value={road}
             onChange={(e) => setRoad(e.target.value)}
             className={CONTROL}
-            placeholder="97A"
+            placeholder="10"
             maxLength={8}
           />
           <span className="text-muted-foreground">#</span>
@@ -88,7 +88,7 @@ export function AddressFields({ onChange, disabled }: AddressFieldsProps) {
             value={cross}
             onChange={(e) => setCross(e.target.value)}
             className={CONTROL}
-            placeholder="76"
+            placeholder="5"
             maxLength={8}
           />
           <span className="text-muted-foreground">-</span>
@@ -97,12 +97,12 @@ export function AddressFields({ onChange, disabled }: AddressFieldsProps) {
             value={number}
             onChange={(e) => setNumber(e.target.value)}
             className={CONTROL}
-            placeholder="5"
+            placeholder="20"
             maxLength={8}
           />
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Ej: Cl 97A # 76-5</p>
+      <p className="text-xs text-muted-foreground">Ej: Cra 10 # 5-20</p>
       <div className="grid grid-cols-2 gap-2">
         <select
           aria-label="Departamento"
