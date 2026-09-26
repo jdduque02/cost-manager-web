@@ -18,6 +18,7 @@ import {
   Mail,
   Users,
   Building2,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
@@ -29,7 +30,9 @@ import { NotificationBell } from "@/components/ui/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ConsentDialog } from "@/components/layout/ConsentDialog";
+import { TransactionDialog } from "@/components/views/TransactionDialog";
 import { loginHref } from "@/lib/auth/guards";
+import { t } from "@/lib/i18n/errors";
 
 type NavItem = {
   to: string;
@@ -178,6 +181,9 @@ export function AppShell({
   requireAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // El diálogo se monta al primer uso para no disparar sus 6 queries en cada pantalla.
+  const [txDialogMounted, setTxDialogMounted] = useState(false);
+  const [txDialogOpen, setTxDialogOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
@@ -232,10 +238,23 @@ export function AppShell({
             <VisibilityToggle />
           </div>
         </header>
-        <main id="main" className="px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <main id="main" className="px-4 pb-24 pt-6 sm:px-6 lg:px-10 lg:pt-10">
           {children}
         </main>
       </div>
+      <Button
+        size="icon"
+        aria-label={t("ui.tx.new")}
+        title={t("ui.tx.new")}
+        onClick={() => {
+          setTxDialogMounted(true);
+          setTxDialogOpen(true);
+        }}
+        className="fixed bottom-6 right-6 z-30 h-14 w-14 rounded-full bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+      >
+        <Plus className="h-6 w-6" aria-hidden="true" />
+      </Button>
+      {txDialogMounted && <TransactionDialog open={txDialogOpen} onOpenChange={setTxDialogOpen} />}
       <ConsentDialog />
     </div>
   );
