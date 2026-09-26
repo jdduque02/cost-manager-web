@@ -9,6 +9,10 @@ import { identityApi } from "@/lib/api/identity";
 import { LEGAL_VERSION } from "@/content/legal";
 
 import { t } from "@/lib/i18n/errors";
+
+/** Misma regla que `CreateUserDto.username` en el API y que el móvil. */
+const USERNAME_RE = /^[A-Za-z0-9_]{3,32}$/;
+
 const PASSWORD_RULES = [
   { key: "minLength", test: (p: string) => p.length >= 12, label: "Minimo 12 caracteres" },
   {
@@ -100,6 +104,10 @@ export function Register() {
       setError(t("err.register.required"));
       return;
     }
+    if (!USERNAME_RE.test(username)) {
+      setError(t("err.register.username"));
+      return;
+    }
     if (password !== confirmPassword) {
       setError(t("err.register.mismatch"));
       return;
@@ -171,6 +179,7 @@ export function Register() {
   }
 
   const usernameError = fieldErrors(fieldDetails, "username");
+  const usernameInvalid = !!usernameError || (!!username && !USERNAME_RE.test(username));
   const emailError = fieldErrors(fieldDetails, "email");
   const passwordError = fieldErrors(fieldDetails, "password");
 
@@ -219,14 +228,20 @@ export function Register() {
               type="text"
               autoComplete="username"
               aria-required="true"
-              aria-invalid={!!usernameError}
-              aria-describedby={usernameError ? `${ids.username}-err` : undefined}
+              aria-invalid={usernameInvalid}
+              aria-describedby={`${ids.username}-hint${usernameError ? ` ${ids.username}-err` : ""}`}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className={inputCls(!!usernameError)}
+              className={inputCls(usernameInvalid)}
               placeholder="juan_perez"
               disabled={loading}
             />
+            <p
+              id={`${ids.username}-hint`}
+              className={`mt-1 text-xs ${usernameInvalid ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {t("ui.register.usernameHint")}
+            </p>
             {usernameError && (
               <p id={`${ids.username}-err`} className="mt-1 text-xs text-destructive">
                 {usernameError}

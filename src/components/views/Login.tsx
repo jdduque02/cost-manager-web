@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
+import { ApiError } from "@/lib/api/client";
 
 import { t } from "@/lib/i18n/errors";
 export function Login() {
@@ -13,6 +14,7 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const looksLikeEmail = username.includes("@");
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -33,8 +35,7 @@ export function Login() {
     try {
       await login(username, password);
     } catch (err) {
-      console.log(err);
-      setError(t("err.login.failed"));
+      setError(err instanceof ApiError && err.message ? err.message : t("err.login.failed"));
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export function Login() {
               htmlFor="login-username"
               className="mb-1.5 block text-sm font-medium text-foreground"
             >
-              Usuario / Correo
+              Usuario
             </label>
             <input
               id="login-username"
@@ -70,10 +71,16 @@ export function Login() {
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              aria-describedby={looksLikeEmail ? "login-username-hint" : undefined}
               className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="juan_perez"
               disabled={loading}
             />
+            {looksLikeEmail && (
+              <p id="login-username-hint" className="mt-1 text-xs text-muted-foreground">
+                {t("ui.login.emailHint")}
+              </p>
+            )}
           </div>
 
           <div>

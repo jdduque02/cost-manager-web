@@ -147,6 +147,34 @@ describe("Register", () => {
     );
   });
 
+  it("shows the username rule as a visible hint tied to the field", () => {
+    renderRegister();
+    expect(screen.getByLabelText("Usuario *")).toHaveAccessibleDescription(
+      "3 a 32 caracteres: letras sin tildes, números o guion bajo (_)",
+    );
+  });
+
+  it.each(["ju", "juan.perez", "josé", "a".repeat(33), "juan perez"])(
+    "blocks submit with invalid username %j",
+    async (username) => {
+      const user = userEvent.setup();
+      renderRegister();
+      await user.type(screen.getByPlaceholderText("Juan Perez Garcia"), "Juan Perez");
+      await user.type(screen.getByPlaceholderText("juan_perez"), username);
+      await user.type(screen.getByPlaceholderText("juan@ejemplo.com"), "juan@test.com");
+      await user.type(screen.getByPlaceholderText("Minimo 12 caracteres"), "TestPass123!");
+      await user.type(screen.getByPlaceholderText("Repite tu contrasena"), "TestPass123!");
+      await user.click(screen.getByRole("checkbox", { name: /mayor de 18/i }));
+      await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "El usuario debe tener de 3 a 32 caracteres: letras sin tildes, números o guion bajo (_)",
+      );
+      expect(screen.getByLabelText("Usuario *")).toHaveAttribute("aria-invalid", "true");
+      expect(identityApi.createUser).not.toHaveBeenCalled();
+    },
+  );
+
   it("does not ask for document, phone or address", () => {
     renderRegister();
     expect(screen.queryByLabelText(/documento/i)).not.toBeInTheDocument();

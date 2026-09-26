@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Login } from "./Login";
 import { AuthProvider } from "@/lib/auth/context";
-import { clearTokens } from "@/lib/api/client";
+import { ApiError, clearTokens } from "@/lib/api/client";
 import { setLocale } from "@/lib/i18n/errors";
 
 // jsdom reports navigator.language=en-US; these tests assert Spanish copy.
@@ -130,6 +130,34 @@ describe("Login", () => {
     await waitFor(() => {
       expect(screen.getByText("Credenciales inválidas o error del servidor")).toBeInTheDocument();
     });
+  });
+
+  it("shows the API message when login fails with an ApiError (e.g. 403)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.login).mockRejectedValue(
+      new ApiError("Tu dirección IP no tiene permiso para acceder.", 403),
+    );
+    renderLogin();
+
+    await user.type(screen.getByPlaceholderText("juan_perez"), "juan_perez");
+    await user.type(screen.getByPlaceholderText("••••••••"), "password123");
+    await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Tu dirección IP no tiene permiso para acceder.",
+    );
+  });
+
+  it("labels the field as username and hints when an email is typed", async () => {
+    const user = userEvent.setup();
+    renderLogin();
+    const input = screen.getByLabelText("Usuario");
+    expect(screen.queryByText("Ingresa tu nombre de usuario, no tu correo")).toBeNull();
+
+    await user.type(input, "juan@correo.com");
+
+    expect(screen.getByText("Ingresa tu nombre de usuario, no tu correo")).toBeInTheDocument();
+    expect(input).toHaveAccessibleDescription("Ingresa tu nombre de usuario, no tu correo");
   });
 
   it("disables form elements while loading", async () => {
