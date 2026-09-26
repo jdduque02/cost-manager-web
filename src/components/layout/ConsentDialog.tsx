@@ -46,7 +46,9 @@ export function ConsentDialog() {
     setSaving(true);
     setError(null);
     try {
-      updateUser(await identityApi.acceptTerms(user.id, LEGAL_VERSION));
+      const updated = await identityApi.acceptTerms(user.id, LEGAL_VERSION);
+      if (!updated) throw new Error("acceptTerms sin usuario en la respuesta");
+      updateUser(updated);
     } catch (err) {
       setError(
         err instanceof ApiError

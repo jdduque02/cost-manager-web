@@ -104,6 +104,18 @@ describe("ConsentDialog", () => {
     expect(updateUser).not.toHaveBeenCalled();
   });
 
+  it("si el API responde sin usuario, no vacía la sesión y sigue abierto con error", async () => {
+    const accept = await acceptTermsMock();
+    accept.mockResolvedValue(undefined as never);
+    const u = userEvent.setup();
+    render(<ConsentDialog />);
+    await u.click(screen.getByRole("checkbox"));
+    await u.click(screen.getByRole("button", { name: /aceptar y continuar/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no se pudo guardar/i);
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
   it("No acepto cierra sesión y va a /login", async () => {
     const u = userEvent.setup();
     render(<ConsentDialog />);
