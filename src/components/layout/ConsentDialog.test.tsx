@@ -6,12 +6,12 @@ import { ApiError } from "@/lib/api/client";
 import { setLocale } from "@/lib/i18n/errors";
 
 const logout = vi.fn();
-const refreshUser = vi.fn();
+const updateUser = vi.fn();
 const navigate = vi.fn();
 let user: { id: string; terms_version?: string | null } | null;
 
 vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({ user, logout, refreshUser }),
+  useAuth: () => ({ user, logout, updateUser }),
 }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 vi.mock("@/lib/api/identity", () => ({ identityApi: { acceptTerms: vi.fn() } }));
@@ -25,7 +25,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   user = { id: "u1", terms_version: null };
   logout.mockResolvedValue(undefined);
-  refreshUser.mockResolvedValue(undefined);
 });
 
 describe("ConsentDialog", () => {
@@ -68,14 +67,16 @@ describe("ConsentDialog", () => {
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
 
-  it("acepta: envía la versión vigente y refresca el usuario", async () => {
+  it("acepta: envía la versión vigente y usa el usuario devuelto, sin otra petición", async () => {
     const accept = await acceptTermsMock();
-    accept.mockResolvedValue({} as never);
+    const updated = { id: "u1", terms_version: LEGAL_VERSION };
+    accept.mockResolvedValue(updated as never);
     const u = userEvent.setup();
     render(<ConsentDialog />);
     await u.click(screen.getByRole("checkbox"));
     await u.click(screen.getByRole("button", { name: /aceptar y continuar/i }));
-    await waitFor(() => expect(refreshUser).toHaveBeenCalled());
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith(updated));
+    expect(accept).toHaveBeenCalledTimes(1);
     expect(accept).toHaveBeenCalledWith("u1", LEGAL_VERSION);
   });
 
@@ -88,19 +89,19 @@ describe("ConsentDialog", () => {
     await u.click(screen.getByRole("button", { name: /aceptar y continuar/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/sin conexión/i);
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-    expect(refreshUser).not.toHaveBeenCalled();
+    expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it("si refreshUser falla, error genérico traducido y sigue abierto", async () => {
+  it("si el guardado falla con un error no controlado, mensaje genérico traducido y sigue abierto", async () => {
     const accept = await acceptTermsMock();
-    accept.mockResolvedValue({} as never);
-    refreshUser.mockRejectedValue(new Error("boom"));
+    accept.mockRejectedValue(new Error("boom"));
     const u = userEvent.setup();
     render(<ConsentDialog />);
     await u.click(screen.getByRole("checkbox"));
     await u.click(screen.getByRole("button", { name: /aceptar y continuar/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/no se pudo guardar/i);
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(updateUser).not.toHaveBeenCalled();
   });
 
   it("No acepto cierra sesión y va a /login", async () => {

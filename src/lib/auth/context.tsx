@@ -23,6 +23,8 @@ export interface AuthState {
   login: (username: string, password: string) => Promise<AuthTokens>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Reemplaza el usuario de la sesión con uno ya obtenido del API (sin otra petición). */
+  updateUser: (user: User) => void;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
@@ -152,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshUser,
+      updateUser: setUser,
     }),
     [user, isLoading, isAdmin, roles, login, logout, refreshUser],
   );

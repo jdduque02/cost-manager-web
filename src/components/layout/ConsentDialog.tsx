@@ -32,7 +32,7 @@ function LegalLink({ href, label }: { href: string; label: string }) {
  * versión legal vigente. Sin `onOpenChange`, Escape y clic fuera no lo cierran.
  */
 export function ConsentDialog() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const checkId = useId();
   const [accepted, setAccepted] = useState(false);
@@ -42,12 +42,11 @@ export function ConsentDialog() {
   if (!user || user.terms_version === LEGAL_VERSION) return null;
 
   const handleAccept = async (e: React.MouseEvent) => {
-    e.preventDefault(); // no dejar que Radix cierre el diálogo: lo cierra el refresh del usuario
+    e.preventDefault(); // no dejar que Radix cierre el diálogo: lo cierra el usuario devuelto por el API
     setSaving(true);
     setError(null);
     try {
-      await identityApi.acceptTerms(user.id, LEGAL_VERSION);
-      await refreshUser();
+      updateUser(await identityApi.acceptTerms(user.id, LEGAL_VERSION));
     } catch (err) {
       setError(
         err instanceof ApiError

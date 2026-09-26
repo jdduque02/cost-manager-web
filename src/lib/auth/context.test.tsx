@@ -54,6 +54,22 @@ function TestConsumer() {
       <button onClick={() => auth.login("user", "pass")}>login</button>
       <button onClick={() => auth.logout()}>logout</button>
       <button onClick={() => auth.refreshUser()}>refresh</button>
+      <button
+        onClick={() =>
+          auth.updateUser({
+            id: "user-1",
+            external_id: "ext-1",
+            username: "testuser",
+            email: "test@example.com",
+            is_active: true,
+            terms_version: "2026-09-24",
+            created_at: "2024-01-01",
+            updated_at: null,
+          })
+        }
+      >
+        update
+      </button>
       <span data-testid="terms">{auth.user?.terms_version ?? "null"}</span>
     </div>
   );
@@ -202,5 +218,26 @@ describe("AuthProvider", () => {
     });
     vi.mocked(getAccessToken).mockReturnValue(null);
     vi.mocked(getStoredUserId).mockReturnValue(null);
+  });
+
+  it("updateUser reemplaza el usuario de la sesión sin pedirlo de nuevo al API", async () => {
+    const { identityApi } = await import("@/lib/api/identity");
+    const user = userEvent.setup();
+    renderAuth();
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+    await user.click(screen.getByText("login"));
+    await waitFor(() => {
+      expect(screen.getByTestId("terms")).toHaveTextContent("null");
+    });
+    const calls = vi.mocked(identityApi.getUser).mock.calls.length;
+
+    await user.click(screen.getByText("update"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("terms")).toHaveTextContent("2026-09-24");
+    });
+    expect(vi.mocked(identityApi.getUser).mock.calls.length).toBe(calls);
   });
 });
