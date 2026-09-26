@@ -32,7 +32,11 @@ import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import { useCountUp } from "@/hooks/use-count-up";
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
+import { t } from "@/lib/i18n/errors";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
 
@@ -179,11 +183,25 @@ export function Dashboard() {
     }),
     [now],
   );
-  const { data: monthSummary } = useTransactionSummary(monthQuery);
+  const {
+    data: monthSummary,
+    isLoading: monthLoading,
+    error: monthError,
+  } = useTransactionSummary(monthQuery);
   const { data: sixMonthSummary } = useTransactionSummary(sixMonthQuery);
   // La API ordena por transaction_date DESC: basta con las 5 más recientes.
   const { data: txs = [] } = useTransactions({ limit: 5 });
-  const { summary: nw } = useNetWorth();
+  const { summary: nw, isLoading: nwLoading, error: nwError } = useNetWorth();
+  const queryClient = useQueryClient();
+  const kpiLoading = monthLoading || nwLoading;
+  // Un refetch en segundo plano fallido no debe tapar datos ya cargados.
+  const kpiError = (!monthSummary && monthError) || (!nw && nwError);
+  // Reintenta solo las queries fallidas de la pantalla (resumen del mes y/o patrimonio).
+  const retryFailed = () =>
+    void queryClient.refetchQueries({
+      type: "active",
+      predicate: (q) => q.state.status === "error",
+    });
   const { data: categories = [] } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
   const fmtAmount = useFormattedAmount();
@@ -413,36 +431,60 @@ export function Dashboard() {
 
       {/* KPIs */}
       <RevealSection delay={0}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KPI
-            label="Patrimonio"
-            value={fmtAmount(animatedNetWorth)}
-            delta="Tiempo real"
-            positive
-            icon={Wallet}
-          />
-          <KPI
-            label="Ingresos del mes"
-            value={fmtAmount(animatedMonthlyIncome)}
-            delta="Este mes"
-            positive
-            icon={TrendingUp}
-          />
-          <KPI
-            label="Gastos del mes"
-            value={fmtAmount(animatedMonthlyExpenses)}
-            delta="Este mes"
-            positive={false}
-            icon={ArrowDownRight}
-          />
-          <KPI
-            label="Tasa de ahorro"
-            value={`${animatedSavingsRate.toFixed(1)}%`}
-            delta="Este mes"
-            positive={savingsRate > 0}
-            icon={PiggyBank}
-          />
-        </div>
+        {kpiError && (
+          <Card
+            role="alert"
+            className="flex flex-col items-center justify-center gap-3 py-8 text-sm text-destructive"
+          >
+            {t("err.dashboard.load")}
+            <Button variant="outline" size="sm" onClick={retryFailed}>
+              {t("ui.retry")}
+            </Button>
+          </Card>
+        )}
+        {!kpiError && kpiLoading && (
+          <div
+            aria-busy="true"
+            data-testid="kpi-skeleton"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-36 rounded-2xl" />
+            ))}
+          </div>
+        )}
+        {!kpiError && !kpiLoading && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KPI
+              label="Patrimonio"
+              value={fmtAmount(animatedNetWorth)}
+              delta="Tiempo real"
+              positive
+              icon={Wallet}
+            />
+            <KPI
+              label="Ingresos del mes"
+              value={fmtAmount(animatedMonthlyIncome)}
+              delta="Este mes"
+              positive
+              icon={TrendingUp}
+            />
+            <KPI
+              label="Gastos del mes"
+              value={fmtAmount(animatedMonthlyExpenses)}
+              delta="Este mes"
+              positive={false}
+              icon={ArrowDownRight}
+            />
+            <KPI
+              label="Tasa de ahorro"
+              value={`${animatedSavingsRate.toFixed(1)}%`}
+              delta="Este mes"
+              positive={savingsRate > 0}
+              icon={PiggyBank}
+            />
+          </div>
+        )}
       </RevealSection>
 
       {/* News Carousel */}
@@ -503,9 +545,9 @@ export function Dashboard() {
           <Card>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold">Actividad Reciente</h3>
-              <a href="/transactions" className="text-xs font-medium text-primary hover:underline">
+              <Link to="/transactions" className="text-xs font-medium text-primary hover:underline">
                 Ver todo
-              </a>
+              </Link>
             </div>
             <ul className="mt-4 space-y-1.5">
               {txs.length === 0 ? (
