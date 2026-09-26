@@ -7,6 +7,8 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import type { TransactionRecord } from "@/lib/api/finance";
+// Alias: en este archivo `t` es la transacción en los map.
+import { t as i18n } from "@/lib/i18n/errors";
 
 function toDateKey(d: Date) {
   const y = d.getFullYear();
@@ -317,15 +319,17 @@ export function TransactionCalendar({
                       </span>
                     );
                   })()}
-                  <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100">
+                  <div className="flex gap-0.5 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
                     <button
                       onClick={() => onEdit(t)}
+                      aria-label={`${i18n("ui.edit")}: ${t.description ?? "Sin descripcion"}`}
                       className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => onDelete(t)}
+                      aria-label={`${i18n("ui.delete")}: ${t.description ?? "Sin descripcion"}`}
                       className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

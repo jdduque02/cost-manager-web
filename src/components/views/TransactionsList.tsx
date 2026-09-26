@@ -68,7 +68,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { TransactionRecord, TransferMovement, TransferResponse } from "@/lib/api/finance";
 
-import { t } from "@/lib/i18n/errors";
+import { t, errorText } from "@/lib/i18n/errors";
+
+/** Tope de la consulta (sin paginar en el API): más allá hay que filtrar por fecha. */
+const TX_LIMIT = 500;
+
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName.toLowerCase();
@@ -339,21 +343,60 @@ function LoadingSpinner({ className }: { className?: string }) {
   );
 }
 
-function ErrorMessage({ className }: { className?: string }) {
+function ErrorMessage({ className, onRetry }: { className?: string; onRetry: () => void }) {
   return (
-    <div className={cn("flex items-center justify-center text-destructive text-sm", className)}>
-      Error al cargar transacciones.
+    <div
+      role="alert"
+      className={cn(
+        "flex flex-col items-center justify-center gap-3 text-destructive text-sm",
+        className,
+      )}
+    >
+      {t("err.tx.load")}
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        {t("ui.retry")}
+      </Button>
     </div>
   );
 }
 
-function EmptyState({ hasTransactions }: { hasTransactions: boolean }) {
+function EmptyState({
+  filtered,
+  onNew,
+  onImport,
+  onClearFilters,
+}: {
+  filtered: boolean;
+  onNew: () => void;
+  onImport: () => void;
+  onClearFilters: () => void;
+}) {
   return (
-    <Card className="flex h-40 flex-col items-center justify-center text-muted-foreground text-sm">
-      <Tag className="mb-2 h-6 w-6 opacity-50" />
-      {hasTransactions
-        ? "No hay transacciones que coincidan con la búsqueda."
-        : "No se encontraron transacciones."}
+    <Card className="flex min-h-40 flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
+      <Tag className="h-6 w-6 opacity-50" />
+      <p>
+        {filtered
+          ? "No hay transacciones que coincidan con la búsqueda."
+          : "No se encontraron transacciones."}
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        {filtered ? (
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            {t("ui.tx.clearFilters")}
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" onClick={onNew}>
+              <Plus className="h-4 w-4" />
+              {t("ui.tx.new")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={onImport}>
+              <FileUp className="h-4 w-4" />
+              {t("ui.tx.import")}
+            </Button>
+          </>
+        )}
+      </div>
     </Card>
   );
 }
@@ -380,7 +423,7 @@ interface TransactionRowProps {
 }
 
 function TransactionRow({
-  t,
+  t: tx,
   isTransfer,
   categoryName,
   isPendingTx,
@@ -400,10 +443,11 @@ function TransactionRow({
   fmtAmount,
 }: TransactionRowProps) {
   const Icon = isTransfer ? ArrowLeftRight : getCategoryIcon(categoryName);
+  const description = tx.description ?? "Sin descripcion";
 
   return (
     <li
-      key={t.id}
+      key={tx.id}
       className={cn(
         "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
         "animate-in fade-in slide-in-from-top-1 duration-200",
@@ -411,8 +455,8 @@ function TransactionRow({
       )}
     >
       <Checkbox
-        checked={selectedMemberIds(t).every((id) => selectedIds.has(id))}
-        onCheckedChange={() => toggleSelected(t.id)}
+        checked={selectedMemberIds(tx).every((id) => selectedIds.has(id))}
+        onCheckedChange={() => toggleSelected(tx.id)}
         aria-label="Seleccionar transacción"
         className="shrink-0"
       />
@@ -420,12 +464,12 @@ function TransactionRow({
         <Icon className="h-4.5 w-4.5" size={18} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{t.description ?? "Sin descripcion"}</p>
+        <p className="truncate text-sm font-medium">{description}</p>
         <p className="text-xs text-muted-foreground">
           {categoryName}
-          {t.installments && t.installments > 1 ? ` · ${t.installments} cuotas` : ""}
+          {tx.installments && tx.installments > 1 ? ` · ${tx.installments} cuotas` : ""}
           {" · "}
-          {formatDate(t.transaction_date)}
+          {formatDate(tx.transaction_date)}
         </p>
       </div>
       {isPendingTx ? (
@@ -434,11 +478,11 @@ function TransactionRow({
         <Badge tone="muted">{categoryName}</Badge>
       )}
       {linkedLabelValue && <Badge tone="primary">{linkedLabelValue}</Badge>}
-      {t.is_fixed && (
+      {tx.is_fixed && (
         <Badge tone="primary">
           Fija
           {frequencyText}
-          {t.due_day ? ` · Día ${t.due_day}` : ""}
+          {tx.due_day ? ` · Día ${tx.due_day}` : ""}
         </Badge>
       )}
       <span
@@ -448,24 +492,26 @@ function TransactionRow({
         )}
       >
         {amountSign}
-        {fmtAmount(t.amount, { currency: t.currency })}
+        {fmtAmount(tx.amount, { currency: tx.currency })}
       </span>
-      <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+      <div className="flex gap-1 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
         <button
-          onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(t) : onClone(t))}
+          onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(tx) : onClone(tx))}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
           title={isTransfer ? "Clonar transferencia" : "Clonar transacción"}
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
         <button
-          onClick={() => handleEdit(t)}
+          onClick={() => handleEdit(tx)}
+          aria-label={`${t("ui.edit")}: ${description}`}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
-          onClick={() => setDeletingTx(t)}
+          onClick={() => setDeletingTx(tx)}
+          aria-label={`${t("ui.delete")}: ${description}`}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -604,8 +650,9 @@ export function TransactionsList() {
     data: transactions = [],
     isLoading,
     error,
+    refetch,
   } = useTransactions({
-    limit: 500,
+    limit: TX_LIMIT,
     ...(dateFrom ? { date_from: dateFrom } : {}),
     ...(dateTo ? { date_to: dateTo } : {}),
   });
@@ -738,7 +785,7 @@ export function TransactionsList() {
           toast.success("Transferencia eliminada");
           setDeletingTx(null);
         },
-        onError: () => toast.error(t("err.transfer.delete")),
+        onError: (err) => toast.error(errorText(err, "err.transfer.delete")),
       });
       return;
     }
@@ -747,7 +794,7 @@ export function TransactionsList() {
         toast.success("Transacción eliminada");
         setDeletingTx(null);
       },
-      onError: () => toast.error(t("err.tx.delete")),
+      onError: (err) => toast.error(errorText(err, "err.tx.delete")),
     });
   };
 
@@ -788,7 +835,7 @@ export function TransactionsList() {
         setBulkMonthLabel(null);
         setBulkConfirmOpen(false);
       },
-      onError: () => toast.error(t("err.tx.deleteMany")),
+      onError: (err) => toast.error(errorText(err, "err.tx.deleteMany")),
     });
   };
 
@@ -806,11 +853,38 @@ export function TransactionsList() {
     }
   };
 
+  const filtersActive =
+    !!search ||
+    typeFilter !== "all" ||
+    companyFilter !== "all" ||
+    uncategorizedOnly ||
+    !!dateFrom ||
+    !!dateTo;
+
+  const clearFilters = () => {
+    void setSearch(null);
+    void setTypeFilter(null);
+    void setCompanyFilter(null);
+    void setUncategorizedOnly(null);
+    void setDateFrom(null);
+    void setDateTo(null);
+  };
+
+  const retry = () => void refetch();
+
   const listTabContent = useMemo(() => {
     if (isLoading) return <LoadingSpinner className="h-32" />;
-    if (error) return <ErrorMessage className="h-32" />;
+    if (error && transactions.length === 0)
+      return <ErrorMessage className="h-32" onRetry={retry} />;
     if (groupedByMonth.length === 0)
-      return <EmptyState hasTransactions={transactions.length > 0} />;
+      return (
+        <EmptyState
+          filtered={filtersActive}
+          onNew={() => openNew()}
+          onImport={() => setImportOpen(true)}
+          onClearFilters={clearFilters}
+        />
+      );
     return (
       <div className="space-y-6">
         {groupedByMonth.map((month) => (
@@ -847,6 +921,7 @@ export function TransactionsList() {
     error,
     groupedByMonth,
     transactions.length,
+    filtersActive,
     categoryMap,
     objectiveMap,
     accountMap,
@@ -860,7 +935,8 @@ export function TransactionsList() {
 
   const calendarTabContent = useMemo(() => {
     if (isLoading) return <LoadingSpinner className="h-40" />;
-    if (error) return <ErrorMessage className="h-40" />;
+    if (error && transactions.length === 0)
+      return <ErrorMessage className="h-40" onRetry={retry} />;
     return (
       <TransactionCalendar
         transactions={displayItems}
@@ -1054,10 +1130,11 @@ export function TransactionsList() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CurrencyConverter />
-        <GmfCalculator />
-      </div>
+      {transactions.length >= TX_LIMIT && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("ui.tx.limit").replace("{limit}", String(TX_LIMIT))}
+        </p>
+      )}
 
       <Tabs value={view} onValueChange={(v) => setView(v as "list" | "calendar")}>
         <TabsList>
@@ -1069,6 +1146,11 @@ export function TransactionsList() {
 
         <TabsContent value="calendar">{calendarTabContent}</TabsContent>
       </Tabs>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CurrencyConverter />
+        <GmfCalculator />
+      </div>
 
       <TransactionDialog
         open={dialogOpen}
@@ -1147,13 +1229,7 @@ export function TransactionsList() {
                   setCloneDialogOpen(false);
                   setCloningTx(null);
                 },
-                onError: (err) => {
-                  toast.error(
-                    err instanceof Error && err.message
-                      ? err.message
-                      : t("err.transfer.clone"),
-                  );
-                },
+                onError: (err) => toast.error(errorText(err, "err.transfer.clone")),
               },
             );
           } else {
@@ -1165,12 +1241,7 @@ export function TransactionsList() {
                   setCloneDialogOpen(false);
                   setCloningTx(null);
                 },
-                onError: (err) =>
-                  toast.error(
-                    err instanceof Error && err.message
-                      ? err.message
-                      : t("err.tx.clone"),
-                  ),
+                onError: (err) => toast.error(errorText(err, "err.tx.clone")),
               },
             );
           }
