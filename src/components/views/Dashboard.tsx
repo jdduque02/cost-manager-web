@@ -210,6 +210,12 @@ export function Dashboard() {
 
   const netWorthValue = nw?.netWorth ?? 0;
 
+  function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
+    const iso = t.transaction_date ?? t.created_at ?? "";
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
   // Build a map: category_id -> category name
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};

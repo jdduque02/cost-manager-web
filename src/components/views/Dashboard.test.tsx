@@ -26,6 +26,7 @@ vi.mock("@tanstack/react-router", () => ({
 const charts: Highcharts.Options[] = [];
 const summaryCalls: { date_from: string; group_by?: string }[] = [];
 const transactionsCalls: unknown[] = [];
+let recentTxs: Record<string, unknown>[] = [];
 
 vi.mock("highcharts-react-official", () => ({
   default: ({ options }: { options: Highcharts.Options }) => {
@@ -56,7 +57,7 @@ vi.mock("@/lib/hooks/use-api", () => ({
   useCategories: () => ({ data: [{ id: 1, name: "Mercado" }] }),
   useTransactions: (params: unknown) => {
     transactionsCalls.push(params);
-    return { data: [] };
+    return { data: recentTxs };
   },
   useTransactionSummary: (q: { date_from: string; group_by?: string }) => {
     summaryCalls.push(q);
@@ -87,6 +88,7 @@ describe("Dashboard — datos agregados en servidor", () => {
     charts.length = 0;
     summaryCalls.length = 0;
     transactionsCalls.length = 0;
+    recentTxs = [];
     kpiState.loading = false;
     kpiState.error = null;
     kpiState.stale = false;
@@ -144,5 +146,27 @@ describe("Dashboard — datos agregados en servidor", () => {
   it("requests only the 5 most recent transactions for the activity list", () => {
     render(<Dashboard />);
     expect(transactionsCalls[0]).toEqual({ limit: 5 });
+  });
+
+  // Regresión: a39f67b borró el helper txDate y la lista reventaba con ≥1 transacción.
+  it("renders recent activity with the transaction's local calendar date", () => {
+    recentTxs = [
+      {
+        id: 7,
+        type: "expense",
+        amount: 50,
+        description: "Arepas",
+        category_id: 1,
+        transaction_date: "2026-03-15T00:00:00.000Z",
+        created_at: "2026-03-20T10:00:00.000Z",
+      },
+      { id: 8, type: "income", amount: 10, description: "Sin fecha", created_at: "2026-04-02" },
+    ];
+    render(<Dashboard />);
+    expect(screen.getByText("Arepas")).toBeInTheDocument();
+    const day = (y: number, m: number, d: number) =>
+      new Date(y, m - 1, d).toLocaleDateString("es-CO");
+    expect(screen.getByText(`Mercado · ${day(2026, 3, 15)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Por editar · ${day(2026, 4, 2)}`)).toBeInTheDocument();
   });
 });
