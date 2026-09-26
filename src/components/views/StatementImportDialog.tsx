@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileUp, Loader2, Lock, CheckCircle2, XCircle, FolderOpen, RotateCcw } from "lucide-react";
+import { FileUp, Loader2, Lock, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -254,20 +254,6 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
               )}
             </div>
 
-            {categories.length === 0 && (
-              <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <FolderOpen className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
-                  <p className="text-xs text-muted-foreground">
-                    Debes crear categorías antes de importar transacciones.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Categoría por defecto</Label>
@@ -445,7 +431,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
             <DialogFooter>
               <Button
                 type="submit"
-                disabled={files.length === 0 || isUploading || categories.length === 0}
+                disabled={files.length === 0 || isUploading}
                 className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
               >
                 {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}

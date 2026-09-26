@@ -23,6 +23,8 @@ vi.mock("@/components/views/EmpresaDialog", () => ({
   EmpresaDialog: () => <div data-testid="empresa-dialog" />,
 }));
 
+const catState = vi.hoisted(() => ({ empty: false }));
+
 vi.mock("@/lib/hooks/use-api", () => {
   const noop = () => ({
     mutateAsync: vi.fn().mockResolvedValue({}),
@@ -31,26 +33,28 @@ vi.mock("@/lib/hooks/use-api", () => {
   });
   return {
     useCategories: () => ({
-      data: [
-        {
-          id: 1,
-          name: "Alimentación",
-          group_type: "expense",
-          user_id: "u1",
-          created_at: "",
-          updated_at: null,
-          subcategories: [],
-        },
-        {
-          id: 2,
-          name: "Salario",
-          group_type: "income",
-          user_id: "u1",
-          created_at: "",
-          updated_at: null,
-          subcategories: [],
-        },
-      ],
+      data: catState.empty
+        ? []
+        : [
+            {
+              id: 1,
+              name: "Alimentación",
+              group_type: "expense",
+              user_id: "u1",
+              created_at: "",
+              updated_at: null,
+              subcategories: [],
+            },
+            {
+              id: 2,
+              name: "Salario",
+              group_type: "income",
+              user_id: "u1",
+              created_at: "",
+              updated_at: null,
+              subcategories: [],
+            },
+          ],
       isLoading: false,
     }),
     useSubcategories: () => ({ data: [] }),
@@ -111,6 +115,18 @@ describe("TransactionDialog", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("lets the user register without categories (category is optional)", () => {
+    catState.empty = true;
+    try {
+      render(<TransactionDialog {...defaultProps} />);
+      expect(screen.queryByText("Sin categorías configuradas")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Monto")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /crear categor/i })).toBeInTheDocument();
+    } finally {
+      catState.empty = false;
+    }
   });
 
   it("renders when open", () => {

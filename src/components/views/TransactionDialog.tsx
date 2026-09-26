@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, FolderOpen } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -18,7 +17,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { parseCurrency } from "@/lib/format";
-import { Badge } from "@/components/ui/primitives";
 import {
   Select,
   SelectContent,
@@ -54,7 +52,7 @@ import type {
   FixedFrequency,
 } from "@/lib/api/finance";
 
-import { t } from "@/lib/i18n/errors";
+import { errorText } from "@/lib/i18n/errors";
 interface TransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -141,7 +139,6 @@ export function TransactionDialog({
   const { data: empresas = [] } = useEmpresas();
   const createTx = useCreateTransaction();
   const updateTx = useUpdateTransaction();
-  const navigate = useNavigate();
 
   const isEditing = !!transaction;
 
@@ -205,7 +202,6 @@ export function TransactionDialog({
     return { savings, checking, other };
   }, [bankAccounts]);
 
-  const hasCategories = categories.length > 0;
   const isPending = createTx.isPending || updateTx.isPending;
 
   function populateFormFromTransaction(tx: TransactionRecord) {
@@ -313,7 +309,7 @@ export function TransactionDialog({
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error(t("err.tx.update")),
+          onError: (err) => toast.error(errorText(err, "err.tx.update")),
         },
       );
     } else {
@@ -323,7 +319,7 @@ export function TransactionDialog({
           reset();
           onOpenChange(false);
         },
-        onError: () => toast.error(t("err.tx.create")),
+        onError: (err) => toast.error(errorText(err, "err.tx.create")),
       });
     }
   }
@@ -333,37 +329,6 @@ export function TransactionDialog({
     dialogContent = (
       <div className="flex h-24 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  } else if (!hasCategories) {
-    dialogContent = (
-      <div className="space-y-4 py-2">
-        <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-            <FolderOpen className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
-            <p className="text-xs text-muted-foreground">
-              Debes crear categorías antes de registrar transacciones.
-            </p>
-          </div>
-        </div>
-        <Badge tone="primary">Configura tus categorías primero</Badge>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => {
-              onOpenChange(false);
-              navigate({ to: "/categories" });
-            }}
-            className="bg-gradient-primary text-primary-foreground hover:brightness-105"
-          >
-            Ir a Categorías
-          </Button>
-        </DialogFooter>
       </div>
     );
   }
