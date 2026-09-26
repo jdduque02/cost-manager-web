@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { setLocale } from "@/lib/i18n/errors";
 import { withNuqsTestingAdapter } from "nuqs/adapters/testing";
 import { Goals } from "./Goals";
 import type { FinancialObjective } from "@/lib/api/finance";
@@ -10,6 +12,8 @@ function renderGoals() {
 const mockDeleteObjective = { mutate: vi.fn(), isPending: false };
 
 let mockObjectives: Partial<FinancialObjective>[] = [];
+let mockObjectivesError: Error | null = null;
+const mockRefetch = vi.fn();
 
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
   useFormattedAmount: () => (v: number) => `$${v}`,
@@ -17,7 +21,12 @@ vi.mock("@/lib/hooks/use-formatted-amount", () => ({
 }));
 
 vi.mock("@/lib/hooks/use-api", () => ({
-  useObjectives: () => ({ data: mockObjectives, isLoading: false }),
+  useObjectives: () => ({
+    data: mockObjectives,
+    isLoading: false,
+    error: mockObjectivesError,
+    refetch: mockRefetch,
+  }),
   useDeleteObjective: () => mockDeleteObjective,
   useTransactions: () => ({ data: [] }),
   useCategories: () => ({ data: [] }),
@@ -55,7 +64,26 @@ function baseGoal(overrides: Partial<FinancialObjective> = {}): FinancialObjecti
 describe("Goals", () => {
   beforeEach(() => {
     mockObjectives = [];
+    mockObjectivesError = null;
     vi.clearAllMocks();
+  });
+
+  it("shows a load error with a retry action instead of the empty state", async () => {
+    setLocale("es");
+    mockObjectivesError = new Error("boom");
+    renderGoals();
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudieron cargar las metas.");
+    expect(screen.queryByText("No se encontraron metas financieras.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(mockRefetch).toHaveBeenCalled();
+  });
+
+  it("names the icon-only edit/delete buttons after the goal", () => {
+    setLocale("es");
+    mockObjectives = [baseGoal({ name: "Viaje" })];
+    renderGoals();
+    expect(screen.getByRole("button", { name: "Editar: Viaje" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Eliminar: Viaje" })).toBeInTheDocument();
   });
 
   it("shows 'meses de gastos cubiertos' for an emergency_fund goal with a value set", () => {

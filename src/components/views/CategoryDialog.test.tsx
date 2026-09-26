@@ -1,8 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { CategoryDialog } from "./CategoryDialog";
 
+const createMock = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: { loading: vi.fn(() => "tid"), success: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock("@/lib/hooks/use-api", () => ({
-  useCreateCategory: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useCreateCategory: () => ({ mutateAsync: createMock, isPending: false }),
   useUpdateCategory: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
 }));
 
@@ -74,6 +82,18 @@ describe("CategoryDialog", () => {
   it("associates the name label with its input via id", () => {
     render(<CategoryDialog {...defaultProps} />);
     expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
+  });
+
+  it("shows the API cause in the error toast when creation fails", async () => {
+    createMock.mockRejectedValueOnce(new Error("Ya existe una categoría con ese nombre"));
+    render(<CategoryDialog {...defaultProps} />);
+    await userEvent.type(screen.getByLabelText("Nombre"), "Mercado");
+    await userEvent.click(screen.getByRole("button", { name: /crear/i }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Ya existe una categoría con ese nombre", {
+        id: "tid",
+      }),
+    );
   });
 
   it("renders submit button", () => {

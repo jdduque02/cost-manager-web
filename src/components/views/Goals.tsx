@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { FinancialObjective, TransactionRecord } from "@/lib/api/finance";
 
-import { t } from "@/lib/i18n/errors";
+import { t, errorText } from "@/lib/i18n/errors";
+import { Button } from "@/components/ui/button";
 function getGoalIcon(name?: string) {
   if (!name) return Tag;
   const n = name.toLowerCase();
@@ -79,15 +80,17 @@ function GoalCard({
           ) : (
             <Badge tone="primary">{GOAL_TYPE_LABELS[goal.type] ?? goal.type}</Badge>
           )}
-          <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100 ml-2">
+          <div className="ml-2 flex gap-0.5 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
             <button
               onClick={() => onEdit(goal)}
+              aria-label={`${t("ui.edit")}: ${goal.name}`}
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => onDelete(goal)}
+              aria-label={`${t("ui.delete")}: ${goal.name}`}
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -158,7 +161,7 @@ function GoalCard({
 }
 
 export function Goals() {
-  const { data: objectives = [], isLoading } = useObjectives();
+  const { data: objectives = [], isLoading, error, refetch } = useObjectives();
   const { data: transactions = [] } = useTransactions({ limit: 500 });
   const { data: categories = [] } = useCategories();
   const deleteObj = useDeleteObjective();
@@ -211,7 +214,7 @@ export function Goals() {
         toast.success("Meta eliminada");
         setDeletingGoal(null);
       },
-      onError: () => toast.error(t("err.goal.delete")),
+      onError: (err) => toast.error(errorText(err, "err.goal.delete")),
     });
   }
 
@@ -251,7 +254,19 @@ export function Goals() {
         </div>
       )}
 
-      {!isLoading && objectives.length === 0 && (
+      {!isLoading && error && objectives.length === 0 && (
+        <div
+          role="alert"
+          className="flex h-32 flex-col items-center justify-center gap-3 text-sm text-destructive"
+        >
+          {t("err.goal.load")}
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            {t("ui.retry")}
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && !error && objectives.length === 0 && (
         <div className="flex h-32 flex-col items-center justify-center text-muted-foreground text-sm">
           <Tag className="mb-2 h-6 w-6 opacity-50" />
           No se encontraron metas financieras.
