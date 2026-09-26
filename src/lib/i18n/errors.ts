@@ -143,6 +143,21 @@ const messages: Record<Locale, Dict> = {
     "err.consent.save": "No se pudo guardar tu aceptación. Intenta de nuevo.",
     "err.session.expiredTitle": "Sesión expirada",
     "err.session.expiredDesc": "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
+    "ui.login.emailHint": "Ingresa tu nombre de usuario, no tu correo",
+    "ui.register.usernameHint": "3 a 32 caracteres: letras sin tildes, números o guion bajo (_)",
+    "err.register.username":
+      "El usuario debe tener de 3 a 32 caracteres: letras sin tildes, números o guion bajo (_)",
+    "ui.retry": "Reintentar",
+    "ui.edit": "Editar",
+    "ui.delete": "Eliminar",
+    "ui.tx.new": "Nueva transacción",
+    "ui.tx.import": "Importar extracto",
+    "ui.tx.clearFilters": "Limpiar filtros",
+    "ui.tx.limit": "Mostrando las {limit} más recientes; filtra por fecha para ver más.",
+    "err.tx.load": "No se pudieron cargar las transacciones.",
+    "err.goal.load": "No se pudieron cargar las metas.",
+    "err.category.load": "No se pudieron cargar las categorías.",
+    "err.dashboard.load": "No se pudo cargar tu resumen financiero.",
   },
   en: {
     "auth.IP_NOT_ALLOWED": "Your IP address is not allowed to access.",
@@ -241,6 +256,22 @@ const messages: Record<Locale, Dict> = {
     "err.consent.save": "Could not save your acceptance. Try again.",
     "err.session.expiredTitle": "Session expired",
     "err.session.expiredDesc": "Your session has expired. Please sign in again.",
+    "ui.login.emailHint": "Enter your username, not your email",
+    "ui.register.usernameHint":
+      "3 to 32 characters: letters without accents, numbers or underscore (_)",
+    "err.register.username":
+      "Username must be 3 to 32 characters: letters without accents, numbers or underscore (_)",
+    "ui.retry": "Retry",
+    "ui.edit": "Edit",
+    "ui.delete": "Delete",
+    "ui.tx.new": "New transaction",
+    "ui.tx.import": "Import statement",
+    "ui.tx.clearFilters": "Clear filters",
+    "ui.tx.limit": "Showing the {limit} most recent; filter by date to see more.",
+    "err.tx.load": "Could not load transactions.",
+    "err.goal.load": "Could not load goals.",
+    "err.category.load": "Could not load categories.",
+    "err.dashboard.load": "Could not load your financial summary.",
   },
 };
 
@@ -248,6 +279,11 @@ const messages: Record<Locale, Dict> = {
 export function t(key: string, fallback?: string): string {
   const dict = messages[getLocale()];
   return Object.hasOwn(dict, key) ? dict[key] : (fallback ?? key);
+}
+
+/** Mensaje del error (el API ya lo manda traducido); si no trae, el texto de `fallbackKey`. */
+export function errorText(err: unknown, fallbackKey: string): string {
+  return err instanceof Error && err.message ? err.message : t(fallbackKey);
 }
 
 const API_CODE = /^[a-z][a-z0-9]*(\.[A-Za-z0-9_]+)+$/;

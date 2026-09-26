@@ -157,7 +157,19 @@ describe("t", () => {
   });
 });
 
-describe("consent keys", () => {
+describe("errorText", () => {
+  it("prefers the error message and falls back to the localized key", async () => {
+    const m = await load();
+    m.setLocale("es");
+    expect(m.errorText(new Error("La meta no existe"), "err.goal.delete")).toBe(
+      "La meta no existe",
+    );
+    expect(m.errorText(new Error(""), "err.goal.delete")).toBe("Error al eliminar la meta");
+    expect(m.errorText("boom", "err.goal.delete")).toBe("Error al eliminar la meta");
+  });
+});
+
+describe("consent and UI keys", () => {
   const KEYS = [
     "ui.consent.title",
     "ui.consent.desc",
@@ -173,6 +185,20 @@ describe("consent keys", () => {
     "ui.consent.saving",
     "ui.consent.decline",
     "err.consent.save",
+    "ui.login.emailHint",
+    "ui.register.usernameHint",
+    "err.register.username",
+    "ui.retry",
+    "ui.edit",
+    "ui.delete",
+    "ui.tx.new",
+    "ui.tx.import",
+    "ui.tx.clearFilters",
+    "ui.tx.limit",
+    "err.tx.load",
+    "err.goal.load",
+    "err.category.load",
+    "err.dashboard.load",
   ];
 
   it("existen en es y en (paridad)", async () => {
