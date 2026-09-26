@@ -29,6 +29,7 @@ import { NotificationBell } from "@/components/ui/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ConsentDialog } from "@/components/layout/ConsentDialog";
+import { loginHref } from "@/lib/auth/guards";
 
 type NavItem = {
   to: string;
@@ -183,7 +184,7 @@ export function AppShell({
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !getAccessToken()) {
-      navigate({ to: "/login" });
+      navigate({ href: loginHref(window.location.pathname + window.location.search) });
     }
   }, [isLoading, isAuthenticated, navigate]);
 

@@ -11,6 +11,7 @@ import {
   resetSessionExpiredFlag,
 } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
+import { loginHref } from "@/lib/auth/guards";
 
 import { t } from "@/lib/i18n/errors";
 export interface AuthState {
@@ -47,9 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: t("err.session.expiredDesc"),
         duration: 5000,
       });
-      // Redirect to login after a short delay
+      // Redirect to login after a short delay, volviendo luego a donde estaba
       setTimeout(() => {
-        window.location.href = "/login";
+        window.location.href = loginHref(window.location.pathname + window.location.search);
       }, 1500);
     });
     return unsubscribe;

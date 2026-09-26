@@ -4,6 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
 import { ApiError } from "@/lib/api/client";
+import { safeRedirect } from "@/lib/auth/guards";
 
 import { t } from "@/lib/i18n/errors";
 export function Login() {
@@ -18,7 +19,8 @@ export function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate({ to: "/dashboard" });
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      navigate({ href: safeRedirect(redirect) });
     }
   }, [isAuthenticated, navigate]);
 

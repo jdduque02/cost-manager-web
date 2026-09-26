@@ -9,8 +9,10 @@ import { setLocale } from "@/lib/i18n/errors";
 // jsdom reports navigator.language=en-US; these tests assert Spanish copy.
 beforeAll(() => setLocale("es"));
 
+const navigateMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateMock,
   useRouter: () => ({ invalidate: vi.fn() }),
   Link: ({ children, to, ...props }: Record<string, unknown>) => (
     <a href={to as string} {...props}>
@@ -48,6 +50,8 @@ vi.mock("@/lib/api/identity", () => ({
 }));
 
 import { authApi } from "@/lib/api/auth";
+import { identityApi } from "@/lib/api/identity";
+import type { User } from "@/lib/api/identity";
 
 function renderLogin() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -158,6 +162,25 @@ describe("Login", () => {
 
     expect(screen.getByText("Ingresa tu nombre de usuario, no tu correo")).toBeInTheDocument();
     expect(input).toHaveAccessibleDescription("Ingresa tu nombre de usuario, no tu correo");
+  });
+
+  it.each([
+    ["/login?redirect=%2Fgoals%3Fgoal%3D3", "/goals?goal=3"],
+    ["/login?redirect=%2F%2Fevil.com", "/dashboard"],
+    ["/login", "/dashboard"],
+  ])("after login at %s navigates to %s", async (url, expected) => {
+    window.history.pushState({}, "", url);
+    const user = userEvent.setup();
+    vi.mocked(authApi.login).mockResolvedValue({ accessToken: "t", userId: 1 });
+    vi.mocked(identityApi.getUser).mockResolvedValueOnce({ id: "1", username: "juan" } as User);
+    renderLogin();
+
+    await user.type(screen.getByPlaceholderText("juan_perez"), "juan");
+    await user.type(screen.getByPlaceholderText("••••••••"), "password123");
+    await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ href: expected }));
+    window.history.pushState({}, "", "/");
   });
 
   it("disables form elements while loading", async () => {
