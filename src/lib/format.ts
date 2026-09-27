@@ -38,6 +38,17 @@ export const parseCurrency = (s: string): number => {
   return Number.isFinite(v) ? v : 0;
 };
 
+/** Periodo "YYYY-MM-DD".."YYYY-MM-DD" en es-CO, sin correr el día por la zona horaria. */
+export const fmtPeriod = (from: string, to: string): string => {
+  const d = (s: string) =>
+    new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  return `${d(from)} – ${d(to)}`;
+};
+
 export const MASKED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
 /** localStorage: preferencia de UI "Ocultar montos" (no es un dato sensible). */

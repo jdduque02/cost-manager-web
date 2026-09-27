@@ -1,4 +1,4 @@
-import { fmtCurrency, parseCurrency, MASKED } from "./format";
+import { fmtCurrency, parseCurrency, MASKED, fmtPeriod } from "./format";
 
 describe("fmtCurrency", () => {
   it("formats COP currency", () => {
@@ -74,5 +74,12 @@ describe("MASKED", () => {
 
   it("contains bullet characters", () => {
     expect(MASKED).toMatch(/•/);
+  });
+});
+
+describe("fmtPeriod", () => {
+  it("formatea el periodo sin correr el día por la zona horaria", () => {
+    const text = fmtPeriod("2026-08-16", "2026-09-15");
+    expect(text).toMatch(/^16 .*ago.* 2026 – 15 .*sept?.* 2026$/);
   });
 });

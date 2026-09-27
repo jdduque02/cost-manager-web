@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileUp, Loader2, Lock, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -44,6 +44,12 @@ import { t } from "@/lib/i18n/errors";
 interface StatementImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Fija la cuenta del extracto (conciliación de un cierre). */
+  presetAccountId?: number;
+  /** Fija la tarjeta del extracto (conciliación de un cierre). */
+  presetLiabilityId?: number;
+  /** Se llama una vez cuando el lote llega a un estado terminal (también si falla). */
+  onCompleted?: (jobId: number) => void;
 }
 
 const TERMINAL_STATUSES = new Set(["completed", "partial", "failed"]);
@@ -90,7 +96,16 @@ function toProgress(job: StatementImport): StatementImportProgress {
   };
 }
 
-export function StatementImportDialog({ open, onOpenChange }: StatementImportDialogProps) {
+export function StatementImportDialog({
+  open,
+  onOpenChange,
+  presetAccountId,
+  presetLiabilityId,
+  onCompleted,
+}: StatementImportDialogProps) {
+  const presetAccount = presetAccountId != null ? String(presetAccountId) : "";
+  const presetLiability = presetLiabilityId != null ? String(presetLiabilityId) : "";
+  const productLocked = !!presetAccount || !!presetLiability;
   const { data: categories = [] } = useCategories();
   const { data: bankAccounts = [] } = useBankAccounts();
   const { data: empresas = [] } = useEmpresas();
@@ -105,8 +120,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const [files, setFiles] = useState<File[]>([]);
   const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [accountId, setAccountId] = useState<string>("");
-  const [liabilityId, setLiabilityId] = useState<string>("");
+  const [accountId, setAccountId] = useState<string>(presetAccount);
+  const [liabilityId, setLiabilityId] = useState<string>(presetLiability);
   const [currency, setCurrency] = useState<"COP" | "USD">("COP");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignCategories, setAssignCategories] = useState(true);
@@ -135,8 +150,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
       setFiles([]);
       setPassword("");
       setCategoryId("");
-      setAccountId("");
-      setLiabilityId("");
+      setAccountId(presetAccount);
+      setLiabilityId(presetLiability);
       setCurrency("COP");
       setSkipDuplicates(true);
       setAssignCategories(true);
@@ -146,11 +161,19 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
       setProgress(null);
       setActiveImportId(null);
     }
-  }, [open]);
+  }, [open, presetAccount, presetLiability]);
 
   const isUploading = createImport.isPending;
   const isRunning = !!progress && !TERMINAL_STATUSES.has(progress.status) && !isUploading;
   const isDone = !!progress && TERMINAL_STATUSES.has(progress.status);
+
+  const completedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isDone || !progress || progress.id !== activeImportId) return;
+    if (completedFor.current === progress.id) return;
+    completedFor.current = progress.id;
+    onCompleted?.(progress.id);
+  }, [isDone, progress, activeImportId, onCompleted]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -295,7 +318,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
 
               <div className="space-y-1.5">
                 <Label>Cuenta bancaria (opcional)</Label>
-                <Select value={accountId} onValueChange={setAccountId}>
+                <Select value={accountId} onValueChange={setAccountId} disabled={productLocked}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin cuenta" />
                   </SelectTrigger>
@@ -314,7 +337,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
 
               <div className="space-y-1.5">
                 <Label>Tarjeta de crédito (opcional)</Label>
-                <Select value={liabilityId} onValueChange={setLiabilityId}>
+                <Select value={liabilityId} onValueChange={setLiabilityId} disabled={productLocked}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin tarjeta" />
                   </SelectTrigger>
