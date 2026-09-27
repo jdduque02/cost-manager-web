@@ -1,7 +1,15 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useSessions, useRevokeSession, useAccessHistory } from "./use-api";
+import {
+  useSessions,
+  useRevokeSession,
+  useAccessHistory,
+  useCreateTransfer,
+  useUpdateTransfer,
+  useDeleteTransfer,
+  useCloneTransfer,
+} from "./use-api";
 import type { Session, AccessEvent } from "@/lib/api/auth";
 
 vi.mock("@/lib/api/auth", () => ({
@@ -9,6 +17,15 @@ vi.mock("@/lib/api/auth", () => ({
     getSessions: vi.fn(),
     revokeSession: vi.fn(),
     getAccessHistory: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/api/finance", () => ({
+  financeApi: {
+    createTransfer: vi.fn().mockResolvedValue({}),
+    updateTransfer: vi.fn().mockResolvedValue({}),
+    deleteTransfer: vi.fn().mockResolvedValue(undefined),
+    cloneTransfer: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -158,5 +175,44 @@ describe("useAccessHistory", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toBeInstanceOf(Error);
+  });
+});
+
+describe("transfer mutations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({ userId: "user-1" });
+  });
+
+  // A transfer moves money between accounts, objectives and credit cards
+  // (liabilities): every balance it touches must be refetched.
+  it.each([
+    ["useCreateTransfer", () => useCreateTransfer(), { source_account_id: 1, amount: 1 }],
+    ["useUpdateTransfer", () => useUpdateTransfer(), { id: "1", dto: {} }],
+    ["useDeleteTransfer", () => useDeleteTransfer(), "1"],
+    ["useCloneTransfer", () => useCloneTransfer(), { id: 1 }],
+  ] as const)("%s invalidates every balance a transfer touches", async (_name, hook, vars) => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(hook, { wrapper });
+
+    await (result.current.mutateAsync as (v: unknown) => Promise<unknown>)(vars);
+
+    await waitFor(() => {
+      const keys = invalidateSpy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));
+      for (const key of [
+        ["transfers"],
+        ["transactions", "user-1", {}],
+        ["transaction-summary", "user-1"],
+        ["bank-accounts", "user-1"],
+        ["objectives", "user-1"],
+        ["financial-liabilities", "user-1"],
+      ]) {
+        expect(keys).toContain(JSON.stringify(key));
+      }
+    });
   });
 });

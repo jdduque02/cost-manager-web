@@ -334,17 +334,27 @@ export type { CalculateQuotaResponse } from "@/lib/api/finance";
 
 // ─── Transfers ───────────────────────────────────────────────────────────────
 
+/** A transfer moves money between accounts, objectives and credit cards (liabilities). */
+function invalidateTransferData(qc: ReturnType<typeof useQueryClient>, userId: string | null) {
+  const uid = userId ?? "";
+  for (const queryKey of [
+    ["transfers"],
+    qk.transactions(uid),
+    ["transaction-summary", uid],
+    qk.accounts(uid),
+    qk.objectives(uid),
+    qk.liabilities(uid),
+  ]) {
+    qc.invalidateQueries({ queryKey });
+  }
+}
+
 export function useCreateTransfer() {
   const { userId } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateTransferDto) => financeApi.createTransfer(userId!, dto),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transfers"] });
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 
@@ -353,12 +363,7 @@ export function useDeleteTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => financeApi.deleteTransfer(userId!, id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transfers"] });
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 
@@ -368,12 +373,7 @@ export function useUpdateTransfer() {
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateTransferDto> }) =>
       financeApi.updateTransfer(userId!, id, dto),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transfers"] });
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
-      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 
@@ -787,11 +787,7 @@ export function useCloneTransfer() {
       id: number;
       dto?: { transaction_date?: string; amount?: number; description?: string };
     }) => financeApi.cloneTransfer(userId ?? "", String(id), dto),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
-      qc.invalidateQueries({ queryKey: ["transfers"] });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 
