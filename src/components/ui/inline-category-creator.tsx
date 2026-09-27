@@ -16,11 +16,11 @@ export function InlineCategoryCreator({ groupType, onCreated }: InlineCategoryCr
   const [name, setName] = useState("");
   const createCategory = useCreateCategory();
 
-  async function handleCreate() {
+  function handleCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    await createCategory.mutateAsync(
+    createCategory.mutate(
       { name: trimmed, group_type: groupType },
       {
         onSuccess: (cat) => {

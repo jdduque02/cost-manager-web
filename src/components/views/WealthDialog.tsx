@@ -220,7 +220,7 @@ export function WealthDialog({
     setCurrency(l.currency ?? "COP");
   }
 
-  async function submitAccount() {
+  function submitAccount() {
     const dto = {
       bank_name: bankName,
       account_type: accountType as AccountType,
@@ -238,7 +238,7 @@ export function WealthDialog({
       exempt_4x1000: exempt4x1000,
     };
     if (isEditing) {
-      await updateAccount.mutateAsync(
+      updateAccount.mutate(
         { id: String(entity.id), dto },
         {
           onSuccess: () => {
@@ -250,7 +250,7 @@ export function WealthDialog({
         },
       );
     } else {
-      await createAccount.mutateAsync(dto, {
+      createAccount.mutate(dto, {
         onSuccess: (created) => {
           toast.success("Cuenta creada");
           reset();
@@ -262,7 +262,7 @@ export function WealthDialog({
     }
   }
 
-  async function submitAsset() {
+  function submitAsset() {
     const dto = {
       asset_type: assetType as AssetType,
       name: name.trim(),
@@ -273,7 +273,7 @@ export function WealthDialog({
       quote_source: symbol.trim() ? (quoteSource as "yahoo" | "coingecko") : undefined,
     };
     if (isEditing) {
-      await updateAsset.mutateAsync(
+      updateAsset.mutate(
         { id: String(entity.id), dto },
         {
           onSuccess: () => {
@@ -285,7 +285,7 @@ export function WealthDialog({
         },
       );
     } else {
-      await createAsset.mutateAsync(dto, {
+      createAsset.mutate(dto, {
         onSuccess: (created) => {
           toast.success("Activo creado");
           reset();
@@ -297,7 +297,7 @@ export function WealthDialog({
     }
   }
 
-  async function submitLiability() {
+  function submitLiability() {
     const dto = {
       liability_type: liabilityType as LiabilityType,
       name: name.trim(),
@@ -306,7 +306,7 @@ export function WealthDialog({
       currency: currency !== "COP" ? currency : undefined,
     };
     if (isEditing) {
-      await updateLiability.mutateAsync(
+      updateLiability.mutate(
         { id: String(entity.id), dto },
         {
           onSuccess: () => {
@@ -318,7 +318,7 @@ export function WealthDialog({
         },
       );
     } else {
-      await createLiability.mutateAsync(dto, {
+      createLiability.mutate(dto, {
         onSuccess: (created) => {
           toast.success("Deuda creada");
           reset();
@@ -330,14 +330,14 @@ export function WealthDialog({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (entityType === "account") {
-      await submitAccount();
+      submitAccount();
     } else if (entityType === "asset") {
-      await submitAsset();
+      submitAsset();
     } else {
-      await submitLiability();
+      submitLiability();
     }
   }
 

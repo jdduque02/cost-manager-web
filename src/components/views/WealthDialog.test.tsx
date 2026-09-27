@@ -1,8 +1,18 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
+import { t } from "@/lib/i18n/errors";
 import { WealthDialog } from "./WealthDialog";
 
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+
+// Toda mutación falla: el diálogo debe manejar el error con `mutate` + onError.
+const mockMutate = vi.hoisted(() =>
+  vi.fn((_vars: unknown, opts: { onError: (e: Error) => void }) => opts.onError(new Error("x"))),
+);
+
 vi.mock("@/lib/hooks/use-api", () => {
-  const noop = () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false });
+  const noop = () => ({ mutate: mockMutate, isPending: false });
   return {
     useCreateBankAccount: noop,
     useUpdateBankAccount: noop,
@@ -19,6 +29,26 @@ describe("WealthDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  it.each([
+    ["account", { Banco: "Nu", Saldo: "1000" }, "err.register.create"],
+    ["asset", { Nombre: "CDT", "Valor actual": "1000" }, "err.asset.create"],
+    ["liability", { Nombre: "Visa", "Saldo actual": "1000" }, "err.debt.create"],
+  ] as const)(
+    "creates a %s with mutate and toasts the error",
+    async (entityType, fields, errKey) => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<WealthDialog {...defaultProps} entityType={entityType} />);
+      for (const [label, value] of Object.entries(fields)) {
+        await user.type(screen.getByLabelText(label), value);
+      }
+      await user.click(screen.getByRole("button", { name: "Crear" }));
+
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith(t(errKey));
+      expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+    },
+  );
 
   it("renders create dialog for an account", () => {
     render(<WealthDialog {...defaultProps} entityType="account" />);
