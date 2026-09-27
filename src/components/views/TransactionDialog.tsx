@@ -1,0 +1,858 @@
+import { useState, useEffect, useMemo } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parseCurrency } from "@/lib/format";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Combobox, type ComboboxGroup } from "@/components/ui/combobox";
+import { InlineCategoryCreator } from "@/components/ui/inline-category-creator";
+import { InlineSubcategoryCreator } from "@/components/ui/inline-subcategory-creator";
+import {
+  useCreateTransaction,
+  useUpdateTransaction,
+  useCategories,
+  useSubcategories,
+  useObjectives,
+  useBankAccounts,
+  useFinancialAssets,
+  useFinancialLiabilities,
+  useEmpresas,
+} from "@/lib/hooks/use-api";
+import { GoalDialog } from "./GoalDialog";
+import { WealthDialog } from "./WealthDialog";
+import { TransferDialog } from "./TransferDialog";
+import { EmpresaDialog } from "./EmpresaDialog";
+import type {
+  TransactionType,
+  PaymentMethod,
+  TransactionRecord,
+  FixedType,
+  FixedFrequency,
+} from "@/lib/api/finance";
+
+import { errorText } from "@/lib/i18n/errors";
+interface TransactionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction?: TransactionRecord | null;
+  defaultDate?: Date | null;
+}
+
+function toLocalDate(iso?: string | null): Date | undefined {
+  if (!iso) return undefined;
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  return new Date(y, m - 1, d);
+}
+
+function toStr(v: unknown): string {
+  return v != null ? String(v) : "";
+}
+
+function optNum(v: string): number | undefined {
+  return v ? Number(v) : undefined;
+}
+
+function fixedOptNum(isFixed: boolean, v: string): number | undefined {
+  return isFixed && v ? Number(v) : undefined;
+}
+
+function fixedSource(isFixed: boolean, txType: string, v: string): string | undefined {
+  return isFixed && txType !== "income" && v ? v : undefined;
+}
+
+function parsePatrimony(value: string) {
+  if (!value) return {};
+  const [kind, id] = value.split(":");
+  const numId = Number(id);
+  if (!kind || !numId) return {};
+  if (kind === "account") return { account_id: numId };
+  if (kind === "asset") return { asset_id: numId };
+  if (kind === "liability") return { liability_id: numId };
+  return {};
+}
+
+function resolvePatrimonyValue(tx: TransactionRecord): string {
+  if (tx.account_id) return `account:${tx.account_id}`;
+  if (tx.asset_id) return `asset:${tx.asset_id}`;
+  if (tx.liability_id) return `liability:${tx.liability_id}`;
+  return "";
+}
+
+const paymentMethods: { value: PaymentMethod; label: string }[] = [
+  { value: "bank_transfer", label: "Transferencia" },
+  { value: "cash", label: "Efectivo" },
+  { value: "debit_card", label: "Tarjeta débito" },
+  { value: "credit_card", label: "Tarjeta crédito" },
+  { value: "digital_wallet", label: "Billetera digital" },
+  { value: "mobile_payment", label: "Pago móvil" },
+];
+
+function getTypeButtonClasses(t: string, activeType: string): string {
+  const isActive = activeType === t && t !== "transfer";
+  if (!isActive) return "text-muted-foreground hover:bg-accent hover:text-foreground";
+  if (t === "expense") return "bg-destructive/15 text-destructive ring-1 ring-destructive/30";
+  if (t === "income") return "bg-success/15 text-success ring-1 ring-success/30";
+  return "bg-primary/15 text-primary ring-1 ring-primary/30";
+}
+
+function getTypeLabel(t: string): string {
+  if (t === "expense") return "Gasto";
+  if (t === "income") return "Ingreso";
+  if (t === "investment") return "Inversión";
+  return "Transferencia";
+}
+
+export function TransactionDialog({
+  open,
+  onOpenChange,
+  transaction,
+  defaultDate,
+}: TransactionDialogProps) {
+  const { data: categories = [], isLoading: loadingCategories } = useCategories();
+  const { data: objectives = [] } = useObjectives();
+  const { data: bankAccounts = [] } = useBankAccounts();
+  const { data: assets = [] } = useFinancialAssets();
+  const { data: liabilities = [] } = useFinancialLiabilities();
+  const { data: empresas = [] } = useEmpresas();
+  const createTx = useCreateTransaction();
+  const updateTx = useUpdateTransaction();
+
+  const isEditing = !!transaction;
+
+  const [type, setType] = useState<TransactionType>("expense");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState<"COP" | "USD">("COP");
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [subcategoryId, setSubcategoryId] = useState<string>("");
+  const [description, setDescription] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [isFixed, setIsFixed] = useState(false);
+  const [fixedType, setFixedType] = useState<FixedType>("deduction");
+  const [frequency, setFrequency] = useState<FixedFrequency | "">("");
+  const [dueDay, setDueDay] = useState("");
+  const [reminderDays, setReminderDays] = useState("3");
+  const [installments, setInstallments] = useState("");
+  const [installmentValue, setInstallmentValue] = useState("");
+  const [applyToSimilar, setApplyToSimilar] = useState(false);
+  const [sourceBank, setSourceBank] = useState("");
+  const [sourceAccount, setSourceAccount] = useState("");
+  const [date, setDate] = useState<Date>(new Date());
+  const [objectiveId, setObjectiveId] = useState<string>("");
+  const [patrimony, setPatrimony] = useState<string>("");
+  const [companyId, setCompanyId] = useState<string>("");
+  const [quickMetaOpen, setQuickMetaOpen] = useState(false);
+  const [quickEmpresaOpen, setQuickEmpresaOpen] = useState(false);
+  const [quickWealthType, setQuickWealthType] = useState<"account" | "asset" | "liability" | null>(
+    null,
+  );
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+
+  const selectedCategoryId = categoryId ? Number(categoryId) : undefined;
+  const { data: subcategories = [] } = useSubcategories(selectedCategoryId);
+
+  const categoryGroups = useMemo<ComboboxGroup[]>(() => {
+    const groups: Record<string, { heading: string; items: { value: string; label: string }[] }> = {
+      expense: { heading: "Gastos", items: [] },
+      income: { heading: "Ingresos", items: [] },
+      investment: { heading: "Inversiones", items: [] },
+    };
+    for (const c of categories) {
+      const key = c.group_type ?? "expense";
+      if (groups[key]) {
+        groups[key].items.push({ value: String(c.id), label: c.name });
+      }
+    }
+    return Object.values(groups).filter((g) => g.items.length > 0);
+  }, [categories]);
+
+  const subcategoryItems = useMemo(
+    () => subcategories.map((s) => ({ value: String(s.id), label: s.name })),
+    [subcategories],
+  );
+
+  const bankAccountGroups = useMemo(() => {
+    const savings = bankAccounts.filter((a) => a.account_type === "ahorros");
+    const checking = bankAccounts.filter((a) => a.account_type === "corriente");
+    const other = bankAccounts.filter(
+      (a) => a.account_type !== "ahorros" && a.account_type !== "corriente",
+    );
+    return { savings, checking, other };
+  }, [bankAccounts]);
+
+  const isPending = createTx.isPending || updateTx.isPending;
+
+  function populateFormFromTransaction(tx: TransactionRecord) {
+    setType(tx.type);
+    setAmount(Number(tx.amount).toString());
+    setCurrency((tx.currency as "COP" | "USD") || "COP");
+    setCategoryId(toStr(tx.category_id));
+    setSubcategoryId(toStr(tx.subcategory_id));
+    setDescription(tx.description ?? "");
+    setPaymentMethod(tx.payment_method ?? "");
+    setIsFixed(tx.is_fixed ?? false);
+    setFixedType(tx.fixed_type ?? (tx.type === "income" ? "fixed_income" : "deduction"));
+    setFrequency(tx.frequency ?? "");
+    setDueDay(toStr(tx.due_day));
+    setReminderDays(tx.reminder_days != null ? String(tx.reminder_days) : "3");
+    setInstallments(toStr(tx.installments));
+    setInstallmentValue(toStr(tx.installment_value));
+    setApplyToSimilar(false);
+    setSourceBank(tx.source_bank ?? "");
+    setSourceAccount(tx.source_account ?? "");
+    setDate(toLocalDate(tx.transaction_date) ?? new Date());
+    setObjectiveId(toStr(tx.objective_id));
+    setCompanyId(toStr(tx.company_id));
+    setPatrimony(resolvePatrimonyValue(tx));
+  }
+
+  useEffect(() => {
+    if (transaction) {
+      populateFormFromTransaction(transaction);
+    } else {
+      reset();
+    }
+  }, [transaction, open]);
+
+  function reset() {
+    setType("expense");
+    setAmount("");
+    setCurrency("COP");
+    setCategoryId("");
+    setSubcategoryId("");
+    setDescription("");
+    setPaymentMethod("");
+    setIsFixed(false);
+    setFixedType("deduction");
+    setFrequency("");
+    setDueDay("");
+    setReminderDays("3");
+    setInstallments("");
+    setInstallmentValue("");
+    setApplyToSimilar(false);
+    setSourceBank("");
+    setSourceAccount("");
+    setDate(defaultDate ? new Date(defaultDate) : new Date());
+    setObjectiveId("");
+    setCompanyId("");
+    setPatrimony("");
+  }
+
+  function buildPayload() {
+    const p = parsePatrimony(patrimony);
+    const defaultFixedType = type === "income" ? "fixed_income" : "deduction";
+    return {
+      type,
+      amount: parseCurrency(amount),
+      currency,
+      category_id: optNum(categoryId),
+      subcategory_id: optNum(subcategoryId),
+      description: description || undefined,
+      payment_method: (paymentMethod as PaymentMethod) || undefined,
+      transaction_date: format(date, "yyyy-MM-dd"),
+      is_fixed: isFixed,
+      fixed_type: isFixed ? (fixedType ?? defaultFixedType) : undefined,
+      frequency: isFixed ? frequency || undefined : undefined,
+      due_day: fixedOptNum(isFixed, dueDay),
+      reminder_days: fixedOptNum(isFixed, reminderDays),
+      installments: optNum(installments),
+      installment_value: installmentValue ? parseCurrency(installmentValue) : undefined,
+      source_bank: fixedSource(isFixed, type, sourceBank),
+      source_account: fixedSource(isFixed, type, sourceAccount),
+      objective_id: optNum(objectiveId),
+      account_id: p.account_id ?? undefined,
+      asset_id: p.asset_id ?? undefined,
+      liability_id: p.liability_id ?? undefined,
+      company_id: optNum(companyId),
+    };
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!amount || parseCurrency(amount) <= 0) return;
+
+    const payload = buildPayload();
+
+    if (isEditing) {
+      await updateTx.mutateAsync(
+        {
+          id: String(transaction.id),
+          dto: { ...payload, apply_to_similar: applyToSimilar || undefined },
+        },
+        {
+          onSuccess: () => {
+            toast.success(
+              applyToSimilar ? "Transacción y similares actualizadas" : "Transacción actualizada",
+            );
+            reset();
+            onOpenChange(false);
+          },
+          onError: (err) => toast.error(errorText(err, "err.tx.update")),
+        },
+      );
+    } else {
+      await createTx.mutateAsync(payload, {
+        onSuccess: () => {
+          toast.success("Transacción creada");
+          reset();
+          onOpenChange(false);
+        },
+        onError: (err) => toast.error(errorText(err, "err.tx.create")),
+      });
+    }
+  }
+
+  let dialogContent: React.ReactNode;
+  if (loadingCategories) {
+    dialogContent = (
+      <div className="flex h-24 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) reset();
+          onOpenChange(v);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? "Editar Transacción" : "Nueva Transacción"}</DialogTitle>
+            <DialogDescription>
+              {isEditing ? "Modifica los datos de la transacción." : "Registra un ingreso o gasto."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dialogContent ?? (
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {/* ── Fila 1: Datos principales ── */}
+              <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Tipo de movimiento
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {(["expense", "income", "investment", "transfer"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => {
+                        if (t === "transfer") {
+                          onOpenChange(false);
+                          setTransferDialogOpen(true);
+                          return;
+                        }
+                        setType(t);
+                      }}
+                      className={`rounded-lg py-2 text-sm font-medium transition ${getTypeButtonClasses(t, type)}`}
+                    >
+                      {getTypeLabel(t)}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-amount">Monto</Label>
+                    <div className="flex gap-2">
+                      <CurrencyInput
+                        id="tx-amount"
+                        value={amount}
+                        onChange={setAmount}
+                        placeholder="0"
+                        required
+                        className="flex-1"
+                      />
+                      <Select
+                        value={currency}
+                        onValueChange={(v) => setCurrency(v as "COP" | "USD")}
+                      >
+                        <SelectTrigger id="tx-currency" className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="COP">COP</SelectItem>
+                          <SelectItem value="USD">USD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="tx-category">Categoría</Label>
+                      <InlineCategoryCreator
+                        groupType={type === "transfer" ? "expense" : type}
+                        onCreated={(id) => {
+                          setCategoryId(String(id));
+                          setSubcategoryId("");
+                        }}
+                      />
+                    </div>
+                    <Combobox
+                      id="tx-category"
+                      value={categoryId}
+                      onValueChange={(v) => {
+                        setCategoryId(v);
+                        setSubcategoryId("");
+                      }}
+                      groups={categoryGroups}
+                      placeholder="Sin categoría"
+                      searchPlaceholder="Buscar categoría..."
+                      emptyText="Sin resultados"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {categoryId
+                        ? "La transacción se marca como clasificada."
+                        : "Sin categoría: se intenta auto-clasificar por descripción; si no hay regla, queda pendiente por editar."}
+                    </p>
+                  </div>
+
+                  {categoryId && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="tx-subcategory">Subcategoría</Label>
+                        <InlineSubcategoryCreator
+                          categoryId={Number(categoryId)}
+                          onCreated={(id) => setSubcategoryId(String(id))}
+                        />
+                      </div>
+                      <Combobox
+                        id="tx-subcategory"
+                        value={subcategoryId}
+                        onValueChange={setSubcategoryId}
+                        items={subcategoryItems}
+                        placeholder="Opcional"
+                        searchPlaceholder="Buscar subcategoría..."
+                        emptyText="Sin resultados"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Fila 2: Detalles ── */}
+              <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Detalles
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-description">Descripción</Label>
+                    <Input
+                      id="tx-description"
+                      placeholder="Ej. Almuerzo"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-payment-method">Método de pago</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger id="tx-payment-method">
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMethods.map((pm) => (
+                          <SelectItem key={pm.value} value={pm.value}>
+                            {pm.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-date">Fecha de la transacción</Label>
+                    <DatePicker
+                      id="tx-date"
+                      value={date}
+                      onChange={(d) => d && setDate(d)}
+                      disabled={isPending}
+                      placeholder="Seleccionar"
+                    />
+                  </div>
+                </div>
+
+                {(paymentMethod === "credit_card" || installments !== "" || isEditing) && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-installments">N.º de cuotas</Label>
+                      <Input
+                        id="tx-installments"
+                        type="number"
+                        min={1}
+                        max={120}
+                        placeholder="Ej. 12"
+                        value={installments}
+                        onChange={(e) =>
+                          setInstallments(e.target.value.replace(/\D/g, "").slice(0, 3))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-installment-value">Valor por cuota</Label>
+                      <CurrencyInput
+                        id="tx-installment-value"
+                        value={installmentValue}
+                        onChange={setInstallmentValue}
+                        placeholder="Opcional"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Fila 3: Asociaciones y configuración ── */}
+              <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Asociaciones y configuración
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-objective">Meta asociada</Label>
+                    <Select
+                      value={objectiveId}
+                      onValueChange={(v) => {
+                        if (v === "__new_meta__") {
+                          setQuickMetaOpen(true);
+                          return;
+                        }
+                        setObjectiveId(v);
+                      }}
+                    >
+                      <SelectTrigger id="tx-objective">
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {objectives.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new_meta__">＋ Crear meta…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-company">Empresa</Label>
+                    <Select
+                      value={companyId}
+                      onValueChange={(v) => {
+                        if (v === "__new_empresa__") {
+                          setQuickEmpresaOpen(true);
+                          return;
+                        }
+                        setCompanyId(v);
+                        if (!categoryId && v) {
+                          const emp = empresas.find((e) => String(e.id) === v);
+                          if (emp?.default_category_id) {
+                            setCategoryId(String(emp.default_category_id));
+                            setSubcategoryId("");
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="tx-company">
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empresas.map((e) => (
+                          <SelectItem key={e.id} value={String(e.id)}>
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new_empresa__">＋ Crear empresa…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Asocia la transacción a una empresa. Selecciona una empresa para auto-asignar
+                      su categoría por defecto.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tx-patrimony">Patrimonio asociado</Label>
+                    <Select
+                      value={patrimony}
+                      onValueChange={(v) => {
+                        const wealthTypeMap: Record<string, "account" | "asset" | "liability"> = {
+                          __new_account__: "account",
+                          __new_asset__: "asset",
+                          __new_liability__: "liability",
+                        };
+                        if (v in wealthTypeMap) {
+                          setQuickWealthType(wealthTypeMap[v]);
+                          return;
+                        }
+                        setPatrimony(v);
+                      }}
+                    >
+                      <SelectTrigger id="tx-patrimony">
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankAccountGroups.savings.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Cuentas de ahorro</SelectLabel>
+                            {bankAccountGroups.savings.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {bankAccountGroups.checking.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Cuentas corrientes</SelectLabel>
+                            {bankAccountGroups.checking.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {bankAccountGroups.other.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Otras cuentas</SelectLabel>
+                            {bankAccountGroups.other.map((a) => (
+                              <SelectItem key={a.id} value={`account:${a.id}`}>
+                                {a.bank_name} · {a.masked_account_number}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        <SelectItem value="__new_account__">＋ Crear cuenta…</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel>Activos / Inversiones</SelectLabel>
+                          {assets.map((a) => (
+                            <SelectItem key={a.id} value={`asset:${a.id}`}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__new_asset__">＋ Crear activo…</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Pasivos / Deudas</SelectLabel>
+                          {liabilities.map((l) => (
+                            <SelectItem key={l.id} value={`liability:${l.id}`}>
+                              {l.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__new_liability__">＋ Crear pasivo…</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Máximo un patrimonio (cuenta, activo o pasivo) por transacción.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-background/50 p-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Transacción fija</p>
+                    <p className="text-xs text-muted-foreground">
+                      Deducción fija o ingreso fijo con periodicidad.
+                    </p>
+                  </div>
+                  <Checkbox
+                    checked={isFixed}
+                    onCheckedChange={(v) => setIsFixed(v === true)}
+                    aria-label="Marcar como transacción fija"
+                  />
+                </div>
+
+                {isFixed && (
+                  <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-fixed-type">Tipo fijo</Label>
+                      <Select value={fixedType} onValueChange={(v) => setFixedType(v as FixedType)}>
+                        <SelectTrigger id="tx-fixed-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="deduction">Deducción fija</SelectItem>
+                          <SelectItem value="fixed_income">Ingreso fijo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-frequency">Periodicidad</Label>
+                      <Select
+                        value={frequency}
+                        onValueChange={(v) => setFrequency(v as FixedFrequency)}
+                      >
+                        <SelectTrigger id="tx-frequency">
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="biweekly">Quincenal</SelectItem>
+                          <SelectItem value="monthly">Mensual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-due-day">Día de vencimiento</Label>
+                      <Input
+                        id="tx-due-day"
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="Ej. 15"
+                        value={dueDay}
+                        onChange={(e) => setDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="tx-reminder-days">Anticipación (días)</Label>
+                      <Input
+                        id="tx-reminder-days"
+                        type="number"
+                        min={0}
+                        max={30}
+                        placeholder="Ej. 3"
+                        value={reminderDays}
+                        onChange={(e) =>
+                          setReminderDays(e.target.value.replace(/\D/g, "").slice(0, 2))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isFixed && type !== "income" && (
+                  <div className="space-y-2 rounded-lg bg-background/50 p-2.5">
+                    <p className="text-xs font-medium text-muted-foreground">Entidad de origen</p>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="tx-source-bank">Banco / entidad</Label>
+                        <Input
+                          id="tx-source-bank"
+                          placeholder="Ej. Banco Lulo"
+                          value={sourceBank}
+                          onChange={(e) => setSourceBank(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="tx-source-account">Cuenta / referencia</Label>
+                        <Input
+                          id="tx-source-account"
+                          placeholder="Ej. Cuenta de ahorros 1234"
+                          value={sourceAccount}
+                          onChange={(e) => setSourceAccount(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isEditing && (
+                  <div className="flex items-center justify-between rounded-lg bg-background/50 p-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Aplicar a transacciones similares
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Actualiza la categoría de los movimientos con la misma descripción.
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={applyToSimilar}
+                      onCheckedChange={(v) => setApplyToSimilar(v === true)}
+                      aria-label="Aplicar a transacciones similares"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!amount || parseCurrency(amount) <= 0 || isPending}
+                  className="bg-gradient-primary text-primary-foreground hover:brightness-105"
+                >
+                  {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isEditing ? "Actualizar" : "Guardar"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <GoalDialog
+        open={quickMetaOpen}
+        onOpenChange={(v) => {
+          if (!v) setQuickMetaOpen(false);
+        }}
+        onCreated={(g) => {
+          setObjectiveId(String(g.id));
+        }}
+      />
+
+      <WealthDialog
+        open={!!quickWealthType}
+        onOpenChange={(v) => {
+          if (!v) setQuickWealthType(null);
+        }}
+        entityType={quickWealthType ?? "account"}
+        onCreated={(e) => {
+          if ("bank_name" in e) setPatrimony(`account:${e.id}`);
+          else if ("asset_type" in e) setPatrimony(`asset:${e.id}`);
+          else setPatrimony(`liability:${e.id}`);
+        }}
+      />
+
+      <TransferDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen} />
+
+      <EmpresaDialog
+        open={quickEmpresaOpen}
+        onOpenChange={(v) => setQuickEmpresaOpen(v)}
+        onCreated={(e) => {
+          setCompanyId(String(e.id));
+          if (!categoryId && e.default_category_id) {
+            setCategoryId(String(e.default_category_id));
+            setSubcategoryId("");
+          }
+        }}
+      />
+    </>
+  );
+}
