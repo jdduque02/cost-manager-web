@@ -263,6 +263,8 @@ export interface TransactionSummaryQuery {
   date_to: string;
   group_by?: TransactionGroupBy;
   type?: TransactionType;
+  /** Obligatorio: sin él el API suma todas las monedas en un solo total. */
+  currency: "COP" | "USD";
 }
 
 function buildQueryString(params?: object): string {

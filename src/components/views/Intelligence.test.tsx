@@ -5,7 +5,8 @@ import { Intelligence } from "./Intelligence";
 const mockMutate = vi.fn();
 
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
-  useFormattedAmount: () => (v: number) => `$${v}`,
+  useFormattedAmount: () => (v: number, o?: { currency?: string }) =>
+    `${o?.currency ?? "COP"} ${v}`,
   useAmountsHidden: () => false,
 }));
 
@@ -13,7 +14,7 @@ const mockCalculateTaxSummary = vi.fn();
 
 vi.mock("@/lib/hooks/use-api", () => ({
   useFinancialBudgetProfile: () => ({ data: null, isLoading: false }),
-  useTransactionSummary: () => ({ data: undefined, isLoading: false }),
+  useTransactionSummary: vi.fn(() => ({ data: undefined, isLoading: false })),
   useTaxSummary: vi.fn(),
   useCalculateTaxSummary: () => ({ mutate: mockCalculateTaxSummary, isPending: false }),
   useFinancialAiAnalysis: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
-import { useFinancialAiAnalysis, useTaxSummary } from "@/lib/hooks/use-api";
+import { useFinancialAiAnalysis, useTaxSummary, useTransactionSummary } from "@/lib/hooks/use-api";
 
 describe("Intelligence — Análisis con IA", () => {
   beforeEach(() => {
@@ -129,5 +130,38 @@ describe("Intelligence — Resumen fiscal", () => {
     render(<Intelligence />);
 
     expect(screen.getByRole("button", { name: /editar resumen fiscal/i })).toBeInTheDocument();
+  });
+});
+
+describe("Intelligence — monedas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useTaxSummary).mockReturnValue({ data: undefined, isLoading: false } as never);
+    vi.mocked(useFinancialAiAnalysis).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    } as never);
+  });
+
+  it("pide el resumen en COP y muestra los USD aparte, sin sumarlos", () => {
+    vi.mocked(useTransactionSummary).mockImplementation(
+      (q) =>
+        ({
+          data:
+            q.currency === "USD"
+              ? { totals: { income: 80, expenses: 20, investments: 0, count: 2 } }
+              : undefined,
+          isLoading: false,
+        }) as never,
+    );
+
+    render(<Intelligence />);
+
+    const currencies = vi.mocked(useTransactionSummary).mock.calls.map(([q]) => q.currency);
+    expect(new Set(currencies)).toEqual(new Set(["COP", "USD"]));
+    const usd = screen.getByTestId("usd-month");
+    expect(usd).toHaveTextContent("USD 80");
+    expect(usd).toHaveTextContent("USD 20");
   });
 });

@@ -141,9 +141,7 @@ function KpiCard({
         >
           <Icon className="h-5 w-5" />
         </div>
-        <Badge tone={kpiBadgeTone(tone)}>
-          {hint}
-        </Badge>
+        <Badge tone={kpiBadgeTone(tone)}>{hint}</Badge>
       </div>
       <p className="mt-5 text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
       <p className="mt-1 font-display text-2xl font-semibold tracking-tight tabular-nums">
@@ -156,11 +154,21 @@ function KpiCard({
 export function Reports() {
   const [preset, setPreset] = useQueryState(
     "period",
-    parseAsStringEnum(["this-month", "last-month", "last-7d", "last-30d", "this-year", "custom"] as const).withDefault("this-month"),
+    parseAsStringEnum([
+      "this-month",
+      "last-month",
+      "last-7d",
+      "last-30d",
+      "this-year",
+      "custom",
+    ] as const).withDefault("this-month"),
   );
   const [customFrom, setCustomFrom] = useQueryState("from", parseAsIsoDate.withDefault(null));
   const [customTo, setCustomTo] = useQueryState("to", parseAsIsoDate.withDefault(null));
-  const [groupBy, setGroupBy] = useQueryState("groupBy", parseAsStringEnum(["day", "week", "month"] as const));
+  const [groupBy, setGroupBy] = useQueryState(
+    "groupBy",
+    parseAsStringEnum(["day", "week", "month"] as const),
+  );
   const { data: categories = [] } = useCategories();
   const fmtAmount = useFormattedAmount();
   const amountsHidden = useAmountsHidden();
@@ -182,11 +190,14 @@ export function Reports() {
       date_from: format(range.from, "yyyy-MM-dd"),
       date_to: format(range.to, "yyyy-MM-dd"),
       group_by: effectiveGroupBy,
+      currency: "COP" as const,
     }),
     [range, effectiveGroupBy],
   );
 
   const { data, isLoading, error } = useTransactionSummary(query);
+  // Los USD se muestran aparte: nunca se suman con los COP.
+  const { data: usd } = useTransactionSummary({ ...query, currency: "USD" });
 
   const categoryMap = useMemo(() => {
     const map: Record<number, string> = {};
@@ -470,6 +481,13 @@ export function Reports() {
               icon={ReceiptText}
             />
           </div>
+          {usd && usd.totals.count > 0 && (
+            <p data-testid="usd-period" className="text-xs text-muted-foreground">
+              Calculado solo con movimientos en COP. En USD este periodo (aparte, sin convertir):
+              ingresos {fmtAmount(usd.totals.income, { currency: "USD" })} · gastos{" "}
+              {fmtAmount(usd.totals.expenses, { currency: "USD" })}
+            </p>
+          )}
 
           <Card className="p-0">
             <div className="flex items-center gap-2 border-b border-border px-5 py-4">

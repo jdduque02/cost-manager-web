@@ -76,10 +76,14 @@ export function Intelligence() {
     return {
       date_from: format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd"),
       date_to: format(now, "yyyy-MM-dd"),
+      currency: "COP" as const,
     };
   }, []);
+  // El presupuesto se calcula en COP; los USD se informan aparte, sin sumarlos.
+  const monthUsdQuery = { ...monthQuery, currency: "USD" as const };
   // Totales del mes agregados en servidor (el listado paginado los truncaba).
   const { data: monthSummary, isLoading: loadTxs } = useTransactionSummary(monthQuery);
+  const { data: monthUsd } = useTransactionSummary(monthUsdQuery);
   const { data: taxSummary, isLoading: loadTax } = useTaxSummary();
   const {
     data: aiAnalysis,
@@ -103,11 +107,7 @@ export function Intelligence() {
       calculateTaxSummary.mutate(undefined, {
         onSuccess: () => toast.success("Resumen fiscal calculado"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error && err.message
-              ? err.message
-              : t("err.tax.calc"),
-          ),
+          toast.error(err instanceof Error && err.message ? err.message : t("err.tax.calc")),
       });
       return;
     }
@@ -202,6 +202,13 @@ export function Intelligence() {
               </p>
             )}
           </div>
+          {monthUsd && monthUsd.totals.count > 0 && (
+            <p data-testid="usd-month" className="mt-4 text-xs text-muted-foreground">
+              Calculado solo con movimientos en COP. En USD este mes (aparte): ingresos{" "}
+              {fmtAmount(monthUsd.totals.income, { currency: "USD" })} · gastos{" "}
+              {fmtAmount(monthUsd.totals.expenses, { currency: "USD" })}
+            </p>
+          )}
         </Card>
 
         <Card glow className="relative overflow-hidden">

@@ -50,6 +50,7 @@ const qk = {
       params.date_to,
       params.group_by ?? "day",
       params.type ?? "",
+      params.currency,
     ] as const,
   objectives: (userId: string) => ["objectives", userId] as const,
   periods: (userId: string) => ["periods", userId] as const,
