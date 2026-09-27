@@ -40,4 +40,19 @@ if (typeof window !== "undefined") {
   });
 
   window.scrollTo = vi.fn();
+
+  // Radix UI (e.g. Select) probes these APIs on pointer events; jsdom doesn't
+  // implement them, so unpatched they throw and abort the interaction.
+  if (!window.HTMLElement.prototype.hasPointerCapture) {
+    window.HTMLElement.prototype.hasPointerCapture = () => false;
+  }
+  if (!window.HTMLElement.prototype.setPointerCapture) {
+    window.HTMLElement.prototype.setPointerCapture = () => {};
+  }
+  if (!window.HTMLElement.prototype.releasePointerCapture) {
+    window.HTMLElement.prototype.releasePointerCapture = () => {};
+  }
+  if (!window.HTMLElement.prototype.scrollIntoView) {
+    window.HTMLElement.prototype.scrollIntoView = () => {};
+  }
 }

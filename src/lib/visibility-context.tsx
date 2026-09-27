@@ -1,92 +1,39 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from "react";
-import { decryptNumber, maskValue } from "@/lib/encryption";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 
-export type VisibilityMode = "visible" | "masked" | "encrypted";
+import { HIDE_AMOUNTS_KEY } from "@/lib/format";
 
 interface VisibilityState {
-  mode: VisibilityMode;
-  setMasked: () => void;
-  setEncrypted: (password: string) => void;
-  setVisible: () => void;
-  decryptNumber: (encrypted: string) => Promise<number>;
-  /** Format a number: returns masked/encrypted/real based on current mode */
-  formatAmount: (value: number, encrypted?: string) => string;
+  /** true = los montos se muestran enmascarados (solo visual, no es cifrado). */
+  hidden: boolean;
+  setHidden: (hidden: boolean) => void;
 }
 
 const VisibilityContext = createContext<VisibilityState | null>(null);
 
 export function VisibilityProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<VisibilityMode>("visible");
-  const passwordRef = useRef<string>("");
-  // Cache decrypted values to avoid re-decrypting on every render
-  const cacheRef = useRef<Map<string, number>>(new Map());
+  const [hidden, setHiddenState] = useState(false);
 
-  const setMasked = useCallback(() => {
-    setMode("masked");
-    passwordRef.current = "";
-    cacheRef.current.clear();
-  }, []);
-
-  const setEncrypted = useCallback((password: string) => {
-    passwordRef.current = password;
-    cacheRef.current.clear();
-    setMode("encrypted");
-  }, []);
-
-  const setVisible = useCallback(() => {
-    setMode("visible");
-    passwordRef.current = "";
-    cacheRef.current.clear();
-  }, []);
-
-  const decryptValue = useCallback(async (encrypted: string): Promise<number> => {
-    if (cacheRef.current.has(encrypted)) {
-      return cacheRef.current.get(encrypted)!;
-    }
-    if (!passwordRef.current) return 0;
+  // Se lee tras montar para no desajustar la hidratación SSR.
+  useEffect(() => {
     try {
-      const val = await decryptNumber(encrypted, passwordRef.current);
-      cacheRef.current.set(encrypted, val);
-      return val;
+      if (window.localStorage.getItem(HIDE_AMOUNTS_KEY) === "1") setHiddenState(true);
     } catch {
-      return 0;
+      // sin storage: queda en memoria
     }
   }, []);
 
-  const formatAmount = useCallback(
-    (value: number, encryptedValue?: string): string => {
-      if (mode === "visible") {
-        return value.toLocaleString("es-CO");
-      }
-      if (mode === "masked") {
-        return maskValue();
-      }
-      // encrypted mode — show masked, actual decryption happens on demand
-      if (encryptedValue) {
-        return maskValue();
-      }
-      return maskValue();
-    },
-    [mode],
-  );
+  const setHidden = useCallback((value: boolean) => {
+    setHiddenState(value);
+    try {
+      window.localStorage.setItem(HIDE_AMOUNTS_KEY, value ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, []);
 
-  const contextValue = useMemo(
-    () => ({
-      mode,
-      setMasked,
-      setEncrypted,
-      setVisible,
-      decryptNumber: decryptValue,
-      formatAmount,
-    }),
-    [mode, setMasked, setEncrypted, setVisible, decryptValue, formatAmount],
-  );
+  const contextValue = useMemo(() => ({ hidden, setHidden }), [hidden, setHidden]);
 
-  return (
-    <VisibilityContext.Provider value={contextValue}>
-      {children}
-    </VisibilityContext.Provider>
-  );
+  return <VisibilityContext.Provider value={contextValue}>{children}</VisibilityContext.Provider>;
 }
 
 export function useVisibility() {

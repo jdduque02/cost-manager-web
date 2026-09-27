@@ -58,13 +58,8 @@ export const logsApi = {
     if (rest.sortOrder) params.set("sortOrder", rest.sortOrder);
     const qs = params.toString();
     const endpoint = qs ? `admin/logs?${qs}` : "admin/logs";
-    const entries = await api.get<LogEntry[]>(endpoint);
-    const list = Array.isArray(entries) ? entries : [];
-    return {
-      data: list,
-      total: list.length,
-      timestamp: new Date().toISOString(),
-    };
+    const { data, total } = await api.getPaginated<{ data: LogEntry[]; total: number }>(endpoint);
+    return { data, total, timestamp: new Date().toISOString() };
   },
 
   async getStats(): Promise<LogStats> {

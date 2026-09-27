@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useCreateSubcategory } from "@/lib/hooks/use-api";
 
+import { t } from "@/lib/i18n/errors";
 interface InlineSubcategoryCreatorProps {
   categoryId: number;
   onCreated: (subcategoryId: number) => void;
@@ -28,7 +29,7 @@ export function InlineSubcategoryCreator({ categoryId, onCreated }: InlineSubcat
           setOpen(false);
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Error al crear la subcategoría");
+          toast.error(err instanceof Error ? err.message : t("err.subcategory.create"));
         },
       },
     );

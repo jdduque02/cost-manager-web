@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import type { Category, GroupType } from "@/lib/api/catalog";
 import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
+import { t, errorText } from "@/lib/i18n/errors";
 function getCategoryIcon(categoryName?: string) {
   if (!categoryName) return Tag;
   const c = categoryName?.toLowerCase() ?? "";
@@ -128,7 +129,7 @@ function CategoryCard({
   }
 
   return (
-    <Card>
+    <Card className="animate-in fade-in slide-in-from-top-1 duration-200">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2">
           <Icon className="h-5 w-5 text-primary" />
@@ -146,12 +147,14 @@ function CategoryCard({
         <div className="flex gap-1">
           <button
             onClick={() => onEditCategory(category)}
+            aria-label={`${t("ui.edit")}: ${category.name}`}
             className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => onDeleteCategory(category)}
+            aria-label={`${t("ui.delete")}: ${category.name}`}
             className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -211,6 +214,7 @@ function CategoryCard({
                         setEditingSubId(sub.id);
                         setEditingSubName(sub.name);
                       }}
+                      aria-label={`${t("ui.edit")}: ${sub.name}`}
                       className="rounded-md p-1 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -218,6 +222,7 @@ function CategoryCard({
                     <button
                       onClick={() => onDeleteSubcategory(sub.id)}
                       disabled={isDeleting}
+                      aria-label={`${t("ui.delete")}: ${sub.name}`}
                       className="rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -259,8 +264,18 @@ function CategoryCard({
 }
 
 export function Categories() {
-  const { data: categories = [], isLoading: loadingCategories } = useCategories();
-  const { data: allSubcategories = [], isLoading: loadingSubs } = useSubcategories();
+  const {
+    data: categories = [],
+    isLoading: loadingCategories,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useCategories();
+  const {
+    data: allSubcategories = [],
+    isLoading: loadingSubs,
+    error: subsError,
+    refetch: refetchSubs,
+  } = useSubcategories();
   const createSub = useCreateSubcategory();
   const updateSub = useUpdateSubcategory();
   const deleteSub = useDeleteSubcategory();
@@ -309,8 +324,8 @@ export function Categories() {
       .then(() => {
         toast.success("Subcategoría creada", { id });
       })
-      .catch(() => {
-        toast.error("Error al crear subcategoría", { id });
+      .catch((err) => {
+        toast.error(errorText(err, "err.subcategory.create"), { id });
       });
   }
 
@@ -321,8 +336,8 @@ export function Categories() {
       .then(() => {
         toast.success("Subcategoría actualizada", { id: toastId });
       })
-      .catch(() => {
-        toast.error("Error al actualizar subcategoría", { id: toastId });
+      .catch((err) => {
+        toast.error(errorText(err, "err.subcategory.update"), { id: toastId });
       });
   }
 
@@ -335,8 +350,8 @@ export function Categories() {
         toast.success("Subcategoría eliminada", { id: toastId });
         setDeleteTarget(null);
       })
-      .catch(() => {
-        toast.error("Error al eliminar subcategoría", { id: toastId });
+      .catch((err) => {
+        toast.error(errorText(err, "err.subcategory.delete"), { id: toastId });
       });
   }
 
@@ -349,8 +364,8 @@ export function Categories() {
         toast.success("Categoría eliminada", { id: toastId });
         setDeleteCategoryTarget(null);
       })
-      .catch(() => {
-        toast.error("Error al eliminar la categoría", { id: toastId });
+      .catch((err) => {
+        toast.error(errorText(err, "err.category.delete"), { id: toastId });
       });
   }
 
@@ -371,6 +386,25 @@ export function Categories() {
     contentSection = (
       <div className="flex h-32 items-center justify-center text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  } else if ((categoriesError && !categories.length) || (subsError && !allSubcategories.length)) {
+    contentSection = (
+      <div
+        role="alert"
+        className="flex h-32 flex-col items-center justify-center gap-3 text-sm text-destructive"
+      >
+        {t("err.category.load")}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (categoriesError) void refetchCategories();
+            if (subsError) void refetchSubs();
+          }}
+        >
+          {t("ui.retry")}
+        </Button>
       </div>
     );
   } else if (filteredCategories.length === 0) {

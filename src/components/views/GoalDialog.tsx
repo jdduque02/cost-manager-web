@@ -35,6 +35,7 @@ import { fmtCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WealthDialog } from "./WealthDialog";
 
+import { t } from "@/lib/i18n/errors";
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   ahorros: "Ahorros",
   corriente: "Corriente",
@@ -51,11 +52,16 @@ interface GoalDialogProps {
   onCreated?: (objective: FinancialObjective) => void;
 }
 
-const goalTypes = [
+export const goalTypes = [
   { value: "savings", label: "Ahorro" },
   { value: "loan", label: "Préstamo" },
   { value: "goal", label: "Meta" },
+  { value: "emergency_fund", label: "Fondo de emergencia" },
 ];
+
+export const GOAL_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  goalTypes.map((gt) => [gt.value, gt.label]),
+);
 
 const frequencyOptions: { value: QuotaFrequency; label: string; perMonth: string }[] = [
   { value: "weekly", label: "Semanal", perMonth: "~4.33/mes" },
@@ -99,9 +105,7 @@ function GoalStepIndicator({ step }: { step: 1 | 2 }) {
       <div
         className={cn(
           "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
-          step === 1
-            ? "bg-primary text-primary-foreground"
-            : "bg-surface-2 text-muted-foreground",
+          step === 1 ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted-foreground",
         )}
       >
         1
@@ -110,9 +114,7 @@ function GoalStepIndicator({ step }: { step: 1 | 2 }) {
       <div
         className={cn(
           "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
-          step === 2
-            ? "bg-primary text-primary-foreground"
-            : "bg-surface-2 text-muted-foreground",
+          step === 2 ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted-foreground",
         )}
       >
         2
@@ -190,8 +192,9 @@ function GoalFormFields({
   return (
     <>
       <div className="space-y-1.5">
-        <Label>Nombre</Label>
+        <Label htmlFor="goal-name">Nombre</Label>
         <Input
+          id="goal-name"
           placeholder="Ej. Ahorrar para la moto"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -201,9 +204,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tipo</Label>
+        <Label htmlFor="goal-type">Tipo</Label>
         <Select value={type} onValueChange={setType}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -218,30 +221,50 @@ function GoalFormFields({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Monto objetivo</Label>
-          <CurrencyInput value={targetAmount} onChange={setTargetAmount} placeholder="0" required />
+          <Label htmlFor="goal-target-amount">Monto objetivo (opcional)</Label>
+          <CurrencyInput
+            id="goal-target-amount"
+            value={targetAmount}
+            onChange={setTargetAmount}
+            placeholder="0"
+          />
         </div>
         <div className="space-y-1.5">
-          <Label>Ahorrado actual</Label>
-          <CurrencyInput value={currentBalance} onChange={setCurrentBalance} placeholder="0" />
+          <Label htmlFor="goal-current-balance">Ahorrado actual</Label>
+          <CurrencyInput
+            id="goal-current-balance"
+            value={currentBalance}
+            onChange={setCurrentBalance}
+            placeholder="0"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Fecha inicio</Label>
-          <DatePicker value={startDate} onChange={setStartDate} placeholder="Seleccionar" />
+          <Label htmlFor="goal-start-date">Fecha inicio</Label>
+          <DatePicker
+            id="goal-start-date"
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Seleccionar"
+          />
         </div>
         <div className="space-y-1.5">
-          <Label>Fecha fin</Label>
-          <DatePicker value={endDate} onChange={setEndDate} placeholder="Seleccionar" />
+          <Label htmlFor="goal-end-date">Fecha fin (opcional)</Label>
+          <DatePicker
+            id="goal-end-date"
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="Seleccionar"
+          />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label>Frecuencia de cuotas</Label>
+        <Label htmlFor="goal-frequency">Frecuencia de cuotas</Label>
         <Select value={frequency} onValueChange={(v) => setFrequency(v as QuotaFrequency)}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-frequency">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -255,9 +278,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Cuenta bancaria (opcional)</Label>
+        <Label htmlFor="goal-account">Cuenta bancaria (opcional)</Label>
         <Select value={accountId} onValueChange={handleAccountChange}>
-          <SelectTrigger>
+          <SelectTrigger id="goal-account">
             <SelectValue placeholder="Sin cuenta vinculada" />
           </SelectTrigger>
           <SelectContent>
@@ -279,8 +302,9 @@ function GoalFormFields({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tasa de interés anual % (opcional)</Label>
+        <Label htmlFor="goal-interest-rate">Tasa de interés anual % (opcional)</Label>
         <Input
+          id="goal-interest-rate"
           type="number"
           min="0"
           max="100"
@@ -305,6 +329,9 @@ interface GoalStep1FormProps {
   onCalculate: () => void;
   isCalculatePending: boolean;
   isStep1Valid: boolean;
+  canPlan: boolean;
+  onCreateDirect: () => void;
+  isPending: boolean;
 }
 
 function GoalStep1Form({
@@ -312,26 +339,55 @@ function GoalStep1Form({
   onCalculate,
   isCalculatePending,
   isStep1Valid,
+  canPlan,
+  onCreateDirect,
+  isPending,
 }: GoalStep1FormProps) {
+  const hasTargetAndEnd =
+    !!formFields.targetAmount && Number(formFields.targetAmount) > 0 && !!formFields.endDate;
+
   return (
     <div className="space-y-4">
       <GoalFormFields showAccountHint {...formFields} />
-      <DialogFooter>
-        <Button
-          type="button"
-          onClick={onCalculate}
-          disabled={!isStep1Valid || isCalculatePending}
-          className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
-        >
-          {isCalculatePending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              Siguiente
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </>
-          )}
-        </Button>
+      <div className="rounded-lg border border-border/60 bg-surface px-3 py-2 text-xs text-muted-foreground">
+        <p>
+          Puedes dejar el monto objetivo y la fecha fin en blanco para crear una meta abierta sin
+          plan de ahorro. Si defines ambos, se calculará el plan de cuotas.
+        </p>
+      </div>
+      <DialogFooter className="!justify-between">
+        {canPlan ? (
+          <Button
+            type="button"
+            onClick={onCalculate}
+            disabled={!isStep1Valid || isCalculatePending}
+            className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+          >
+            {isCalculatePending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                Siguiente
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            onClick={onCreateDirect}
+            disabled={!formFields.name.trim() || isPending}
+            className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+          >
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : hasTargetAndEnd ? (
+              "Calcular plan"
+            ) : (
+              "Crear meta"
+            )}
+          </Button>
+        )}
       </DialogFooter>
     </div>
   );
@@ -343,8 +399,8 @@ function ConfirmationSummary({ result }: { result: CalculateQuotaResponse }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 text-sm">
-      <SummaryCell label="Monto a ahorrar" value={fmtCurrency(result.amount_to_save)} />
-      <SummaryCell label="Saldo actual" value={fmtCurrency(result.current_balance)} />
+      <SummaryCell label="Monto a ahorrar" value={fmtCurrency(result.amount_to_save ?? 0)} />
+      <SummaryCell label="Saldo actual" value={fmtCurrency(result.current_balance ?? 0)} />
       {hasIncome && (
         <>
           <SummaryCell label="Ingreso mensual" value={fmtCurrency(result.monthly_income!)} />
@@ -399,9 +455,7 @@ function SummaryCell({
   return (
     <div className="rounded-lg bg-surface p-3">
       <p className="text-muted-foreground">{label}</p>
-      {children ?? (
-        <p className={cn("font-semibold", mono && "tabular-nums")}>{value}</p>
-      )}
+      {children ?? <p className={cn("font-semibold", mono && "tabular-nums")}>{value}</p>}
     </div>
   );
 }
@@ -432,13 +486,7 @@ function BudgetStatus({ isWithinBudget }: { isWithinBudget: boolean }) {
 }
 
 /* ── Warning / recommendation lists ─────────────────────────────────────────── */
-function AlertCardList({
-  items,
-  variant,
-}: {
-  items: string[];
-  variant: "warning" | "info";
-}) {
+function AlertCardList({ items, variant }: { items: string[]; variant: "warning" | "info" }) {
   const isWarning = variant === "warning";
   return (
     <div className="space-y-2">
@@ -486,9 +534,7 @@ function GoalStep2Confirm({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-surface p-4 text-center">
-        <p className="text-sm text-muted-foreground">
-          Cuota por {frequencyLabel.toLowerCase()}
-        </p>
+        <p className="text-sm text-muted-foreground">Cuota por {frequencyLabel.toLowerCase()}</p>
         <p className="mt-1 font-display text-3xl font-bold text-primary">
           {fmtCurrency(result.quota_amount)}
         </p>
@@ -503,9 +549,7 @@ function GoalStep2Confirm({
 
       {warnings.length > 0 && <AlertCardList items={warnings} variant="warning" />}
 
-      {recommendations.length > 0 && (
-        <AlertCardList items={recommendations} variant="info" />
-      )}
+      {recommendations.length > 0 && <AlertCardList items={recommendations} variant="info" />}
 
       <DialogFooter className="!justify-between">
         <Button variant="ghost" onClick={onBack} disabled={isPending}>
@@ -547,12 +591,7 @@ function EditForm({
       <DialogFooter>
         <Button
           type="submit"
-          disabled={
-            !formFields.name.trim() ||
-            !formFields.targetAmount ||
-            Number(formFields.targetAmount) <= 0 ||
-            isPending
-          }
+          disabled={!formFields.name.trim() || isPending}
           className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
         >
           {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -607,11 +646,11 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
     }
     setName(goal.name);
     setType(goal.type);
-    setTargetAmount(String(goal.target_amount));
+    setTargetAmount(goal.target_amount ? String(goal.target_amount) : "");
     setCurrentBalance(String(goal.current_balance ?? 0));
     setStartDate(goal.start_date ? new Date(goal.start_date) : undefined);
     setEndDate(goal.end_date ? new Date(goal.end_date) : undefined);
-    if (isValidFrequency(goal.frequency)) {
+    if (goal.frequency && isValidFrequency(goal.frequency)) {
       setFrequency(goal.frequency);
     }
     setAccountId(goal.account_id ? String(goal.account_id) : "");
@@ -633,13 +672,16 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
   }
 
   async function handleCalculate() {
-    if (!targetAmount || Number(targetAmount) <= 0) return;
+    if (!targetAmount || Number(targetAmount) <= 0 || !endDate) return;
+
+    const current = currentBalance ? Number(currentBalance) : 0;
+    const target = Number(targetAmount);
 
     const id = toast.loading("Calculando cuota de ahorro...");
     try {
       const result = await calculateQuota.mutateAsync({
-        target_amount: Number(targetAmount),
-        current_balance: currentBalance ? Number(currentBalance) : 0,
+        target_amount: target,
+        current_balance: current,
         start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
         end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
         frequency,
@@ -650,21 +692,25 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
       setStep(2);
       toast.dismiss(id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al calcular cuota", { id });
+      toast.error(err instanceof Error && err.message ? err.message : t("err.goal.quota"), {
+        id,
+      });
     }
   }
 
   async function handleConfirmCreate() {
-    if (!name.trim() || !targetAmount || Number(targetAmount) <= 0) return;
+    if (!name.trim()) return;
+
+    const hasPlan = !!targetAmount && Number(targetAmount) > 0 && !!endDate;
 
     const payload = {
       name: name.trim(),
-      type: type as "savings" | "loan" | "goal",
-      target_amount: Number(targetAmount),
+      type: type as FinancialObjective["type"],
+      target_amount: targetAmount ? Number(targetAmount) : null,
       current_balance: currentBalance ? Number(currentBalance) : 0,
       start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
       end_date: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
-      frequency,
+      frequency: hasPlan ? frequency : undefined,
       account_id: accountId ? Number(accountId) : undefined,
       current_profitability: interestRate ? Number(interestRate) : undefined,
     };
@@ -678,7 +724,10 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
             reset();
             onOpenChange(false);
           },
-          onError: () => toast.error("Error al actualizar la meta"),
+          onError: (err) =>
+            toast.error(
+              err instanceof Error && err.message ? err.message : t("err.goal.update"),
+            ),
         },
       );
     } else {
@@ -689,24 +738,35 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
           onCreated?.(created);
           onOpenChange(false);
         },
-        onError: () => toast.error("Error al crear la meta"),
+        onError: (err) =>
+          toast.error(err instanceof Error && err.message ? err.message : t("err.goal.create")),
       });
     }
   }
 
   const frequencyLabel = frequencyOptions.find((f) => f.value === frequency)?.label ?? frequency;
-  const isStep1Valid = !!name.trim() && !!targetAmount && Number(targetAmount) > 0;
+  const canPlan = !!targetAmount && Number(targetAmount) > 0 && !!endDate;
+  const isStep1Valid = !!name.trim();
 
   const formFields: Omit<GoalFormFieldsProps, "showAccountHint"> = {
-    name, setName,
-    type, setType,
-    targetAmount, setTargetAmount,
-    currentBalance, setCurrentBalance,
-    startDate, setStartDate,
-    endDate, setEndDate,
-    frequency, setFrequency,
-    accountId, setAccountId,
-    interestRate, setInterestRate,
+    name,
+    setName,
+    type,
+    setType,
+    targetAmount,
+    setTargetAmount,
+    currentBalance,
+    setCurrentBalance,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    frequency,
+    setFrequency,
+    accountId,
+    setAccountId,
+    interestRate,
+    setInterestRate,
     accounts,
     selectedAccount,
     onQuickCreateAccount: () => setQuickAccountOpen(true),
@@ -745,6 +805,9 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
                   onCalculate={handleCalculate}
                   isCalculatePending={calculateQuota.isPending}
                   isStep1Valid={isStep1Valid}
+                  canPlan={canPlan}
+                  onCreateDirect={handleConfirmCreate}
+                  isPending={isPending}
                 />
               );
             }

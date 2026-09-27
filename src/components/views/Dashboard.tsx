@@ -22,17 +22,37 @@ import { Button } from "@/components/ui/button";
 import { RevealSection } from "@/components/ui/reveal-section";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
-import { useNetWorth, useTransactions, useCategories } from "@/lib/hooks/use-api";
-import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import {
+  useNetWorth,
+  useTransactions,
+  useTransactionSummary,
+  useCategories,
+} from "@/lib/hooks/use-api";
+import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
+import { useCountUp } from "@/hooks/use-count-up";
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
+import { t } from "@/lib/i18n/errors";
 import { TransactionDialog } from "./TransactionDialog";
 import { NewsCarousel } from "@/components/ui/news-carousel";
+
+type TooltipFormatterContext = {
+  x?: string | number;
+  key?: string;
+  y?: number;
+  points?: Highcharts.Point[];
+};
 
 function kFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
   const v = Number(this.value);
   return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`;
 }
+
+const hiddenAxisFormatter = () => "";
 
 function tooltipHtml(points: Highcharts.Point[], fmt: (v: number) => string) {
   const rows = points
@@ -145,13 +165,56 @@ function KPI({
 }
 
 export function Dashboard() {
-  const { data: txs = [] } = useTransactions();
-  const { summary: nw } = useNetWorth();
+  // Totales y gráficas salen de transactions/summary (agregado en servidor):
+  // el listado está paginado (limit 20 por defecto) y truncaba las sumas.
+  const now = useMemo(() => new Date(), []);
+  const monthQuery = useMemo(
+    () => ({
+      date_from: format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd"),
+      date_to: format(now, "yyyy-MM-dd"),
+    }),
+    [now],
+  );
+  const sixMonthQuery = useMemo(
+    () => ({
+      date_from: format(new Date(now.getFullYear(), now.getMonth() - 5, 1), "yyyy-MM-dd"),
+      date_to: format(now, "yyyy-MM-dd"),
+      group_by: "month" as const,
+    }),
+    [now],
+  );
+  const {
+    data: monthSummary,
+    isLoading: monthLoading,
+    error: monthError,
+  } = useTransactionSummary(monthQuery);
+  const { data: sixMonthSummary } = useTransactionSummary(sixMonthQuery);
+  // La API ordena por transaction_date DESC: basta con las 5 más recientes.
+  const { data: txs = [] } = useTransactions({ limit: 5 });
+  const { summary: nw, isLoading: nwLoading, error: nwError } = useNetWorth();
+  const queryClient = useQueryClient();
+  const kpiLoading = monthLoading || nwLoading;
+  // Un refetch en segundo plano fallido no debe tapar datos ya cargados.
+  const kpiError = (!monthSummary && monthError) || (!nw && nwError);
+  // Reintenta solo las queries fallidas de la pantalla (resumen del mes y/o patrimonio).
+  const retryFailed = () =>
+    void queryClient.refetchQueries({
+      type: "active",
+      predicate: (q) => q.state.status === "error",
+    });
   const { data: categories = [] } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
   const fmtAmount = useFormattedAmount();
+  const amountsHidden = useAmountsHidden();
+  const axisFormatter = amountsHidden ? hiddenAxisFormatter : kFormatter;
 
   const netWorthValue = nw?.netWorth ?? 0;
+
+  function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
+    const iso = t.transaction_date ?? t.created_at ?? "";
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
 
   // Build a map: category_id -> category name
   const categoryMap = useMemo(() => {
@@ -162,61 +225,42 @@ export function Dashboard() {
     return map;
   }, [categories]);
 
-  function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
-    const iso = t.transaction_date ?? t.created_at ?? "";
-    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  // Calculate this month's income and expenses
-  const now = useMemo(() => new Date(), []);
-  const currentMonthTxs = txs.filter((t) => {
-    const d = txDate(t);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
-
-  const monthlyIncome = currentMonthTxs
-    .filter((t) => t.type === "income")
-    .reduce((acc, t) => acc + t.amount, 0);
-  const monthlyExpenses = currentMonthTxs
-    .filter((t) => t.type === "expense")
-    .reduce((acc, t) => acc + t.amount, 0);
+  const monthlyIncome = monthSummary?.totals.income ?? 0;
+  const monthlyExpenses = monthSummary?.totals.expenses ?? 0;
   const savingsRate =
     monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
 
-  // Build monthly chart data from transactions (last 6 months)
+  const animatedNetWorth = useCountUp(netWorthValue, { duration: 800 });
+  const animatedMonthlyIncome = useCountUp(monthlyIncome, { duration: 800, delay: 60 });
+  const animatedMonthlyExpenses = useCountUp(monthlyExpenses, { duration: 800, delay: 120 });
+  const animatedSavingsRate = useCountUp(savingsRate, { duration: 800, delay: 180 });
+
+  // Last 6 months; months without movements come back absent from the series.
   const monthlyChartData = useMemo(() => {
+    const byKey = new Map((sixMonthSummary?.series ?? []).map((i) => [i.key, i]));
     const months: { month: string; income: number; expenses: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const label = d.toLocaleDateString("es-CO", { month: "short" });
-      const monthTxs = txs.filter((t) => {
-        const td = txDate(t);
-        return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
-      });
+      const bucket = byKey.get(format(d, "yyyy-MM-dd"));
       months.push({
-        month: label,
-        income: monthTxs.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
-        expenses: monthTxs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+        month: d.toLocaleDateString("es-CO", { month: "short" }),
+        income: bucket?.income ?? 0,
+        expenses: bucket?.expenses ?? 0,
       });
     }
     return months;
-  }, [txs, now]);
+  }, [sixMonthSummary, now]);
 
-  // Spending by category
-  const categorySpending = useMemo(() => {
-    const map: Record<number, number> = {};
-    currentMonthTxs
-      .filter((t) => t.type === "expense")
-      .forEach((t) => {
-        const catId = t.category_id ?? -1;
-        map[catId] = (map[catId] ?? 0) + t.amount;
-      });
-    return Object.entries(map)
-      .map(([catId, amt]) => ({ cat: categoryMap[Number(catId)] ?? "Por editar", amt }))
-      .sort((a, b) => b.amt - a.amt)
-      .slice(0, 6);
-  }, [currentMonthTxs, categoryMap]);
+  // Spending by category (current month)
+  const categorySpending = useMemo(
+    () =>
+      (monthSummary?.by_category ?? [])
+        .filter((c) => c.expenses > 0)
+        .map((c) => ({ cat: categoryMap[c.category_id] ?? "Por editar", amt: c.expenses }))
+        .sort((a, b) => b.amt - a.amt)
+        .slice(0, 6),
+    [monthSummary, categoryMap],
+  );
 
   const colors = useChartColors();
   const PIE_COLORS = [
@@ -259,15 +303,15 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: axisFormatter },
       },
       tooltip: {
         ...tooltipStyle,
         shared: true,
         useHTML: true,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return `<div style="font-weight:600;margin-bottom:6px;">${this.x}</div>${tooltipHtml(this.points ?? [], fmtAmount)}`;
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         area: {
@@ -291,7 +335,7 @@ export function Dashboard() {
         },
       ],
     }),
-    [monthlyChartData, colors, tooltipStyle, fmtAmount],
+    [monthlyChartData, colors, tooltipStyle, fmtAmount, axisFormatter],
   );
 
   const spendingOptions = useMemo<Highcharts.Options>(
@@ -315,13 +359,13 @@ export function Dashboard() {
         title: { text: undefined },
         gridLineColor: colors.border,
         gridLineDashStyle: "Dash",
-        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: kFormatter },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" }, formatter: axisFormatter },
       },
       tooltip: {
         ...tooltipStyle,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return pieTooltipHtml(this.key, this.y, fmtAmount);
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: { column: { borderRadius: 8, pointPadding: 0.08, groupPadding: 0.08 } },
       series: [
@@ -333,7 +377,7 @@ export function Dashboard() {
         },
       ],
     }),
-    [categorySpending, colors, tooltipStyle, fmtAmount],
+    [categorySpending, colors, tooltipStyle, fmtAmount, axisFormatter],
   );
 
   const spendingPieOptions = useMemo<Highcharts.Options>(
@@ -344,9 +388,9 @@ export function Dashboard() {
       legend: { enabled: false },
       tooltip: {
         ...tooltipStyle,
-        formatter: function (this: Highcharts.TooltipFormatterContextObject) {
+        formatter: function (this: TooltipFormatterContext) {
           return pieTooltipHtml(this.key, this.y, fmtAmount);
-        },
+        } as Highcharts.TooltipFormatterCallbackFunction,
       },
       plotOptions: {
         pie: {
@@ -393,36 +437,60 @@ export function Dashboard() {
 
       {/* KPIs */}
       <RevealSection delay={0}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KPI
-            label="Patrimonio"
-            value={fmtAmount(netWorthValue)}
-            delta="Tiempo real"
-            positive
-            icon={Wallet}
-          />
-          <KPI
-            label="Ingresos del mes"
-            value={fmtAmount(monthlyIncome)}
-            delta="Este mes"
-            positive
-            icon={TrendingUp}
-          />
-          <KPI
-            label="Gastos del mes"
-            value={fmtAmount(monthlyExpenses)}
-            delta="Este mes"
-            positive={false}
-            icon={ArrowDownRight}
-          />
-          <KPI
-            label="Tasa de ahorro"
-            value={`${savingsRate.toFixed(1)}%`}
-            delta="Este mes"
-            positive={savingsRate > 0}
-            icon={PiggyBank}
-          />
-        </div>
+        {kpiError && (
+          <Card
+            role="alert"
+            className="flex flex-col items-center justify-center gap-3 py-8 text-sm text-destructive"
+          >
+            {t("err.dashboard.load")}
+            <Button variant="outline" size="sm" onClick={retryFailed}>
+              {t("ui.retry")}
+            </Button>
+          </Card>
+        )}
+        {!kpiError && kpiLoading && (
+          <div
+            aria-busy="true"
+            data-testid="kpi-skeleton"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-36 rounded-2xl" />
+            ))}
+          </div>
+        )}
+        {!kpiError && !kpiLoading && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KPI
+              label="Patrimonio"
+              value={fmtAmount(animatedNetWorth)}
+              delta="Tiempo real"
+              positive
+              icon={Wallet}
+            />
+            <KPI
+              label="Ingresos del mes"
+              value={fmtAmount(animatedMonthlyIncome)}
+              delta="Este mes"
+              positive
+              icon={TrendingUp}
+            />
+            <KPI
+              label="Gastos del mes"
+              value={fmtAmount(animatedMonthlyExpenses)}
+              delta="Este mes"
+              positive={false}
+              icon={ArrowDownRight}
+            />
+            <KPI
+              label="Tasa de ahorro"
+              value={`${animatedSavingsRate.toFixed(1)}%`}
+              delta="Este mes"
+              positive={savingsRate > 0}
+              icon={PiggyBank}
+            />
+          </div>
+        )}
       </RevealSection>
 
       {/* News Carousel */}
@@ -483,9 +551,9 @@ export function Dashboard() {
           <Card>
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold">Actividad Reciente</h3>
-              <a href="/transactions" className="text-xs font-medium text-primary hover:underline">
+              <Link to="/transactions" className="text-xs font-medium text-primary hover:underline">
                 Ver todo
-              </a>
+              </Link>
             </div>
             <ul className="mt-4 space-y-1.5">
               {txs.length === 0 ? (
@@ -506,7 +574,7 @@ export function Dashboard() {
                   </Button>
                 </li>
               ) : (
-                txs.slice(0, 5).map((t) => {
+                txs.map((t) => {
                   const categoryName = categoryMap[t.category_id ?? -1] ?? "Por editar";
                   const Icon = getCategoryIcon(categoryName);
 

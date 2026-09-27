@@ -15,6 +15,9 @@ export interface User {
   roles?: string[];
   is_active: boolean;
   last_login_at?: string | null;
+  /** Última versión legal aceptada (null = nunca aceptó). */
+  terms_version?: string | null;
+  terms_accepted_at?: string | null;
   is_online?: boolean;
   created_at: string;
   updated_at: string | null;
@@ -89,13 +92,42 @@ function normalizeProfile(p: FinancialProfile): FinancialProfile {
   };
 }
 
+export interface CreateUserDto {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  phone?: string;
+  address?: string;
+  document_id?: string;
+  /** Versión de los términos/política aceptada (prueba de autorización, Ley 1581). */
+  accepted_terms_version?: string;
+  locale?: string;
+  timezone?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateUserResponse {
+  id: string;
+  external_id: string;
+  username: string;
+  email: string;
+}
+
 export const identityApi = {
+  createUser: (dto: CreateUserDto) => api.post<CreateUserResponse>("user", dto),
   getStatus: async () => {
     const result = await api.get<{ status: string }[]>("user/public/status");
     return Array.isArray(result) ? result[0] : result;
   },
   getUser: async (id: string, token?: string | null): Promise<User> => {
     const result = await api.get<User[]>(`user/${id}`, token);
+    return Array.isArray(result) ? result[0] : result;
+  },
+  acceptTerms: async (id: string, version: string): Promise<User> => {
+    const result = await api.patch<User[]>(`user/${id}/terms-acceptance`, {
+      accepted_terms_version: version,
+    });
     return Array.isArray(result) ? result[0] : result;
   },
   getUsers: () => api.get<User[]>("user"),

@@ -23,6 +23,7 @@ import { useCreateCategory, useUpdateCategory } from "@/lib/hooks/use-api";
 import type { Category, GroupType, ProfileBucket } from "@/lib/api/catalog";
 import { PROFILE_BUCKET_LABELS } from "@/lib/api/catalog";
 
+import { errorText } from "@/lib/i18n/errors";
 interface CategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -75,8 +76,8 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
         toast.success("Categoría actualizada", { id });
         reset();
         onOpenChange(false);
-      } catch {
-        toast.error("Error al actualizar la categoría", { id });
+      } catch (err) {
+        toast.error(errorText(err, "err.category.update"), { id });
       }
     } else {
       const id = toast.loading("Creando categoría...");
@@ -85,8 +86,8 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
         toast.success("Categoría creada", { id });
         reset();
         onOpenChange(false);
-      } catch {
-        toast.error("Error al crear la categoría", { id });
+      } catch (err) {
+        toast.error(errorText(err, "err.category.create"), { id });
       }
     }
   }
@@ -111,8 +112,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Nombre</Label>
+            <Label htmlFor="category-name">Nombre</Label>
             <Input
+              id="category-name"
               placeholder="Ej. Alimentación"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -122,9 +124,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tipo</Label>
+            <Label htmlFor="category-type">Tipo</Label>
             <Select value={groupType} onValueChange={(v) => setGroupType(v as GroupType)}>
-              <SelectTrigger>
+              <SelectTrigger id="category-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -136,9 +138,9 @@ export function CategoryDialog({ open, onOpenChange, category }: CategoryDialogP
           </div>
 
           <div className="space-y-1.5">
-            <Label>Rango del perfil financiero</Label>
+            <Label htmlFor="category-profile-bucket">Rango del perfil financiero</Label>
             <Select value={profileBucket} onValueChange={(v) => setProfileBucket(v)}>
-              <SelectTrigger>
+              <SelectTrigger id="category-profile-bucket">
                 <SelectValue placeholder="Sin clasificar" />
               </SelectTrigger>
               <SelectContent>

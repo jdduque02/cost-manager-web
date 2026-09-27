@@ -13,12 +13,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/lib/auth";
 import {
   useFinancialBudgetProfile,
   useUpdateFinancialBudgetProfile,
   useCreateFinancialBudgetProfile,
   useUpdateUser,
+  useSessions,
+  useRevokeSession,
+  useAccessHistory,
 } from "@/lib/hooks/use-api";
 import {
   User,
@@ -36,17 +40,44 @@ import {
   Lock,
   Eye,
   EyeOff,
+  AlertTriangle,
+  CreditCard,
 } from "lucide-react";
-import { authApi } from "@/lib/api/auth";
+import { authApi, type Session, type AccessEvent } from "@/lib/api/auth";
 
+import { t, getLocale, setLocale, type Locale } from "@/lib/i18n/errors";
 const sections = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "financial", label: "Perfil Financiero", icon: Wallet },
   { id: "notifications", label: "Notificaciones", icon: Bell },
   { id: "security", label: "Seguridad", icon: Shield },
+  { id: "billing", label: "Facturacion", icon: CreditCard },
   { id: "language", label: "Idioma y Region", icon: Globe },
   { id: "appearance", label: "Apariencia", icon: Palette },
 ];
+
+function LanguageRow() {
+  const [lang, setLang] = useState<Locale>(getLocale());
+  return (
+    <SettingRow label={t("ui.lang.label")}>
+      <Select
+        value={lang}
+        onValueChange={(v) => {
+          setLocale(v as Locale);
+          setLang(v as Locale);
+        }}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="es">{t("ui.lang.es")}</SelectItem>
+          <SelectItem value="en">{t("ui.lang.en")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </SettingRow>
+  );
+}
 
 function SettingRow({
   label,
@@ -91,9 +122,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 export function Settings() {
   const [active, setActive] = useState("profile");
-  const [notifEmail, setNotifEmail] = useState(true);
-  const [notifPush, setNotifPush] = useState(true);
-  const [notifBudget, setNotifBudget] = useState(true);
 
   return (
     <div className="space-y-7">
@@ -138,51 +166,25 @@ export function Settings() {
 
           {active === "financial" && <FinancialProfileSettings />}
 
-          {active === "notifications" && (
-            <Card>
-              <h3 className="font-display text-lg font-semibold mb-2">Notificaciones</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Configura cuando y como recibes alertas.
-              </p>
-              <SettingRow label="Notificaciones por correo" value="Resumenes e informes por correo">
-                <Toggle checked={notifEmail} onChange={setNotifEmail} />
-              </SettingRow>
-              <SettingRow label="Notificaciones push" value="Alertas en tu dispositivo">
-                <Toggle checked={notifPush} onChange={setNotifPush} />
-              </SettingRow>
-              <SettingRow
-                label="Alertas de presupuesto"
-                value="Notificar cuando el gasto exceda el 80%"
-              >
-                <Toggle checked={notifBudget} onChange={setNotifBudget} />
-              </SettingRow>
-            </Card>
-          )}
+          {active === "notifications" && <NotificationSettings />}
 
           {active === "security" && <SecuritySettings />}
 
           {active === "billing" && (
-            <Card glow>
+            <Card>
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <h3 className="font-display text-lg font-semibold">Facturacion</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Administra tu suscripcion y metodos de pago.
+                    Sprig es de uso personal y gratuito por ahora.
                   </p>
                 </div>
-                <Badge tone="success">Premium activo</Badge>
+                <Badge tone="muted">Proximamente</Badge>
               </div>
-              <div className="rounded-xl border border-border bg-surface/40 p-4 mb-4">
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Plan actual
-                </p>
-                <p className="mt-1 font-display text-2xl font-semibold">Mindful Spend Mate Pro</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  $9.99 / month · Renews Jun 1, 2026
-                </p>
-              </div>
-              <SettingRow label="Metodo de pago" value="Visa terminada en 4242" />
-              <SettingRow label="Historial de facturacion" value="Ver facturas anteriores" />
+              <SettingRow
+                label="Plan de facturacion"
+                value="Todavia no hay un plan de facturacion disponible en Sprig."
+              />
             </Card>
           )}
 
@@ -192,7 +194,7 @@ export function Settings() {
               <p className="text-sm text-muted-foreground mb-6">
                 Configura tu idioma preferido, zona horaria y formato de moneda.
               </p>
-              <SettingRow label="Idioma" value="Espanol (Colombia)" />
+              <LanguageRow />
               <SettingRow label="Zona horaria" value="America/Bogota (UTC-5)" />
               <SettingRow label="Formato de fecha" value="DD/MM/YYYY" />
               <SettingRow label="Formato de numeros" value="1.234.567" />
@@ -249,7 +251,7 @@ function ProfileSettings() {
       toast.success("Perfil actualizado correctamente");
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo actualizar el perfil");
+      toast.error(err instanceof Error ? err.message : t("err.profile.update"));
     } finally {
       setSaving(false);
     }
@@ -318,6 +320,22 @@ function ProfileSettings() {
             El correo se sincroniza con tu cuenta de acceso (Keycloak).
           </p>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Documento, teléfono y dirección son opcionales: Sprig funciona sin ellos y solo se guardan
+          si los ingresas. Más información en la{" "}
+          <a href="/privacidad" className="font-medium text-primary underline">
+            Política de Privacidad
+          </a>
+          , los{" "}
+          <a href="/terminos" className="font-medium text-primary underline">
+            Términos
+          </a>{" "}
+          y la{" "}
+          <a href="/cookies" className="font-medium text-primary underline">
+            Política de Cookies
+          </a>
+          .
+        </p>
         <div className="space-y-2">
           <Label htmlFor="document-id">Documento de identidad</Label>
           <Input
@@ -392,6 +410,87 @@ function ProfileSettings() {
           {profileButtonContent}
         </button>
       </div>
+    </Card>
+  );
+}
+
+interface NotificationPrefs {
+  email: boolean;
+  push: boolean;
+  budget: boolean;
+}
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  email: true,
+  push: true,
+  budget: true,
+};
+
+function readNotificationPrefs(metadata: Record<string, unknown> | undefined): NotificationPrefs {
+  const raw = metadata?.notifications;
+  if (!raw || typeof raw !== "object") return DEFAULT_NOTIFICATION_PREFS;
+  const prefs = raw as Partial<NotificationPrefs>;
+  return {
+    email: prefs.email ?? DEFAULT_NOTIFICATION_PREFS.email,
+    push: prefs.push ?? DEFAULT_NOTIFICATION_PREFS.push,
+    budget: prefs.budget ?? DEFAULT_NOTIFICATION_PREFS.budget,
+  };
+}
+
+function NotificationSettings() {
+  const { user, refreshUser } = useAuth();
+  const updateUser = useUpdateUser();
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [savingKey, setSavingKey] = useState<keyof NotificationPrefs | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setPrefs(readNotificationPrefs(user.metadata));
+  }, [user]);
+
+  const handleToggle = async (key: keyof NotificationPrefs, value: boolean) => {
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    setSavingKey(key);
+    try {
+      await updateUser.mutateAsync({
+        metadata: { ...(user?.metadata ?? {}), notifications: next },
+      });
+      await refreshUser();
+      toast.success("Preferencias de notificacion actualizadas");
+    } catch (err) {
+      setPrefs(prefs);
+      toast.error(err instanceof Error ? err.message : t("err.prefs.save"));
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Notificaciones</h3>
+      <p className="text-sm text-muted-foreground mb-6">Configura cuando y como recibes alertas.</p>
+      <SettingRow label="Notificaciones por correo" value="Resumenes e informes por correo">
+        {savingKey === "email" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.email} onChange={(v) => handleToggle("email", v)} />
+        )}
+      </SettingRow>
+      <SettingRow label="Notificaciones push" value="Alertas en tu dispositivo">
+        {savingKey === "push" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.push} onChange={(v) => handleToggle("push", v)} />
+        )}
+      </SettingRow>
+      <SettingRow label="Alertas de presupuesto" value="Notificar cuando el gasto exceda el 80%">
+        {savingKey === "budget" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.budget} onChange={(v) => handleToggle("budget", v)} />
+        )}
+      </SettingRow>
     </Card>
   );
 }
@@ -578,9 +677,17 @@ function RatioSlider({
   );
 }
 
-function SecuritySettings() {
-  const [twoFa, setTwoFa] = useState(false);
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
 
+function SecuritySettings() {
   return (
     <div className="space-y-5">
       <Card>
@@ -589,15 +696,125 @@ function SecuritySettings() {
           Protege tu cuenta con opciones avanzadas de seguridad.
         </p>
         <SettingRow label="Autenticacion de dos factores" value="Anade una capa extra de seguridad">
-          <Toggle checked={twoFa} onChange={setTwoFa} />
+          <Badge tone="muted">Proximamente</Badge>
         </SettingRow>
-        <SettingRow label="Sesiones activas" value="2 dispositivos">
-          <Badge tone="warning">Administrar</Badge>
-        </SettingRow>
-        <SettingRow label="Historial de accesos" value="Ver accesos recientes" />
       </Card>
+      <SessionsSection />
+      <AccessHistorySection />
       <ChangePasswordSection />
     </div>
+  );
+}
+
+function SessionsSection() {
+  const { data: sessions, isLoading, error } = useSessions();
+  const revokeSession = useRevokeSession();
+  const [sessionToRevoke, setSessionToRevoke] = useState<Session | null>(null);
+
+  const handleRevoke = async () => {
+    if (!sessionToRevoke) return;
+    try {
+      await revokeSession.mutateAsync(sessionToRevoke.id);
+      toast.success("Sesion revocada correctamente");
+      setSessionToRevoke(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("err.session.revoke"));
+    }
+  };
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Sesiones activas</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Dispositivos que tienen una sesion iniciada en tu cuenta.
+      </p>
+
+      {isLoading && (
+        <div className="flex h-20 items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <p className="text-sm text-destructive">No se pudieron cargar las sesiones.</p>
+      )}
+
+      {!isLoading && !error && sessions && sessions.length === 0 && (
+        <p className="text-sm text-muted-foreground">No hay sesiones activas.</p>
+      )}
+
+      {!isLoading &&
+        !error &&
+        sessions?.map((session) => (
+          <SettingRow
+            key={session.id}
+            label={session.browser || "Dispositivo desconocido"}
+            value={`${session.ipAddress} · Inicio: ${formatDateTime(session.start)} · Ultimo acceso: ${formatDateTime(session.lastAccess)}`}
+          >
+            <button
+              type="button"
+              onClick={() => setSessionToRevoke(session)}
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors duration-150 ease-out hover:bg-destructive/10"
+            >
+              Revocar
+            </button>
+          </SettingRow>
+        ))}
+
+      <ConfirmDialog
+        open={sessionToRevoke !== null}
+        onOpenChange={(open) => !open && setSessionToRevoke(null)}
+        title="Revocar sesion"
+        description={`Esto cerrara la sesion en "${sessionToRevoke?.browser ?? "este dispositivo"}". Podras iniciar sesion nuevamente cuando quieras.`}
+        onConfirm={handleRevoke}
+        loading={revokeSession.isPending}
+        confirmLabel="Revocar"
+      />
+    </Card>
+  );
+}
+
+function AccessHistorySection() {
+  const { data: history, isLoading, error } = useAccessHistory();
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Historial de accesos</h3>
+      <p className="text-sm text-muted-foreground mb-6">Eventos recientes de acceso a tu cuenta.</p>
+
+      {isLoading && (
+        <div className="flex h-20 items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <p className="text-sm text-destructive">No se pudo cargar el historial de accesos.</p>
+      )}
+
+      {!isLoading && !error && history && history.length === 0 && (
+        <p className="text-sm text-muted-foreground">No hay eventos de acceso registrados.</p>
+      )}
+
+      {!isLoading &&
+        !error &&
+        history?.map((event: AccessEvent, idx) => (
+          <SettingRow
+            key={`${event.type}-${event.time}-${idx}`}
+            label={event.type}
+            value={`${event.ipAddress} · ${formatDateTime(event.time)}`}
+          >
+            {event.error ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {event.error}
+              </span>
+            ) : (
+              <Badge tone="success">Exitoso</Badge>
+            )}
+          </SettingRow>
+        ))}
+    </Card>
   );
 }
 
@@ -634,7 +851,7 @@ function ChangePasswordSection() {
   const [saved, setSaved] = useState(false);
 
   const hints = [
-    { label: "Mínimo 8 caracteres", test: (p: string) => p.length >= 8 },
+    { label: "Mínimo 12 caracteres", test: (p: string) => p.length >= 12 },
     { label: "2 letras mayúsculas", test: (p: string) => (p.match(/[A-Z]/g) || []).length >= 2 },
     { label: "2 letras minúsculas", test: (p: string) => (p.match(/[a-z]/g) || []).length >= 2 },
     { label: "2 números", test: (p: string) => (p.match(/\d/g) || []).length >= 2 },
@@ -754,7 +971,7 @@ function ChangePasswordSection() {
           </div>
           {confirmPassword.length > 0 && (
             <p className={`text-xs ${passwordsMatch ? "text-success" : "text-destructive"}`}>
-              {passwordsMatch ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
+              {passwordsMatch ? "Las contraseñas coinciden" : t("err.reset.mismatch")}
             </p>
           )}
         </div>

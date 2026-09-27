@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { authApi, type AuthTokens } from "@/lib/api/auth";
 import {
   getAccessToken,
@@ -6,9 +7,13 @@ import {
   getStoredUserId,
   setStoredUserId,
   tryRestoreSession,
+  onSessionExpired,
+  resetSessionExpiredFlag,
 } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
+import { loginHref } from "@/lib/auth/guards";
 
+import { t } from "@/lib/i18n/errors";
 export interface AuthState {
   user: User | null;
   userId: string | null;
@@ -19,6 +24,8 @@ export interface AuthState {
   login: (username: string, password: string) => Promise<AuthTokens>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Reemplaza el usuario de la sesión con uno ya obtenido del API (sin otra petición). */
+  updateUser: (user: User) => void;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
@@ -32,6 +39,22 @@ function resolveRoles(user: User | null): string[] {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    resetSessionExpiredFlag();
+    const unsubscribe = onSessionExpired(() => {
+      setUser(null);
+      toast.error(t("err.session.expiredTitle"), {
+        description: t("err.session.expiredDesc"),
+        duration: 5000,
+      });
+      // Redirect to login after a short delay, volviendo luego a donde estaba
+      setTimeout(() => {
+        window.location.href = loginHref(window.location.pathname + window.location.search);
+      }, 1500);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,9 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { access_token: result.accessToken, refresh_token: result.refreshToken ?? "" };
   }, []);
 
+  // authApi.logout ya limpia los tokens en su finally; si auth/logout falla
+  // (red caída, 5xx) igual cerramos la sesión local para no dejar al usuario atrapado.
   const logout = useCallback(async () => {
-    await authApi.logout();
-    setUser(null);
+    try {
+      await authApi.logout();
+    } catch {
+      // ignorado a propósito: la sesión local se cierra de todas formas
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -125,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       refreshUser,
+      updateUser: setUser,
     }),
     [user, isLoading, isAdmin, roles, login, logout, refreshUser],
   );

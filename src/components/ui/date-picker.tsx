@@ -14,6 +14,7 @@ interface DatePickerProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  id?: string;
 }
 
 function digitsFromDate(value?: Date): string {
@@ -66,6 +67,7 @@ export function DatePicker({
   placeholder = "dd/mm/aaaa",
   className,
   disabled,
+  id,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState<Date>(value ?? new Date());
@@ -114,6 +116,7 @@ export function DatePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <div className={cn("relative", className)}>
         <Input
+          id={id}
           type="text"
           inputMode="numeric"
           placeholder={placeholder}

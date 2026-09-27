@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileUp, Loader2, Lock, CheckCircle2, XCircle, FolderOpen, RotateCcw } from "lucide-react";
+import { FileUp, Loader2, Lock, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -30,6 +30,7 @@ import {
   useStatementImportProgress,
   useStatementImportJob,
   useEmpresas,
+  useFinancialLiabilities,
 } from "@/lib/hooks/use-api";
 import { cn } from "@/lib/utils";
 import type {
@@ -39,6 +40,7 @@ import type {
 } from "@/lib/api/statement-imports";
 import type { TransactionType } from "@/lib/api/finance";
 
+import { t } from "@/lib/i18n/errors";
 interface StatementImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -93,6 +95,9 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const { data: bankAccounts = [] } = useBankAccounts();
   const { data: empresas = [] } = useEmpresas();
   const { data: recentImports = [] } = useStatementImports();
+  const { data: liabilities = [] } = useFinancialLiabilities();
+
+  const creditCards = liabilities.filter((l) => l.liability_type === "tarjeta_credito");
 
   const createImport = useCreateStatementImport();
   const retryImport = useRetryStatementImport();
@@ -101,6 +106,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
   const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
+  const [liabilityId, setLiabilityId] = useState<string>("");
+  const [currency, setCurrency] = useState<"COP" | "USD">("COP");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignCategories, setAssignCategories] = useState(true);
   const [companyId, setCompanyId] = useState<string>("");
@@ -129,6 +136,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
       setPassword("");
       setCategoryId("");
       setAccountId("");
+      setLiabilityId("");
+      setCurrency("COP");
       setSkipDuplicates(true);
       setAssignCategories(true);
       setCompanyId("");
@@ -152,6 +161,8 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
     if (password) formData.append("password", password);
     if (categoryId) formData.append("default_category_id", categoryId);
     if (accountId) formData.append("account_id", accountId);
+    if (liabilityId) formData.append("liability_id", liabilityId);
+    formData.append("currency", currency);
     formData.append("skip_duplicates", skipDuplicates ? "true" : "false");
     formData.append("assign_categories", assignCategories ? "true" : "false");
     formData.append("default_type", defaultType);
@@ -166,7 +177,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
         `Carga creada: ${job.total_files} archivo(s) en cola. Te avisaremos al terminar.`,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error al crear la carga");
+      toast.error(error instanceof Error ? error.message : t("err.import.create"));
     }
   }
 
@@ -194,7 +205,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                       toast.success("Reintento iniciado. Te avisaremos al terminar.");
                     },
                     onError: (error) => {
-                      toast.error(error instanceof Error ? error.message : "Error al reintentar");
+                      toast.error(error instanceof Error ? error.message : t("err.import.retry"));
                     },
                   },
                 );
@@ -242,20 +253,6 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                 </ul>
               )}
             </div>
-
-            {categories.length === 0 && (
-              <div className="flex items-center gap-3 rounded-xl bg-surface p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <FolderOpen className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Sin categorías configuradas</p>
-                  <p className="text-xs text-muted-foreground">
-                    Debes crear categorías antes de importar transacciones.
-                  </p>
-                </div>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -312,6 +309,41 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Al elegirla, los saldos se ajustan con los movimientos.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Tarjeta de crédito (opcional)</Label>
+                <Select value={liabilityId} onValueChange={setLiabilityId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin tarjeta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {creditCards.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        {l.name} ({l.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Asocia los movimientos a una TC específica.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Moneda</Label>
+                <Select value={currency} onValueChange={(v) => setCurrency(v as "COP" | "USD")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="COP">COP</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda de las transacciones del extracto.
                 </p>
               </div>
 
@@ -399,7 +431,7 @@ export function StatementImportDialog({ open, onOpenChange }: StatementImportDia
             <DialogFooter>
               <Button
                 type="submit"
-                disabled={files.length === 0 || isUploading || categories.length === 0}
+                disabled={files.length === 0 || isUploading}
                 className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
               >
                 {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}

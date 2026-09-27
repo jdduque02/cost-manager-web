@@ -1,5 +1,14 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
+import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth";
 import { NotificationProvider } from "@/lib/notifications/context";
 import { VisibilityProvider } from "@/lib/visibility-context";
@@ -22,6 +31,37 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function ErrorComponent({ error }: { error: Error }) {
+  if (import.meta.env.DEV) {
+    console.error(error);
+  }
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold text-foreground">:(</h1>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Algo salió mal</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Ocurrió un error inesperado. Intenta recargar la página.
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Recargar
+          </button>
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+          >
+            Ir al inicio
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function NotFoundComponent() {
   return (
@@ -69,45 +109,61 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap",
-      },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
     ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
 });
+
+export const AMBIENT_ROUTES = new Set([
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+]);
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body className="bg-background text-foreground antialiased">
-        <ThemeProvider>
-          <AmbientBackground />
-          {children}
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
         <Scripts />
       </body>
     </html>
   );
 }
 
+export function ScopedAmbientBackground() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (!AMBIENT_ROUTES.has(pathname)) return null;
+  return <AmbientBackground />;
+}
+
 function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Saltar al contenido
+      </a>
       <LoadingBar />
+      <Toaster richColors closeButton position="top-right" />
+      <ScopedAmbientBackground />
       <AuthProvider>
         <VisibilityProvider>
           <NotificationProvider>
-            <Outlet />
+            <NuqsAdapter>
+              <Outlet />
+            </NuqsAdapter>
           </NotificationProvider>
         </VisibilityProvider>
       </AuthProvider>

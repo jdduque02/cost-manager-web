@@ -52,8 +52,16 @@ import {
 } from "@/components/ui/select";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const PAGE_SIZE = 20;
+
+type PendingAdminAction =
+  | { kind: "toggleAdmin"; user: User }
+  | { kind: "toggleStatus"; user: User }
+  | { kind: "resetPassword"; user: User }
+  | { kind: "revokeAll"; user: User }
+  | null;
 
 export function AdminUsers() {
   const qc = useQueryClient();
@@ -63,6 +71,7 @@ export function AdminUsers() {
   const [role, setRole] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAdminAction>(null);
 
   const query: AdminUserQuery = useMemo(
     () => ({
@@ -158,13 +167,79 @@ export function AdminUsers() {
     }
   }
 
-  function toggleAdmin(user: User) {
-    const roles = new Set(user.roles ?? ["user"]);
-    if (roles.has("admin")) roles.delete("admin");
-    else roles.add("admin");
-    roles.add("user");
-    rolesMut.mutate({ id: user.id, roles: [...roles] });
+  function handleConfirmPendingAction() {
+    if (!pendingAction) return;
+    const { kind, user } = pendingAction;
+    switch (kind) {
+      case "toggleAdmin": {
+        const roles = new Set(user.roles ?? ["user"]);
+        if (roles.has("admin")) roles.delete("admin");
+        else roles.add("admin");
+        roles.add("user");
+        rolesMut.mutate(
+          { id: user.id, roles: [...roles] },
+          { onSuccess: () => setPendingAction(null) },
+        );
+        break;
+      }
+      case "toggleStatus":
+        statusMut.mutate(
+          { id: user.id, is_active: !user.is_active },
+          { onSuccess: () => setPendingAction(null) },
+        );
+        break;
+      case "resetPassword":
+        resetMut.mutate(user.id, { onSuccess: () => setPendingAction(null) });
+        break;
+      case "revokeAll":
+        revokeAllMut.mutate(user.id, { onSuccess: () => setPendingAction(null) });
+        break;
+    }
   }
+
+  function pendingActionCopy(action: PendingAdminAction) {
+    if (!action) return { title: "", description: "", confirmLabel: "", loading: false };
+    switch (action.kind) {
+      case "toggleAdmin": {
+        const isAdmin = action.user.roles?.includes("admin");
+        return {
+          title: "Cambiar rol de administrador",
+          description: isAdmin
+            ? `¿Quitar el rol de administrador a ${action.user.username}?`
+            : `¿Hacer administrador a ${action.user.username}?`,
+          confirmLabel: isAdmin ? "Quitar admin" : "Hacer admin",
+          loading: rolesMut.isPending,
+        };
+      }
+      case "toggleStatus": {
+        const isActive = action.user.is_active;
+        return {
+          title: "Cambiar estado de la cuenta",
+          description: isActive
+            ? `¿Desactivar la cuenta de ${action.user.username}?`
+            : `¿Activar la cuenta de ${action.user.username}?`,
+          confirmLabel: isActive ? "Desactivar" : "Activar",
+          loading: statusMut.isPending,
+        };
+      }
+      case "resetPassword":
+        return {
+          title: "Restablecer contraseña",
+          description: `¿Enviar email de restablecimiento de contraseña a ${action.user.username}?`,
+          confirmLabel: "Restablecer contraseña",
+          loading: resetMut.isPending,
+        };
+      case "revokeAll":
+        return {
+          title: "Revocar sesiones",
+          description: `¿Revocar todas las sesiones activas de ${action.user.username}?`,
+          confirmLabel: "Revocar sesiones",
+          loading: revokeAllMut.isPending,
+        };
+    }
+  }
+
+  const activePendingActionCopy = pendingActionCopy(pendingAction);
 
   return (
     <div className="space-y-6">
@@ -215,7 +290,13 @@ export function AdminUsers() {
             <SelectItem value="inactive">Inactivos</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="icon" onClick={() => listQuery.refetch()} title="Recargar">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => listQuery.refetch()}
+          title="Recargar"
+          aria-label="Recargar lista de usuarios"
+        >
           <RefreshCw className={cn("h-4 w-4", listQuery.isFetching && "animate-spin")} />
         </Button>
       </div>
@@ -299,8 +380,13 @@ export function AdminUsers() {
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Acciones de ${u.username}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -308,12 +394,16 @@ export function AdminUsers() {
                         Ver detalle
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => toggleAdmin(u)}>
+                      <DropdownMenuItem
+                        disabled={rolesMut.isPending}
+                        onClick={() => setPendingAction({ kind: "toggleAdmin", user: u })}
+                      >
                         <Shield className="mr-2 h-4 w-4" />
                         {u.roles?.includes("admin") ? "Quitar admin" : "Hacer admin"}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => statusMut.mutate({ id: u.id, is_active: !u.is_active })}
+                        disabled={statusMut.isPending}
+                        onClick={() => setPendingAction({ kind: "toggleStatus", user: u })}
                       >
                         {u.is_active ? (
                           <>
@@ -325,10 +415,16 @@ export function AdminUsers() {
                           </>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => resetMut.mutate(u.id)}>
+                      <DropdownMenuItem
+                        disabled={resetMut.isPending}
+                        onClick={() => setPendingAction({ kind: "resetPassword", user: u })}
+                      >
                         <KeyRound className="mr-2 h-4 w-4" /> Reset password
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => revokeAllMut.mutate(u.id)}>
+                      <DropdownMenuItem
+                        disabled={revokeAllMut.isPending}
+                        onClick={() => setPendingAction({ kind: "revokeAll", user: u })}
+                      >
                         <LogOut className="mr-2 h-4 w-4" /> Revocar sesiones
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -433,7 +529,9 @@ export function AdminUsers() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => revokeAllMut.mutate(detailQuery.data.user.id)}
+                    onClick={() =>
+                      setPendingAction({ kind: "revokeAll", user: detailQuery.data.user })
+                    }
                     disabled={revokeAllMut.isPending}
                   >
                     Revocar todas
@@ -503,6 +601,16 @@ export function AdminUsers() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingAction}
+        onOpenChange={(o) => !o && setPendingAction(null)}
+        title={activePendingActionCopy.title}
+        description={activePendingActionCopy.description}
+        confirmLabel={activePendingActionCopy.confirmLabel}
+        loading={activePendingActionCopy.loading}
+        onConfirm={handleConfirmPendingAction}
+      />
     </div>
   );
 }

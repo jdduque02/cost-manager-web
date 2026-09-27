@@ -38,26 +38,6 @@ export interface AdminUserDetail {
   accessHistory: AdminAccessEvent[];
 }
 
-function normalizeList(result: unknown): AdminUserListResult {
-  if (
-    result &&
-    typeof result === "object" &&
-    "data" in result &&
-    Array.isArray((result as AdminUserListResult).data)
-  ) {
-    return result as AdminUserListResult;
-  }
-  if (Array.isArray(result)) {
-    // envelope may unwrap to array of items OR to {data,total}
-    const first = result[0];
-    if (first && typeof first === "object" && "data" in first && "total" in first) {
-      return first as AdminUserListResult;
-    }
-    return { data: result as User[], total: result.length };
-  }
-  return { data: [], total: 0 };
-}
-
 export const adminApi = {
   async getUsers(query: AdminUserQuery = {}): Promise<AdminUserListResult> {
     const params = new URLSearchParams();
@@ -70,8 +50,7 @@ export const adminApi = {
     if (query.order) params.set("order", query.order);
     const qs = params.toString();
     const endpoint = qs ? `admin/users?${qs}` : "admin/users";
-    const result = await api.getPaginated<unknown>(endpoint);
-    return normalizeList(result);
+    return api.getPaginated<AdminUserListResult>(endpoint);
   },
 
   async getUserDetail(id: string): Promise<AdminUserDetail> {

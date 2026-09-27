@@ -16,6 +16,7 @@ import { newsApi } from "@/lib/api/news";
 import type { NewsItem, CreateNewsItemDto } from "@/lib/api/news";
 import { Loader2, Plus, Pencil, Trash2, Send, Newspaper, ExternalLink } from "lucide-react";
 
+import { t } from "@/lib/i18n/errors";
 function NewsForm({
   initial,
   onSave,
@@ -41,7 +42,7 @@ function NewsForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim()) {
-      toast.error("Título y resumen son obligatorios");
+      toast.error(t("err.news.required"));
       return;
     }
     onSave({
@@ -115,7 +116,12 @@ function NewsForm({
           value={image_url}
           onChange={(e) => setImageUrl(e.target.value)}
           placeholder="https://..."
+          aria-describedby="news-image-help"
         />
+        <p id="news-image-help" className="text-xs text-muted-foreground">
+          Usa solo imágenes propias, con licencia o de uso libre. Copiar imágenes de otros sitios
+          puede infringir derechos de autor.
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="news-link">URL del artículo original</Label>
@@ -389,7 +395,7 @@ function BroadcastForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !htmlBody.trim()) {
-      toast.error("Asunto y cuerpo son obligatorios");
+      toast.error(t("err.news.mail.required"));
       return;
     }
     onSend(subject.trim(), htmlBody.trim());

@@ -9,6 +9,7 @@ import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { toast } from "sonner";
 import type { Empresa } from "@/lib/api/empresas";
 
+import { t } from "@/lib/i18n/errors";
 export function Empresas() {
   const { data: empresas = [], isLoading } = useEmpresas();
   const { data: categories = [] } = useCategories();
@@ -85,7 +86,7 @@ export function Empresas() {
         setDeleteTarget(null);
       })
       .catch(() => {
-        toast.error("Error al eliminar la empresa", { id });
+        toast.error(t("err.company.delete"), { id });
       });
   }
 

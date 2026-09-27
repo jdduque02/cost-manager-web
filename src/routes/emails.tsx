@@ -7,7 +7,7 @@ export const Route = createFileRoute("/emails")({
   beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Plantillas de email — Sprig" }] }),
   component: () => (
-    <AppShell>
+    <AppShell requireAdmin>
       <EmailTemplates />
     </AppShell>
   ),

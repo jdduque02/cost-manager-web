@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ResetPassword } from "./ResetPassword";
 import { AuthProvider } from "@/lib/auth/context";
 import { clearTokens } from "@/lib/api/client";
+import { setLocale } from "@/lib/i18n/errors";
+
+// jsdom reports navigator.language=en-US; these tests assert Spanish copy.
+beforeAll(() => setLocale("es"));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -115,7 +119,7 @@ describe("ResetPassword", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Nueva contraseña" })).toBeInTheDocument();
     });
-    expect(screen.getByPlaceholderText("Mínimo 8 caracteres")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Mínimo 12 caracteres")).toBeInTheDocument();
   });
 
   it("shows error when OTP verification fails", async () => {

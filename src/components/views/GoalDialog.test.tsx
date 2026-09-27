@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { GoalDialog } from "./GoalDialog";
 
 vi.mock("@/lib/hooks/use-api", () => {
@@ -92,13 +93,31 @@ describe("GoalDialog", () => {
   it("renders labels for type and amounts", () => {
     render(<GoalDialog {...defaultProps} />);
     expect(screen.getByText("Tipo")).toBeInTheDocument();
-    expect(screen.getByText("Monto objetivo")).toBeInTheDocument();
+    expect(screen.getByText("Monto objetivo (opcional)")).toBeInTheDocument();
     expect(screen.getByText("Ahorrado actual")).toBeInTheDocument();
   });
 
-  it("renders next step button", () => {
+  it("renders a direct create button when there is no target/end date", () => {
     render(<GoalDialog {...defaultProps} />);
-    expect(screen.getByRole("button", { name: /siguiente/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /crear meta/i })).toBeInTheDocument();
+  });
+
+  it("associates the name label with its input via id", () => {
+    render(<GoalDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
+  });
+
+  it("associates the target amount label with its input via id", () => {
+    render(<GoalDialog {...defaultProps} />);
+    expect(screen.getByLabelText("Monto objetivo (opcional)")).toBeInTheDocument();
+  });
+
+  it("includes 'Fondo de emergencia' as a type option in the type selector", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<GoalDialog {...defaultProps} />);
+
+    await user.click(screen.getByLabelText("Tipo"));
+    expect(await screen.findByRole("option", { name: "Fondo de emergencia" })).toBeInTheDocument();
   });
 
   it("renders edit title when goal provided", () => {

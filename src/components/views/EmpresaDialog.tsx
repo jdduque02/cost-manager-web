@@ -22,6 +22,7 @@ import {
 import { useCategories, useCreateEmpresa, useUpdateEmpresa } from "@/lib/hooks/use-api";
 import type { Empresa } from "@/lib/api/empresas";
 
+import { t } from "@/lib/i18n/errors";
 interface EmpresaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,7 +72,7 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
         reset();
         onOpenChange(false);
       } catch {
-        toast.error("Error al actualizar la empresa", { id });
+        toast.error(t("err.company.update"), { id });
       }
     } else {
       const id = toast.loading("Creando empresa...");
@@ -83,7 +84,7 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
         onOpenChange(false);
         onCreated?.(created);
       } catch {
-        toast.error("Error al crear la empresa", { id });
+        toast.error(t("err.company.create"), { id });
       }
     }
   }
@@ -108,8 +109,9 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Nombre</Label>
+            <Label htmlFor="empresa-name">Nombre</Label>
             <Input
+              id="empresa-name"
               placeholder="Ej. Acme Corp"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -119,9 +121,9 @@ export function EmpresaDialog({ open, onOpenChange, empresa, onCreated }: Empres
           </div>
 
           <div className="space-y-1.5">
-            <Label>Categoría por defecto (opcional)</Label>
+            <Label htmlFor="empresa-default-category">Categoría por defecto (opcional)</Label>
             <Select value={defaultCategoryId} onValueChange={setDefaultCategoryId}>
-              <SelectTrigger>
+              <SelectTrigger id="empresa-default-category">
                 <SelectValue placeholder="Sin categoría por defecto" />
               </SelectTrigger>
               <SelectContent>
