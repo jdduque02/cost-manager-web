@@ -319,6 +319,19 @@ function formatDate(dateStr?: string): string {
   });
 }
 
+function categoryLabel(
+  t: TransactionRecord,
+  isTransfer: boolean,
+  categoryMap: Record<number, string>,
+): string {
+  if (isTransfer) return "Transferencia";
+  // Ajuste de conciliación todavía sin clasificar (R6.7).
+  if (t.source === "reconciliation" && t.category_id == null) {
+    return t.type === "income" ? "Ingreso no identificado" : "Gasto no identificado";
+  }
+  return categoryMap[t.category_id ?? -1] ?? "Por editar";
+}
+
 function linkedLabel(
   t: TransactionRecord,
   objectiveMap: Record<number, string>,
@@ -602,9 +615,7 @@ function MonthSection({
         <ul className="divide-y divide-border">
           {month.items.map((t) => {
             const isTransfer = !!t.transfer_group_id;
-            const categoryName = isTransfer
-              ? "Transferencia"
-              : (categoryMap[t.category_id ?? -1] ?? "Por editar");
+            const categoryName = categoryLabel(t, isTransfer, categoryMap);
             const isPendingTx = !isTransfer && t.category_status === "pending";
             const iconBgClass = getIconBgClass(isPendingTx, isTransfer, t.type);
             const frequencyText = getFrequencyText(t.frequency);

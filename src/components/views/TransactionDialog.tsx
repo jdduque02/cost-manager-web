@@ -674,6 +674,10 @@ export function TransactionDialog({
                     <p className="text-xs text-muted-foreground">
                       Máximo un patrimonio (cuenta, activo o pasivo) por transacción.
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Un gasto ligado a un pasivo sube la deuda; un ingreso o una inversión la
+                      bajan. Para pagar la tarjeta usa «Transferir».
+                    </p>
                   </div>
                 </div>
 

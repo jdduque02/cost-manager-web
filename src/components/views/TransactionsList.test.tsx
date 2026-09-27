@@ -123,6 +123,55 @@ describe("TransactionsList states", () => {
   });
 });
 
+describe("TransactionsList › ajuste de conciliación", () => {
+  beforeEach(() => {
+    state.error = null;
+    state.bankAccounts = [];
+  });
+
+  it("etiqueta como «Gasto no identificado» el ajuste pendiente sin categoría", () => {
+    state.transactions = [
+      {
+        ...tx(1, "Ajuste de conciliación"),
+        category_id: null,
+        category_status: "pending",
+        source: "reconciliation",
+      },
+      { ...tx(2, "Compra sin regla"), category_id: null, category_status: "pending" },
+    ];
+    renderList();
+    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent(
+      "Gasto no identificado",
+    );
+    expect(screen.getByText("Compra sin regla").nextSibling).toHaveTextContent("Por editar");
+  });
+
+  it("etiqueta como «Ingreso no identificado» el ajuste de ingreso", () => {
+    state.transactions = [
+      {
+        ...tx(1, "Ajuste de conciliación"),
+        type: "income",
+        category_id: null,
+        category_status: "pending",
+        source: "reconciliation",
+      },
+    ];
+    renderList();
+    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent(
+      "Ingreso no identificado",
+    );
+  });
+
+  it("una vez clasificado muestra su categoría", () => {
+    state.transactions = [
+      { ...tx(1, "Ajuste de conciliación"), source: "reconciliation", category_id: 1 },
+    ];
+    renderList();
+    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent("Mercado");
+    expect(screen.queryByText(/Gasto no identificado/)).not.toBeInTheDocument();
+  });
+});
+
 describe("TransactionsList transfer clone", () => {
   beforeEach(() => {
     state.error = null;
@@ -130,7 +179,11 @@ describe("TransactionsList transfer clone", () => {
   });
 
   it("checks the source account balance even though the row shown is the destination leg", async () => {
-    const leg = { ...tx(0), type: "transfer" as TransactionRecord["type"], transfer_group_id: "g1" };
+    const leg = {
+      ...tx(0),
+      type: "transfer" as TransactionRecord["type"],
+      transfer_group_id: "g1",
+    };
     // Only the source leg carries origin_account_id; the list shows the destination leg.
     state.transactions = [
       { ...leg, id: 1, amount: 80000, origin_account_id: 1, description: "Ahorro" },
