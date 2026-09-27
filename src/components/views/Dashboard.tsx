@@ -172,14 +172,18 @@ export function Dashboard() {
     () => ({
       date_from: format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd"),
       date_to: format(now, "yyyy-MM-dd"),
+      currency: "COP" as const,
     }),
     [now],
   );
+  // Los USD se muestran aparte: nunca se suman con los COP.
+  const monthUsdQuery = { ...monthQuery, currency: "USD" as const };
   const sixMonthQuery = useMemo(
     () => ({
       date_from: format(new Date(now.getFullYear(), now.getMonth() - 5, 1), "yyyy-MM-dd"),
       date_to: format(now, "yyyy-MM-dd"),
       group_by: "month" as const,
+      currency: "COP" as const,
     }),
     [now],
   );
@@ -189,6 +193,7 @@ export function Dashboard() {
     error: monthError,
   } = useTransactionSummary(monthQuery);
   const { data: sixMonthSummary } = useTransactionSummary(sixMonthQuery);
+  const { data: monthUsd } = useTransactionSummary(monthUsdQuery);
   // La API ordena por transaction_date DESC: basta con las 5 más recientes.
   const { data: txs = [] } = useTransactions({ limit: 5 });
   const { summary: nw, isLoading: nwLoading, error: nwError } = useNetWorth();
@@ -490,6 +495,13 @@ export function Dashboard() {
               icon={PiggyBank}
             />
           </div>
+        )}
+        {!kpiError && !kpiLoading && monthUsd && monthUsd.totals.count > 0 && (
+          <p data-testid="usd-month" className="mt-3 text-xs text-muted-foreground">
+            En USD este mes (aparte, sin convertir): ingresos{" "}
+            {fmtAmount(monthUsd.totals.income, { currency: "USD" })} · gastos{" "}
+            {fmtAmount(monthUsd.totals.expenses, { currency: "USD" })}
+          </p>
         )}
       </RevealSection>
 

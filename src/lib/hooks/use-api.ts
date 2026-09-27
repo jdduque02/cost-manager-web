@@ -50,6 +50,7 @@ const qk = {
       params.date_to,
       params.group_by ?? "day",
       params.type ?? "",
+      params.currency,
     ] as const,
   objectives: (userId: string) => ["objectives", userId] as const,
   periods: (userId: string) => ["periods", userId] as const,
@@ -769,10 +770,7 @@ export function useCloneTransaction() {
       id: number;
       dto?: { transaction_date?: string; amount?: number; description?: string };
     }) => api.post<TransactionRecord>(`users/${userId}/transactions/${id}/clone`, dto ?? {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 

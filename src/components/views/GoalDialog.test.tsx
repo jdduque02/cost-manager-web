@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { GoalDialog } from "./GoalDialog";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(), dismiss: vi.fn() },
+}));
+
+const mockCreateGoal = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/hooks/use-api", () => {
   const noop = () => ({
@@ -9,7 +16,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     mutate: vi.fn(),
   });
   return {
-    useCreateObjective: noop,
+    useCreateObjective: () => ({ ...noop(), mutate: mockCreateGoal }),
     useUpdateObjective: noop,
     useCalculateQuota: () => ({ data: null, ...noop() }),
     useBankAccounts: () => ({ data: [] }),
@@ -100,6 +107,22 @@ describe("GoalDialog", () => {
   it("renders a direct create button when there is no target/end date", () => {
     render(<GoalDialog {...defaultProps} />);
     expect(screen.getByRole("button", { name: /crear meta/i })).toBeInTheDocument();
+  });
+
+  it("creates with mutate and shows the API error without an unhandled rejection", async () => {
+    mockCreateGoal.mockImplementation((_dto, opts) => opts.onError(new Error("Meta duplicada")));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<GoalDialog {...defaultProps} />);
+
+    await user.type(screen.getByLabelText("Nombre"), "Moto");
+    await user.click(screen.getByRole("button", { name: /crear meta/i }));
+
+    expect(mockCreateGoal).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Moto" }),
+      expect.anything(),
+    );
+    expect(toast.error).toHaveBeenCalledWith("Meta duplicada");
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it("associates the name label with its input via id", () => {

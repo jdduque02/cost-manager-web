@@ -24,7 +24,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const charts: Highcharts.Options[] = [];
-const summaryCalls: { date_from: string; group_by?: string }[] = [];
+const summaryCalls: { date_from: string; group_by?: string; currency?: string }[] = [];
+const usdTotals = { income: 0, expenses: 0, investments: 0, count: 0 };
 const transactionsCalls: unknown[] = [];
 let recentTxs: Record<string, unknown>[] = [];
 
@@ -38,7 +39,8 @@ vi.mock("@/components/ui/news-carousel", () => ({ NewsCarousel: () => null }));
 vi.mock("./TransactionDialog", () => ({ TransactionDialog: () => null }));
 vi.mock("@/hooks/use-count-up", () => ({ useCountUp: (v: number) => v }));
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
-  useFormattedAmount: () => (v: number) => `$${v}`,
+  useFormattedAmount: () => (v: number, o?: { currency?: string }) =>
+    `${o?.currency ?? "COP"} ${v}`,
   useAmountsHidden: () => false,
 }));
 
@@ -59,8 +61,9 @@ vi.mock("@/lib/hooks/use-api", () => ({
     transactionsCalls.push(params);
     return { data: recentTxs };
   },
-  useTransactionSummary: (q: { date_from: string; group_by?: string }) => {
+  useTransactionSummary: (q: { date_from: string; group_by?: string; currency?: string }) => {
     summaryCalls.push(q);
+    if (q.currency === "USD") return { data: { totals: usdTotals, by_category: [], series: [] } };
     if (q.group_by === "month") {
       return {
         data: {
@@ -89,6 +92,7 @@ describe("Dashboard — datos agregados en servidor", () => {
     summaryCalls.length = 0;
     transactionsCalls.length = 0;
     recentTxs = [];
+    usdTotals.count = 0;
     kpiState.loading = false;
     kpiState.error = null;
     kpiState.stale = false;
@@ -141,6 +145,25 @@ describe("Dashboard — datos agregados en servidor", () => {
     const pie = charts.find((o) => o.chart?.type === "pie")!;
     const [serie] = pie.series as { data: { name: string; y: number }[] }[];
     expect(serie.data.map((p) => [p.name, p.y])).toEqual([["Mercado", 250]]);
+  });
+
+  it("asks the summary per currency and never mixes USD into the COP KPIs", () => {
+    render(<Dashboard />);
+    expect(summaryCalls.length).toBeGreaterThan(0);
+    expect(summaryCalls.every((q) => q.currency === "COP" || q.currency === "USD")).toBe(true);
+    expect(summaryCalls.some((q) => q.currency === "USD" && !q.group_by)).toBe(true);
+    // Sin movimientos en USD no se muestra la línea aparte.
+    expect(screen.queryByTestId("usd-month")).not.toBeInTheDocument();
+  });
+
+  it("shows USD totals apart, formatted as USD, when there are USD movements", () => {
+    Object.assign(usdTotals, { income: 120, expenses: 45, count: 3 });
+    render(<Dashboard />);
+    const usd = screen.getByTestId("usd-month");
+    expect(usd).toHaveTextContent("USD 120");
+    expect(usd).toHaveTextContent("USD 45");
+    // Los KPIs del mes siguen siendo solo COP.
+    expect(screen.getByText("COP 900")).toBeInTheDocument();
   });
 
   it("requests only the 5 most recent transactions for the activity list", () => {
