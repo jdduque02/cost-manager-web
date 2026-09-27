@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n/errors";
+import { availableCredit, type FinancialLiability } from "@/lib/api/banking";
 import { WealthDialog } from "./WealthDialog";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -86,5 +87,71 @@ describe("WealthDialog", () => {
     render(<WealthDialog {...defaultProps} entityType="liability" />);
     expect(screen.getByLabelText("Nombre")).toBeInTheDocument();
     expect(screen.getByLabelText("Saldo actual")).toBeInTheDocument();
+  });
+
+  describe("campos solo para tarjeta", () => {
+    const liability = (over: Partial<FinancialLiability>): FinancialLiability => ({
+      id: 5,
+      user_id: 1,
+      liability_type: "tarjeta_credito",
+      name: "Visa",
+      current_balance: 300000,
+      currency: "COP",
+      created_at: "2026-01-01",
+      updated_at: null,
+      ...over,
+    });
+
+    it("muestra cupo, día de corte y día de pago en una tarjeta y los envía", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(
+        <WealthDialog
+          {...defaultProps}
+          entityType="liability"
+          entity={liability({ credit_limit: 2000000, statement_day: 15, payment_due_day: 5 })}
+        />,
+      );
+      expect(screen.getByLabelText("Cupo total")).toHaveValue("2.000.000");
+      expect(screen.getByLabelText("Día de corte")).toHaveValue(15);
+      const dueDay = screen.getByLabelText("Día límite de pago");
+      await user.clear(dueDay);
+      await user.click(screen.getByRole("button", { name: "Actualizar" }));
+
+      expect(mockMutate.mock.calls[0][0]).toMatchObject({
+        dto: { credit_limit: 2000000, statement_day: 15, payment_due_day: null },
+      });
+    });
+
+    it("no muestra ni envía los campos de tarjeta en otro tipo de pasivo", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(
+        <WealthDialog
+          {...defaultProps}
+          entityType="liability"
+          entity={liability({ liability_type: "credito_consumo", name: "Libre inversión" })}
+        />,
+      );
+      expect(screen.queryByLabelText("Cupo total")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Día de corte")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Actualizar" }));
+
+      const { dto } = mockMutate.mock.calls[0][0] as { dto: Record<string, unknown> };
+      expect(dto).not.toHaveProperty("credit_limit");
+      expect(dto).not.toHaveProperty("statement_day");
+      expect(dto).not.toHaveProperty("payment_due_day");
+    });
+  });
+
+  describe("cálculo del cupo disponible", () => {
+    const card = { current_balance: 300000 } as FinancialLiability;
+    it("es cupo − saldo actual", () => {
+      expect(availableCredit({ ...card, credit_limit: 2000000 })).toBe(1700000);
+    });
+    it("puede ser negativo si la deuda supera el cupo", () => {
+      expect(availableCredit({ ...card, credit_limit: 100000 })).toBe(-200000);
+    });
+    it("es null sin cupo registrado", () => {
+      expect(availableCredit({ ...card, credit_limit: null })).toBeNull();
+    });
   });
 });

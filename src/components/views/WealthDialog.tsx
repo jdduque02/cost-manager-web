@@ -144,6 +144,10 @@ export function WealthDialog({
   const [symbol, setSymbol] = useState("");
   const [quoteSource, setQuoteSource] = useState("yahoo");
   const [currentYield, setCurrentYield] = useState("");
+  const [creditLimit, setCreditLimit] = useState("");
+  const [statementDay, setStatementDay] = useState("");
+  const [paymentDueDay, setPaymentDueDay] = useState("");
+  const isCreditCard = liabilityType === "tarjeta_credito";
 
   useEffect(() => {
     if (!entity) {
@@ -182,6 +186,9 @@ export function WealthDialog({
     setSymbol("");
     setQuoteSource("yahoo");
     setCurrentYield("");
+    setCreditLimit("");
+    setStatementDay("");
+    setPaymentDueDay("");
   }
 
   function populateAccountFields(a: BankAccount) {
@@ -218,6 +225,9 @@ export function WealthDialog({
     setAmount(String(l.current_balance));
     setInterestRate(String(l.interest_rate ?? ""));
     setCurrency(l.currency ?? "COP");
+    setCreditLimit(l.credit_limit != null ? String(l.credit_limit) : "");
+    setStatementDay(l.statement_day != null ? String(l.statement_day) : "");
+    setPaymentDueDay(l.payment_due_day != null ? String(l.payment_due_day) : "");
   }
 
   function submitAccount() {
@@ -304,6 +314,12 @@ export function WealthDialog({
       current_balance: Number(amount) || 0,
       interest_rate: interestRate ? Number(interestRate) : undefined,
       currency: currency !== "COP" ? currency : undefined,
+      // El API rechaza (400) estos campos si el pasivo no es tarjeta: solo se envían en tarjetas.
+      ...(isCreditCard && {
+        credit_limit: creditLimit ? Number(creditLimit) : null,
+        statement_day: statementDay ? Number(statementDay) : null,
+        payment_due_day: paymentDueDay ? Number(paymentDueDay) : null,
+      }),
     };
     if (isEditing) {
       updateLiability.mutate(
@@ -769,6 +785,58 @@ export function WealthDialog({
                   Moneda en la que está denominada la deuda.
                 </p>
               </div>
+              {isCreditCard && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wealth-liability-credit-limit">Cupo total</Label>
+                    <CurrencyInput
+                      id="wealth-liability-credit-limit"
+                      value={creditLimit}
+                      onChange={setCreditLimit}
+                      placeholder="Opcional"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Con el cupo te mostramos cuánto tienes disponible.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wealth-liability-statement-day">Día de corte</Label>
+                      <Input
+                        id="wealth-liability-statement-day"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max="31"
+                        step="1"
+                        placeholder="Ej. 15"
+                        value={statementDay}
+                        onChange={(e) => setStatementDay(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Ese día cerramos el periodo. Si el mes no lo tiene, usamos el último día.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wealth-liability-payment-due-day">Día límite de pago</Label>
+                      <Input
+                        id="wealth-liability-payment-due-day"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max="31"
+                        step="1"
+                        placeholder="Ej. 5"
+                        value={paymentDueDay}
+                        onChange={(e) => setPaymentDueDay(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Día del mes en que vence el pago.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 
