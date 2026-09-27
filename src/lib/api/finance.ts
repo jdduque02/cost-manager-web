@@ -53,6 +53,8 @@ export interface TransactionRecord {
   transfer_group_id?: string | null;
   origin_account_id?: number | null;
   destination_account_id?: number | null;
+  /** Origen del movimiento; "reconciliation" = ajuste de un cierre (lo asigna el servidor). */
+  source?: string | null;
 }
 
 export interface TransactionQuery {
@@ -231,6 +233,15 @@ interface TransactionSummaryCategory {
   count: number;
 }
 
+/** Nombre de un grupo de `by_category`: el API agrupa lo que no tiene categoría en `category_id` 0 (R6.7). */
+export function summaryCategoryName(
+  id: number,
+  names: Record<number, string>,
+  unknown = `Categoría ${id}`,
+): string {
+  return names[id] ?? (id === 0 ? "Sin clasificar" : unknown);
+}
+
 interface TransactionSummarySeriesItem {
   key: string;
   label: string;
@@ -267,7 +278,7 @@ export interface TransactionSummaryQuery {
   currency: "COP" | "USD";
 }
 
-function buildQueryString(params?: object): string {
+export function buildQueryString(params?: object): string {
   if (!params) return "";
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
