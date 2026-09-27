@@ -126,6 +126,10 @@ const messages: Record<Locale, Dict> = {
     "err.asset.create": "Error al crear el activo",
     "err.debt.update": "Error al actualizar la deuda",
     "err.debt.create": "Error al crear la deuda",
+    "err.closure.load": "No se pudieron cargar los cierres",
+    "err.closure.reconcile": "No se pudo conciliar el cierre",
+    "err.closure.skip": "No se pudo omitir el cierre",
+    "err.closure.import": "No se pudo procesar el extracto. El cierre no cambió.",
     "ui.consent.title": "Actualizamos nuestros documentos legales",
     "ui.consent.desc":
       "Para seguir usando Sprig, revisa y acepta la versión vigente ({version}) de nuestros documentos.",
@@ -239,6 +243,10 @@ const messages: Record<Locale, Dict> = {
     "err.asset.create": "Error creating asset",
     "err.debt.update": "Error updating debt",
     "err.debt.create": "Error creating debt",
+    "err.closure.load": "Could not load the closures",
+    "err.closure.reconcile": "Could not reconcile the closure",
+    "err.closure.skip": "Could not skip the closure",
+    "err.closure.import": "The statement could not be processed. The closure did not change.",
     "ui.consent.title": "We updated our legal documents",
     "ui.consent.desc":
       "To keep using Sprig, review and accept the current version ({version}) of our documents.",

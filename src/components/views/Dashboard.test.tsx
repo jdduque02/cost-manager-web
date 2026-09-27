@@ -80,6 +80,7 @@ vi.mock("@/lib/hooks/use-api", () => ({
         by_category: [
           { category_id: 1, income: 0, expenses: 250, investments: 0, count: 50 },
           { category_id: 99, income: 900, expenses: 0, investments: 0, count: 1 },
+          { category_id: 0, income: 0, expenses: 50, investments: 0, count: 9 },
         ],
       },
     };
@@ -140,11 +141,14 @@ describe("Dashboard — datos agregados en servidor", () => {
     );
   });
 
-  it("uses only categories with expenses for the spending breakdown", () => {
+  it("uses only categories with expenses for the spending breakdown, grouping uncategorized as «Sin clasificar»", () => {
     render(<Dashboard />);
     const pie = charts.find((o) => o.chart?.type === "pie")!;
     const [serie] = pie.series as { data: { name: string; y: number }[] }[];
-    expect(serie.data.map((p) => [p.name, p.y])).toEqual([["Mercado", 250]]);
+    expect(serie.data.map((p) => [p.name, p.y])).toEqual([
+      ["Mercado", 250],
+      ["Sin clasificar", 50],
+    ]);
   });
 
   it("asks the summary per currency and never mixes USD into the COP KPIs", () => {

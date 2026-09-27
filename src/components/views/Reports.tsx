@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useTransactionSummary, useCategories } from "@/lib/hooks/use-api";
 import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
 import { useChartColors } from "@/lib/hooks/use-chart-colors";
-import type { TransactionGroupBy } from "@/lib/api/finance";
+import { summaryCategoryName, type TransactionGroupBy } from "@/lib/api/finance";
 
 function reportsKFormatter(this: Highcharts.AxisLabelsFormatterContextObject) {
   const v = Number(this.value);
@@ -225,7 +225,7 @@ export function Reports() {
     () =>
       [...(data?.by_category ?? [])]
         .sort((a, b) => b.expenses - a.expenses)
-        .map((c) => ({ ...c, name: categoryMap[c.category_id] ?? `Categoría ${c.category_id}` })),
+        .map((c) => ({ ...c, name: summaryCategoryName(c.category_id, categoryMap) })),
     [data, categoryMap],
   );
   const maxCategory = categoryBreakdown.length
