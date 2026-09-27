@@ -1211,8 +1211,15 @@ export function TransactionsList() {
         }}
         transaction={cloningTx}
         sourceAccount={
-          cloningTx?.transfer_group_id && cloningTx?.origin_account_id != null
-            ? bankAccounts.find((a) => a.id === cloningTx.origin_account_id)
+          cloningTx?.transfer_group_id
+            ? // The row shown is the destination leg; origin_account_id lives on the source leg.
+              bankAccounts.find(
+                (a) =>
+                  a.id ===
+                  transferPairs
+                    .get(cloningTx.transfer_group_id!)
+                    ?.find((r) => r.origin_account_id != null)?.origin_account_id,
+              )
             : undefined
         }
         categories={categories}

@@ -9,6 +9,7 @@ beforeAll(() => setLocale("es"));
 
 const state = vi.hoisted(() => ({
   transactions: [] as unknown[],
+  bankAccounts: [] as unknown[],
   error: null as Error | null,
   refetch: vi.fn(),
 }));
@@ -37,7 +38,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     }),
     useCategories: () => ({ data: [{ id: 1, name: "Mercado" }] }),
     useObjectives: empty,
-    useBankAccounts: empty,
+    useBankAccounts: () => ({ data: state.bankAccounts }),
     useFinancialAssets: empty,
     useFinancialLiabilities: empty,
     useEmpresas: empty,
@@ -73,6 +74,7 @@ function renderList(searchParams = "") {
 describe("TransactionsList states", () => {
   beforeEach(() => {
     state.transactions = [];
+    state.bankAccounts = [];
     state.error = null;
     vi.clearAllMocks();
   });
@@ -118,5 +120,31 @@ describe("TransactionsList states", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Editar: Arriendo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Eliminar: Arriendo" })).toBeInTheDocument();
+  });
+});
+
+describe("TransactionsList transfer clone", () => {
+  beforeEach(() => {
+    state.error = null;
+    vi.clearAllMocks();
+  });
+
+  it("checks the source account balance even though the row shown is the destination leg", async () => {
+    const leg = { ...tx(0), type: "transfer" as TransactionRecord["type"], transfer_group_id: "g1" };
+    // Only the source leg carries origin_account_id; the list shows the destination leg.
+    state.transactions = [
+      { ...leg, id: 1, amount: 80000, origin_account_id: 1, description: "Ahorro" },
+      { ...leg, id: 2, amount: 80000, destination_account_id: 2, description: "Ahorro" },
+    ];
+    state.bankAccounts = [
+      { id: 1, bank_name: "Bancolombia", display_balance: "50000" },
+      { id: 2, bank_name: "Nu", display_balance: "0" },
+    ];
+    renderList();
+
+    await userEvent.click(screen.getByTitle("Clonar transferencia"));
+
+    expect(screen.getByText(/Saldo insuficiente/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clonar" })).toBeDisabled();
   });
 });
