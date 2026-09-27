@@ -144,6 +144,10 @@ describe("TransactionsList › ajuste de conciliación", () => {
       "Gasto no identificado",
     );
     expect(screen.getByText("Compra sin regla").nextSibling).toHaveTextContent("Por editar");
+    // El banner cuenta todo pendiente (no solo importados): no debe decir "importada(s)".
+    expect(screen.getByRole("button", { name: /sin clasificar/ })).toHaveTextContent(
+      "2 transacciones sin clasificar.",
+    );
   });
 
   it("etiqueta como «Ingreso no identificado» el ajuste de ingreso", () => {

@@ -1103,9 +1103,9 @@ export function TransactionsList() {
         >
           <Tag className="h-4 w-4 shrink-0 text-warning" />
           <span className="text-sm">
-            <span className="font-semibold text-warning">{pendingCount}</span> transacción
-            {pendingCount === 1 ? "" : "es"} sin clasificar importada
-            {pendingCount === 1 ? "" : "s"}. Revisa su categoría para tener reportes exactos.
+            <span className="font-semibold text-warning">{pendingCount}</span>{" "}
+            {pendingCount === 1 ? "transacción" : "transacciones"} sin clasificar. Revisa su
+            categoría para tener reportes exactos.
           </span>
           <span className="ml-auto text-xs font-semibold text-warning">Ver ahora</span>
         </button>
