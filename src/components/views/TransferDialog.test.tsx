@@ -2,6 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransferDialog } from "./TransferDialog";
 import type { TransferResponse } from "@/lib/api/finance";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const noop = () => ({
   mutateAsync: vi.fn().mockResolvedValue({}),
@@ -9,7 +12,7 @@ const noop = () => ({
   isPending: false,
 });
 
-const mockUpdate = vi.fn().mockResolvedValue({});
+const mockUpdate = vi.fn();
 
 let mockBankAccounts: Array<{
   id: number;
@@ -22,7 +25,7 @@ let mockLiabilities: Array<{ id: number; name: string; liability_type: string; c
 
 vi.mock("@/lib/hooks/use-api", () => ({
   useCreateTransfer: () => noop(),
-  useUpdateTransfer: () => ({ ...noop(), mutateAsync: mockUpdate }),
+  useUpdateTransfer: () => ({ ...noop(), mutate: mockUpdate }),
   useBankAccounts: () => ({ data: mockBankAccounts, isLoading: false }),
   useObjectives: () => ({ data: [], isLoading: false }),
   useEmpresas: () => ({ data: [] }),
@@ -137,7 +140,12 @@ describe("TransferDialog", () => {
     beforeEach(() => {
       // Balance already reflects the transfer: 130.000 - 80.000.
       mockBankAccounts = [
-        { id: 1, bank_name: "Bancolombia", masked_account_number: "****1234", display_balance: "50000" },
+        {
+          id: 1,
+          bank_name: "Bancolombia",
+          masked_account_number: "****1234",
+          display_balance: "50000",
+        },
         { id: 2, bank_name: "Nu", masked_account_number: "****5678", display_balance: "0" },
       ];
     });
@@ -159,6 +167,17 @@ describe("TransferDialog", () => {
         expect.objectContaining({ id: "10", dto: expect.objectContaining({ is_fixed: false }) }),
         expect.anything(),
       );
+    });
+
+    it("uses mutate and shows the API error without an unhandled rejection", async () => {
+      mockUpdate.mockImplementation((_vars, opts) => opts.onError(new Error("Saldo insuficiente")));
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} transfer={transfer} />);
+
+      await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+      expect(toast.error).toHaveBeenCalledWith("Saldo insuficiente");
+      expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
     });
   });
 });

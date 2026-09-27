@@ -9,6 +9,7 @@ import {
   useUpdateTransfer,
   useDeleteTransfer,
   useCloneTransfer,
+  useCloneTransaction,
 } from "./use-api";
 import type { Session, AccessEvent } from "@/lib/api/auth";
 
@@ -27,6 +28,11 @@ vi.mock("@/lib/api/finance", () => ({
     deleteTransfer: vi.fn().mockResolvedValue(undefined),
     cloneTransfer: vi.fn().mockResolvedValue({}),
   },
+}));
+
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  api: { post: vi.fn().mockResolvedValue({}) },
 }));
 
 const mockUseAuth = vi.fn();
@@ -191,6 +197,8 @@ describe("transfer mutations", () => {
     ["useUpdateTransfer", () => useUpdateTransfer(), { id: "1", dto: {} }],
     ["useDeleteTransfer", () => useDeleteTransfer(), "1"],
     ["useCloneTransfer", () => useCloneTransfer(), { id: 1 }],
+    // Clonar una transacción también mueve saldos de cuentas, metas y tarjetas.
+    ["useCloneTransaction", () => useCloneTransaction(), { id: 1 }],
   ] as const)("%s invalidates every balance a transfer touches", async (_name, hook, vars) => {
     const queryClient = new QueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");

@@ -698,7 +698,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
     }
   }
 
-  async function handleConfirmCreate() {
+  function handleConfirmCreate() {
     if (!name.trim()) return;
 
     const hasPlan = !!targetAmount && Number(targetAmount) > 0 && !!endDate;
@@ -716,7 +716,7 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
     };
 
     if (isEditing) {
-      await updateGoal.mutateAsync(
+      updateGoal.mutate(
         { id: String(goal.id), dto: payload },
         {
           onSuccess: () => {
@@ -725,13 +725,11 @@ export function GoalDialog({ open, onOpenChange, goal, onCreated }: GoalDialogPr
             onOpenChange(false);
           },
           onError: (err) =>
-            toast.error(
-              err instanceof Error && err.message ? err.message : t("err.goal.update"),
-            ),
+            toast.error(err instanceof Error && err.message ? err.message : t("err.goal.update")),
         },
       );
     } else {
-      await createGoal.mutateAsync(payload, {
+      createGoal.mutate(payload, {
         onSuccess: (created) => {
           toast.success("Meta creada");
           reset();
