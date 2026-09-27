@@ -1,4 +1,5 @@
 import { api } from "./client";
+import { buildQueryString } from "./finance";
 
 export type AssetType =
   | "acciones"
@@ -133,6 +134,10 @@ export interface FinancialLiability {
   current_balance: number;
   interest_rate?: number;
   currency: string;
+  /** Solo tarjetas de crédito. El API lo manda como string decimal: se convierte a number. */
+  credit_limit?: number | null;
+  statement_day?: number | null;
+  payment_due_day?: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -143,6 +148,64 @@ export interface CreateFinancialLiabilityDto {
   current_balance: number;
   interest_rate?: number;
   currency?: string;
+  /** Solo si `liability_type` es `tarjeta_credito`; en otro tipo el API responde 400. */
+  credit_limit?: number | null;
+  statement_day?: number | null;
+  payment_due_day?: number | null;
+}
+
+/** Cupo disponible de una tarjeta (cupo − saldo actual); null si no tiene cupo registrado. */
+export function availableCredit(l: FinancialLiability): number | null {
+  return l.credit_limit == null ? null : l.credit_limit - Number(l.current_balance ?? 0);
+}
+
+export type ProductKind = "account" | "liability";
+export type ProductClosureStatus = "pending" | "reconciled" | "skipped";
+
+/** Cierre de una cuenta o tarjeta por periodo. Montos en la moneda del producto. */
+export interface ProductClosure {
+  id: number;
+  product_kind: ProductKind;
+  product_id: number;
+  period_start: string;
+  period_end: string;
+  currency: string;
+  expected_balance: number;
+  /** null hasta conciliar. */
+  reported_balance: number | null;
+  /** real − esperado; null hasta conciliar. */
+  difference: number | null;
+  minimum_payment: number | null;
+  total_payment: number | null;
+  status: ProductClosureStatus;
+  adjustment_tx_id: number | null;
+}
+
+export interface ProductClosureQuery {
+  product_kind?: ProductKind;
+  product_id?: number;
+  status?: ProductClosureStatus;
+}
+
+export interface ReconcileProductClosureDto {
+  reported_balance: number;
+  /** Solo tarjetas. */
+  minimum_payment?: number;
+  total_payment?: number;
+}
+
+const numOrNull = (v: unknown): number | null => (v == null ? null : Number(v));
+
+// El numeric de Postgres puede llegar como string: todo monto pasa por Number(...).
+function toClosure(c: ProductClosure): ProductClosure {
+  return {
+    ...c,
+    expected_balance: Number(c.expected_balance ?? 0),
+    reported_balance: numOrNull(c.reported_balance),
+    difference: numOrNull(c.difference),
+    minimum_payment: numOrNull(c.minimum_payment),
+    total_payment: numOrNull(c.total_payment),
+  };
 }
 
 export const bankingApi = {
@@ -174,17 +237,35 @@ export const bankingApi = {
     api.delete<void>(`users/${userId}/financial-assets/${id}`),
 
   getLiabilities: (userId: string) =>
-    api
-      .get<FinancialLiability[]>(`users/${userId}/financial-liabilities`)
-      .then((liabilities) =>
-        liabilities.map((l) => ({ ...l, current_balance: Number(l.current_balance ?? 0) })),
-      ),
+    api.get<FinancialLiability[]>(`users/${userId}/financial-liabilities`).then((liabilities) =>
+      liabilities.map((l) => ({
+        ...l,
+        current_balance: Number(l.current_balance ?? 0),
+        credit_limit: numOrNull(l.credit_limit),
+      })),
+    ),
   createLiability: (userId: string, dto: CreateFinancialLiabilityDto) =>
     api.post<FinancialLiability>(`users/${userId}/financial-liabilities`, dto),
   updateLiability: (userId: string, id: string, dto: Partial<CreateFinancialLiabilityDto>) =>
     api.patch<FinancialLiability>(`users/${userId}/financial-liabilities/${id}`, dto),
   deleteLiability: (userId: string, id: string) =>
     api.delete<void>(`users/${userId}/financial-liabilities/${id}`),
+
+  // El API devuelve `data` siempre como array, también en detalle, reconcile y skip.
+  getProductClosures: (userId: string, params: ProductClosureQuery = {}) =>
+    api
+      .get<ProductClosure[]>(`users/${userId}/product-closures${buildQueryString(params)}`)
+      .then((closures) => closures.map(toClosure)),
+  getProductClosure: (userId: string, id: number) =>
+    api.getOne<ProductClosure>(`users/${userId}/product-closures/${id}`).then(toClosure),
+  reconcileProductClosure: (userId: string, id: number, dto: ReconcileProductClosureDto) =>
+    api
+      .post<ProductClosure[]>(`users/${userId}/product-closures/${id}/reconcile`, dto)
+      .then(([c]) => toClosure(c)),
+  skipProductClosure: (userId: string, id: number) =>
+    api
+      .post<ProductClosure[]>(`users/${userId}/product-closures/${id}/skip`, undefined)
+      .then(([c]) => toClosure(c)),
 
   computeNetWorth(
     assets: FinancialAsset[],

@@ -20,6 +20,11 @@ interface StatementImportFile {
   error_message: string | null;
   processed_at: string | null;
   created_at: string;
+  /** Saldo final del extracto (en tarjetas siempre null). */
+  closing_balance?: number | null;
+  /** Periodo del extracto, "YYYY-MM-DD". */
+  period_from?: string | null;
+  period_to?: string | null;
 }
 
 export interface StatementImport {
@@ -90,7 +95,17 @@ export const statementImportApi = {
   list: (userId: string, page = 1, limit = 10) =>
     api.get<StatementImport[]>(`users/${userId}/statement-imports?page=${page}&limit=${limit}`),
   get: (userId: string, id: number) =>
-    api.getOne<StatementImport>(`users/${userId}/statement-imports/${id}`),
+    api.getOne<StatementImport>(`users/${userId}/statement-imports/${id}`).then((job) =>
+      job?.files
+        ? {
+            ...job,
+            files: job.files.map((f) => ({
+              ...f,
+              closing_balance: f.closing_balance == null ? null : Number(f.closing_balance),
+            })),
+          }
+        : job,
+    ),
   retry: (userId: string, id: number, password?: string) =>
     api.post<StatementImport>(`users/${userId}/statement-imports/${id}/retry`, { password }),
 };
