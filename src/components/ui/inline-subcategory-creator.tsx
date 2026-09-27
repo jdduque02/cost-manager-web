@@ -15,11 +15,11 @@ export function InlineSubcategoryCreator({ categoryId, onCreated }: InlineSubcat
   const [name, setName] = useState("");
   const createSubcategory = useCreateSubcategory();
 
-  async function handleCreate() {
+  function handleCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    await createSubcategory.mutateAsync(
+    createSubcategory.mutate(
       { category_id: categoryId, name: trimmed },
       {
         onSuccess: (sub) => {

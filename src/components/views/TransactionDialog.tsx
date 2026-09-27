@@ -289,14 +289,14 @@ export function TransactionDialog({
     };
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!amount || parseCurrency(amount) <= 0) return;
 
     const payload = buildPayload();
 
     if (isEditing) {
-      await updateTx.mutateAsync(
+      updateTx.mutate(
         {
           id: String(transaction.id),
           dto: { ...payload, apply_to_similar: applyToSimilar || undefined },
@@ -313,7 +313,7 @@ export function TransactionDialog({
         },
       );
     } else {
-      await createTx.mutateAsync(payload, {
+      createTx.mutate(payload, {
         onSuccess: () => {
           toast.success("Transacción creada");
           reset();

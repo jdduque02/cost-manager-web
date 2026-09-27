@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { TransactionDialog } from "./TransactionDialog";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -24,6 +28,7 @@ vi.mock("@/components/views/EmpresaDialog", () => ({
 }));
 
 const catState = vi.hoisted(() => ({ empty: false }));
+const mockCreateTx = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/hooks/use-api", () => {
   const noop = () => ({
@@ -63,7 +68,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     useFinancialAssets: () => ({ data: [] }),
     useFinancialLiabilities: () => ({ data: [] }),
     useEmpresas: () => ({ data: [] }),
-    useCreateTransaction: noop,
+    useCreateTransaction: () => ({ ...noop(), mutate: mockCreateTx }),
     useUpdateTransaction: noop,
     useCreateObjective: noop,
     useUpdateObjective: noop,
@@ -127,6 +132,19 @@ describe("TransactionDialog", () => {
     } finally {
       catState.empty = false;
     }
+  });
+
+  it("creates with mutate and shows the API error without an unhandled rejection", async () => {
+    mockCreateTx.mockImplementation((_dto, opts) => opts.onError(new Error("Monto inválido")));
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<TransactionDialog {...defaultProps} />);
+
+    await user.type(screen.getByLabelText("Monto"), "50000");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(mockCreateTx).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith("Monto inválido");
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
   it("renders when open", () => {

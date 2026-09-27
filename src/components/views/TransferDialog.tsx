@@ -164,14 +164,14 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     return true;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validateTransfer()) return;
 
     const dto = buildDto();
 
     if (isEditing && transfer) {
-      await updateTransfer.mutateAsync(
+      updateTransfer.mutate(
         { id: String(transfer.source.id), dto },
         {
           onSuccess: () => {
@@ -179,16 +179,14 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
             onOpenChange(false);
           },
           onError: (err) => {
-            toast.error(
-              err instanceof Error ? err.message : t("err.transfer.update"),
-            );
+            toast.error(err instanceof Error ? err.message : t("err.transfer.update"));
           },
         },
       );
       return;
     }
 
-    await createTransfer.mutateAsync(
+    createTransfer.mutate(
       {
         ...dto,
         source_account_id: Number(sourceAccountId),
