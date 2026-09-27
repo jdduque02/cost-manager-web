@@ -770,10 +770,7 @@ export function useCloneTransaction() {
       id: number;
       dto?: { transaction_date?: string; amount?: number; description?: string };
     }) => api.post<TransactionRecord>(`users/${userId}/transactions/${id}/clone`, dto ?? {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
-      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
-    },
+    onSuccess: () => invalidateTransferData(qc, userId),
   });
 }
 
