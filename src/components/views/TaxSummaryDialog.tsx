@@ -45,7 +45,7 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
     setMustDeclareTouched(false);
   }, [taxSummary, open]);
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!taxSummary) return;
 
     const payload = {
@@ -59,7 +59,8 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
       must_declare: mustDeclareTouched ? mustDeclare : undefined,
     };
 
-    await updateTaxSummary.mutateAsync(
+    // mutate (not mutateAsync): errors are handled in onError, nothing left to reject.
+    updateTaxSummary.mutate(
       { id: taxSummary.id, dto: payload },
       {
         onSuccess: () => {
@@ -91,7 +92,7 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void handleSubmit();
+            handleSubmit();
           }}
           className="space-y-4"
         >

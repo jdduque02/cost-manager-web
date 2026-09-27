@@ -1,12 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { TaxSummaryDialog } from "./TaxSummaryDialog";
 
-const mockMutateAsync = vi.fn().mockResolvedValue({});
+type Callbacks = { onSuccess?: () => void; onError?: (e: Error) => void };
+let mockError: Error | null = null;
+const mockMutate = vi.fn((_vars: unknown, cb?: Callbacks) => {
+  if (mockError) cb?.onError?.(mockError);
+  else cb?.onSuccess?.();
+});
 
 vi.mock("@/lib/hooks/use-api", () => ({
   useUpdateTaxSummary: () => ({
-    mutateAsync: mockMutateAsync,
+    mutate: mockMutate,
     isPending: false,
   }),
 }));
@@ -33,6 +39,7 @@ const taxSummary = {
 
 describe("TaxSummaryDialog", () => {
   beforeEach(() => {
+    mockError = null;
     vi.clearAllMocks();
   });
 
@@ -52,7 +59,7 @@ describe("TaxSummaryDialog", () => {
     await user.click(screen.getByRole("checkbox", { name: /debe declarar impuestos/i }));
     await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
 
-    expect(mockMutateAsync).toHaveBeenCalledWith(
+    expect(mockMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 1,
         dto: expect.objectContaining({ must_declare: false }),
@@ -67,6 +74,18 @@ describe("TaxSummaryDialog", () => {
 
     await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
 
-    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it("muestra el error del API sin dejar una promesa rechazada sin manejar", async () => {
+    mockError = new Error("El API falló");
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<TaxSummaryDialog open onOpenChange={onOpenChange} taxSummary={taxSummary as never} />);
+
+    await user.click(screen.getByRole("button", { name: /guardar cambios/i }));
+
+    expect(toast.error).toHaveBeenCalledWith("El API falló");
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
