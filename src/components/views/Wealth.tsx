@@ -12,6 +12,7 @@ import {
   Trash2,
   Star,
   ShieldCheck,
+  CalendarCheck,
 } from "lucide-react";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
@@ -27,15 +28,21 @@ import {
   useRefreshAssetQuotes,
   useTransactions,
   useCategories,
+  useProductClosures,
 } from "@/lib/hooks/use-api";
 import { WealthDialog } from "./WealthDialog";
+import {
+  PendingClosuresNotice,
+  ProductClosuresDialog,
+  type ClosureProduct,
+} from "./ProductClosuresDialog";
 import { TransactionsDetailModal } from "./TransactionsDetailModal";
 import { CurrencyConverter } from "./CurrencyConverter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/banking";
-import { accountTypeLabel } from "@/lib/api/banking";
+import { accountTypeLabel, availableCredit } from "@/lib/api/banking";
 import type { TransactionRecord } from "@/lib/api/finance";
 
 import { t } from "@/lib/i18n/errors";
@@ -79,9 +86,7 @@ function RowMetadata({
         </span>
       )}
       {symbol && (
-        <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">
-          {symbol}
-        </span>
+        <span className="ml-1.5 font-mono text-[10px] uppercase text-primary/70">{symbol}</span>
       )}
       {yieldPct != null && (
         <span className="ml-1.5 font-mono text-[10px] text-success/80">
@@ -151,6 +156,9 @@ function Row({
   exempt4x1000,
   onTogglePrimary,
   onToggleExempt,
+  extra,
+  onShowClosures,
+  pendingClosures = 0,
 }: {
   name: string;
   value: number;
@@ -169,6 +177,9 @@ function Row({
   exempt4x1000?: boolean;
   onTogglePrimary?: () => void;
   onToggleExempt?: () => void;
+  extra?: React.ReactNode;
+  onShowClosures?: () => void;
+  pendingClosures?: number;
 }) {
   const isAccount = onTogglePrimary !== undefined || onToggleExempt !== undefined;
   return (
@@ -183,6 +194,7 @@ function Row({
             yieldPct={yieldPct}
             yieldFrequency={yieldFrequency}
           />
+          {extra}
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -215,13 +227,52 @@ function Row({
           onToggleExempt={onToggleExempt}
         />
       )}
-      <button
-        onClick={onShowDetails}
-        className="mt-3 w-full rounded-lg border border-border/60 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-      >
-        Ver detalles ({transactionCount})
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={onShowDetails}
+          className="flex-1 rounded-lg border border-border/60 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+        >
+          Ver detalles ({transactionCount})
+        </button>
+        {onShowClosures && (
+          <button
+            onClick={onShowClosures}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border/60 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+          >
+            <CalendarCheck className="h-3.5 w-3.5" />
+            Cierres
+            {pendingClosures > 0 && (
+              <Badge tone="warning" className="px-1.5 py-0">
+                {pendingClosures}
+                <span className="sr-only"> por conciliar</span>
+              </Badge>
+            )}
+          </button>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Cupo disponible de una tarjeta (R1.6); nada si no tiene cupo registrado. */
+function CreditLine({
+  liability,
+  fmtAmount,
+}: {
+  liability: FinancialLiability;
+  fmtAmount: (v: number, opts?: { currency?: string }) => string;
+}) {
+  const available = availableCredit(liability);
+  if (available == null || liability.credit_limit == null) return null;
+  const currency = liability.currency || "COP";
+  return (
+    <p className="text-xs text-muted-foreground">
+      Cupo disponible:{" "}
+      <span className={cn("tabular-nums", available < 0 ? "text-destructive" : "text-success")}>
+        {fmtAmount(available, { currency })}
+      </span>{" "}
+      de {fmtAmount(liability.credit_limit, { currency })}
+    </p>
   );
 }
 
@@ -231,6 +282,7 @@ export function Wealth() {
   const { data: liabilities = [], isLoading: loadLia } = useFinancialLiabilities();
   const { data: transactions = [] } = useTransactions({ limit: 500 });
   const { data: categories = [] } = useCategories();
+  const { data: pendingClosures = [] } = useProductClosures({ status: "pending" });
   const deleteAccount = useDeleteBankAccount();
   const deleteAsset = useDeleteFinancialAsset();
   const deleteLiability = useDeleteFinancialLiability();
@@ -276,6 +328,24 @@ export function Wealth() {
     BankAccount | FinancialAsset | FinancialLiability | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [closuresFor, setClosuresFor] = useState<ClosureProduct | null>(null);
+  const pendingByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of pendingClosures) {
+      const key = `${c.product_kind}:${c.product_id}`;
+      m.set(key, (m.get(key) ?? 0) + 1);
+    }
+    return m;
+  }, [pendingClosures]);
+  const accountClosures = (a: BankAccount) => ({
+    onShowClosures: () =>
+      setClosuresFor({
+        kind: "account",
+        id: a.id,
+        name: `${a.bank_name} - ${accountTypeLabel(a.account_type)}`,
+      }),
+    pendingClosures: pendingByProduct.get(`account:${a.id}`),
+  });
   const [detailsTarget, setDetailsTarget] = useState<{
     title: string;
     subtitle?: string;
@@ -517,6 +587,8 @@ export function Wealth() {
         </Card>
       </div>
 
+      <PendingClosuresNotice count={pendingClosures.length} />
+
       <CurrencyConverter />
       <p className="-mt-2 text-xs text-muted-foreground">
         Cotizaciones de activos obtenidas de Yahoo Finance y{" "}
@@ -599,6 +671,7 @@ export function Wealth() {
                             onToggleExempt={() => handleToggleExempt(a)}
                             fmtAmount={fmtAmount}
                             transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                            {...accountClosures(a)}
                           />
                         ))}
                     </div>
@@ -644,6 +717,7 @@ export function Wealth() {
                             onToggleExempt={() => handleToggleExempt(a)}
                             fmtAmount={fmtAmount}
                             transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                            {...accountClosures(a)}
                           />
                         ))}
                     </div>
@@ -693,6 +767,7 @@ export function Wealth() {
                             onToggleExempt={() => handleToggleExempt(a)}
                             fmtAmount={fmtAmount}
                             transactionCount={linked.byAccount.get(a.id)?.length ?? 0}
+                            {...accountClosures(a)}
                           />
                         ))}
                     </div>
@@ -767,6 +842,12 @@ export function Wealth() {
                     }
                     fmtAmount={fmtAmount}
                     transactionCount={linked.byLiability.get(l.id)?.length ?? 0}
+                    {...(l.liability_type === "tarjeta_credito" && {
+                      extra: <CreditLine liability={l} fmtAmount={fmtAmount} />,
+                      onShowClosures: () =>
+                        setClosuresFor({ kind: "liability", id: l.id, name: l.name }),
+                      pendingClosures: pendingByProduct.get(`liability:${l.id}`),
+                    })}
                   />
                 ))}
               </div>
@@ -879,6 +960,10 @@ export function Wealth() {
         onConfirm={handleDeleteConfirm}
         loading={deleteAccount.isPending || deleteAsset.isPending || deleteLiability.isPending}
       />
+
+      {closuresFor && (
+        <ProductClosuresDialog product={closuresFor} onClose={() => setClosuresFor(null)} />
+      )}
 
       <TransactionsDetailModal
         open={!!detailsTarget}

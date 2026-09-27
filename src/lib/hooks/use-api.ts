@@ -18,6 +18,8 @@ import {
   type CreateFinancialAssetDto,
   type CreateFinancialLiabilityDto,
   type FxRates,
+  type ProductClosureQuery,
+  type ReconcileProductClosureDto,
 } from "@/lib/api/banking";
 import {
   identityApi,
@@ -57,6 +59,7 @@ const qk = {
   accounts: (userId: string) => ["bank-accounts", userId] as const,
   assets: (userId: string) => ["financial-assets", userId] as const,
   liabilities: (userId: string) => ["financial-liabilities", userId] as const,
+  productClosures: (userId: string) => ["product-closures", userId] as const,
   financialBudgetProfile: (userId: string) => ["financialBudgetProfile", userId] as const,
   categories: ["categories"] as const,
   subcategories: (userId: string, categoryId?: number) =>
@@ -559,6 +562,62 @@ export function useDeleteFinancialLiability() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
     },
+  });
+}
+
+// ─── Cierres por producto ─────────────────────────────────────────────────────
+
+export function useProductClosures(params: ProductClosureQuery = {}) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: [...qk.productClosures(userId ?? ""), "list", params],
+    queryFn: () => bankingApi.getProductClosures(userId!, params),
+    enabled: !!userId,
+  });
+}
+
+/** Detalle: si el cierre no está conciliado, el API recalcula el saldo esperado. */
+export function useProductClosure(id: number | null) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: [...qk.productClosures(userId ?? ""), "detail", id],
+    queryFn: () => bankingApi.getProductClosure(userId!, id!),
+    enabled: !!userId && !!id,
+  });
+}
+
+function useInvalidateClosures() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return () => {
+    for (const queryKey of [
+      qk.productClosures(userId ?? ""),
+      qk.transactions(userId ?? ""),
+      ["transaction-summary", userId ?? ""],
+      qk.accounts(userId ?? ""),
+      qk.liabilities(userId ?? ""),
+    ]) {
+      qc.invalidateQueries({ queryKey });
+    }
+  };
+}
+
+export function useReconcileProductClosure() {
+  const { userId } = useAuth();
+  const invalidate = useInvalidateClosures();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: ReconcileProductClosureDto }) =>
+      bankingApi.reconcileProductClosure(userId!, id, dto),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSkipProductClosure() {
+  const { userId } = useAuth();
+  const invalidate = useInvalidateClosures();
+  return useMutation({
+    mutationFn: (id: number) => bankingApi.skipProductClosure(userId!, id),
+    onSuccess: invalidate,
   });
 }
 

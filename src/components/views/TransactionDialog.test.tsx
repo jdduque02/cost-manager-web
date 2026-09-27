@@ -147,6 +147,15 @@ describe("TransactionDialog", () => {
     expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("explica en el selector de patrimonio que un gasto ligado a un pasivo sube la deuda (R6.11)", () => {
+    render(<TransactionDialog {...defaultProps} />);
+    expect(
+      screen.getByText(
+        "Un gasto ligado a un pasivo sube la deuda; un ingreso o una inversión la bajan. Para pagar la tarjeta usa «Transferir».",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders when open", () => {
     render(<TransactionDialog {...defaultProps} />);
     expect(screen.getByText("Nueva Transacción")).toBeInTheDocument();

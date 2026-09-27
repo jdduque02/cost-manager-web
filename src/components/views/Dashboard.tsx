@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { RevealSection } from "@/components/ui/reveal-section";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
+import { summaryCategoryName } from "@/lib/api/finance";
 import {
   useNetWorth,
   useTransactions,
@@ -261,7 +262,10 @@ export function Dashboard() {
     () =>
       (monthSummary?.by_category ?? [])
         .filter((c) => c.expenses > 0)
-        .map((c) => ({ cat: categoryMap[c.category_id] ?? "Por editar", amt: c.expenses }))
+        .map((c) => ({
+          cat: summaryCategoryName(c.category_id, categoryMap, "Por editar"),
+          amt: c.expenses,
+        }))
         .sort((a, b) => b.amt - a.amt)
         .slice(0, 6),
     [monthSummary, categoryMap],

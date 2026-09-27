@@ -45,4 +45,22 @@ describe("Reports", () => {
     expect(usd).toHaveTextContent("USD 20");
     expect(screen.getByText("COP 1000")).toBeInTheDocument();
   });
+
+  it("llama «Sin clasificar» al grupo sin categoría (category_id 0) del desglose (R6.7)", () => {
+    vi.mocked(useTransactionSummary).mockImplementation(
+      () =>
+        ({
+          data: {
+            totals: { income: 0, expenses: 300, investments: 0, count: 2 },
+            by_category: [{ category_id: 0, income: 0, expenses: 300, investments: 0, count: 2 }],
+            series: [],
+          },
+          isLoading: false,
+          error: null,
+        }) as never,
+    );
+    render(<Reports />, { wrapper: withNuqsTestingAdapter() });
+    expect(screen.getByText("Sin clasificar")).toBeInTheDocument();
+    expect(screen.queryByText("Categoría 0")).not.toBeInTheDocument();
+  });
 });
