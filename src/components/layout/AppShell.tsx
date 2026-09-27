@@ -1,0 +1,261 @@
+import { useState, useEffect } from "react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  Wallet,
+  Target,
+  Sparkles,
+  Settings,
+  LogOut,
+  Menu,
+  Loader2,
+  Tag,
+  Eye,
+  EyeOff,
+  Newspaper,
+  BarChart3,
+  Mail,
+  Users,
+  Building2,
+  Plus,
+  type LucideIcon,
+} from "lucide-react";
+import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { getAccessToken } from "@/lib/api/client";
+import { useVisibility } from "@/lib/visibility-context";
+import { NotificationBell } from "@/components/ui/notification-bell";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ConsentDialog } from "@/components/layout/ConsentDialog";
+import { TransactionDialog } from "@/components/views/TransactionDialog";
+import { loginHref } from "@/lib/auth/guards";
+import { t } from "@/lib/i18n/errors";
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  adminOnly?: boolean;
+};
+
+const nav: NavItem[] = [
+  { to: "/dashboard", label: "Panel", icon: LayoutDashboard, exact: true, adminOnly: false },
+  { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight, adminOnly: false },
+  { to: "/reports", label: "Reportes", icon: BarChart3, adminOnly: false },
+  { to: "/wealth", label: "Patrimonio", icon: Wallet, adminOnly: false },
+  { to: "/goals", label: "Metas", icon: Target, adminOnly: false },
+  { to: "/categories", label: "Categorías", icon: Tag, adminOnly: false },
+  { to: "/intelligence", label: "Inteligencia & Impuestos", icon: Sparkles, adminOnly: false },
+  { to: "/empresas", label: "Empresas", icon: Building2, adminOnly: false },
+  { to: "/news", label: "Noticias", icon: Newspaper, adminOnly: true },
+  { to: "/emails", label: "Emails", icon: Mail, adminOnly: true },
+  { to: "/admin", label: "Usuarios", icon: Users, adminOnly: true },
+  { to: "/logs", label: "Logs", icon: Newspaper, adminOnly: true },
+  { to: "/settings", label: "Configuración", icon: Settings },
+];
+
+function VisibilityToggle({ className }: { className?: string }) {
+  const { hidden, setHidden } = useVisibility();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setHidden(!hidden)}
+      aria-pressed={hidden}
+      aria-label="Ocultar montos"
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring",
+        hidden
+          ? "bg-warning/15 text-foreground hover:bg-warning/25"
+          : "text-muted-foreground hover:bg-surface hover:text-foreground",
+        className,
+      )}
+    >
+      {hidden ? (
+        <>
+          <Eye className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden lg:inline">Mostrar</span>
+        </>
+      ) : (
+        <>
+          <EyeOff className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden lg:inline">Ocultar</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const { user, logout, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/login" });
+  };
+
+  const name = user?.username ? user.username : "Usuario Sprig";
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "SP";
+  const visibleNav = nav.filter((item) =>
+    isAdmin ? item.adminOnly !== false : item.adminOnly !== true,
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2.5 px-6 py-6">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-glow">
+          <SprigIsotipo className="h-5 w-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-display text-lg font-semibold tracking-tight">Sprig</p>
+        </div>
+        <NotificationBell />
+      </div>
+
+      <nav className="flex-1 space-y-1 px-3">
+        {visibleNav.map((item) => {
+          const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={onNavigate}
+              className={cn(
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-[transform,background-color,color,box-shadow] duration-200 ease-out-soft hover:translate-x-0.5",
+                active
+                  ? "bg-surface-2 text-foreground shadow-elegant"
+                  : "text-muted-foreground hover:bg-surface hover:text-foreground",
+              )}
+            >
+              <Icon
+                className={cn(
+                  "h-4.5 w-4.5 transition-colors",
+                  active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                )}
+                size={18}
+              />
+              <span>{item.label}</span>
+              {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="px-3 pb-1">
+        <VisibilityToggle className="w-full justify-center" />
+      </div>
+
+      <div className="m-3 rounded-2xl border border-border bg-surface/60 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-primary text-sm font-semibold text-primary-foreground">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email || ""}</p>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={handleLogout}
+          className="mt-3 w-full justify-center gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <LogOut className="h-4 w-4" /> Cerrar sesión
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function AppShell({
+  children,
+  requireAdmin = false,
+}: {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  // El diálogo se monta al primer uso para no disparar sus 6 queries en cada pantalla.
+  const [txDialogMounted, setTxDialogMounted] = useState(false);
+  const [txDialogOpen, setTxDialogOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading, isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !getAccessToken()) {
+      navigate({ href: loginHref(window.location.pathname + window.location.search) });
+    }
+  }, [isLoading, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && requireAdmin && !isAdmin) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [isLoading, isAuthenticated, requireAdmin, isAdmin, navigate]);
+
+  if (isLoading || !isAuthenticated || (requireAdmin && !isAdmin)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen text-foreground">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-background/80 backdrop-blur-xl lg:block">
+        <SidebarContent pathname={pathname} />
+      </aside>
+
+      {/* Mobile sidebar */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="left" className="w-72 p-0 border-r border-border bg-background">
+          <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/70 px-4 py-3 backdrop-blur-xl lg:hidden">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Abrir menú"
+            onClick={() => setOpen(true)}
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </Button>
+          <span className="font-display text-base font-semibold">Sprig</span>
+          <div className="ml-auto flex items-center gap-2">
+            <NotificationBell />
+            <VisibilityToggle />
+          </div>
+        </header>
+        <main id="main" className="px-4 pb-24 pt-6 sm:px-6 lg:px-10 lg:pt-10">
+          {children}
+        </main>
+      </div>
+      <Button
+        size="icon"
+        aria-label={t("ui.tx.new")}
+        title={t("ui.tx.new")}
+        onClick={() => {
+          setTxDialogMounted(true);
+          setTxDialogOpen(true);
+        }}
+        className="fixed bottom-6 right-6 z-30 h-14 w-14 rounded-full bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+      >
+        <Plus className="h-6 w-6" aria-hidden="true" />
+      </Button>
+      {txDialogMounted && <TransactionDialog open={txDialogOpen} onOpenChange={setTxDialogOpen} />}
+      <ConsentDialog />
+    </div>
+  );
+}

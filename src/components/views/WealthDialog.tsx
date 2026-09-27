@@ -1,0 +1,789 @@
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  useCreateBankAccount,
+  useUpdateBankAccount,
+  useCreateFinancialAsset,
+  useUpdateFinancialAsset,
+  useCreateFinancialLiability,
+  useUpdateFinancialLiability,
+} from "@/lib/hooks/use-api";
+import type {
+  BankAccount,
+  FinancialAsset,
+  FinancialLiability,
+  AccountType,
+  AssetType,
+  LiabilityType,
+} from "@/lib/api/banking";
+
+import { t } from "@/lib/i18n/errors";
+type EntityType = "account" | "asset" | "liability";
+
+interface WealthDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  entityType: EntityType;
+  entity?: BankAccount | FinancialAsset | FinancialLiability | null;
+  onCreated?: (entity: BankAccount | FinancialAsset | FinancialLiability) => void;
+}
+
+const accountTypes: { value: AccountType; label: string }[] = [
+  { value: "ahorros", label: "Ahorros" },
+  { value: "corriente", label: "Corriente" },
+  { value: "inversion", label: "Inversión" },
+  { value: "cdt", label: "CDT / Inversión" },
+  { value: "ahorro_alto_rendimiento", label: "Cuenta de ahorro de alto rendimiento" },
+  { value: "fna", label: "FNA - Fondo Nacional del Ahorro" },
+  { value: "aporte_pension_voluntaria", label: "Aporte Pensión Voluntaria" },
+  { value: "otro", label: "Otro" },
+];
+
+const assetTypes: { value: AssetType; label: string }[] = [
+  { value: "acciones", label: "Acciones" },
+  { value: "acciones_fraccion", label: "Acciones / Fracciones" },
+  { value: "ahorro_alto_rendimiento", label: "Cuenta de ahorro de alto rendimiento" },
+  { value: "bienes_raices", label: "Bienes raíces" },
+  { value: "bienes_materiales", label: "Bienes materiales" },
+  { value: "vehiculos", label: "Vehículos" },
+  { value: "joyas_metales", label: "Joyas y metales" },
+  { value: "arte_colecciones", label: "Arte y colecciones" },
+  { value: "propiedad_intelectual", label: "Propiedad intelectual" },
+  { value: "fondos_inversion", label: "Fondos de inversión" },
+  { value: "cryptomonedas", label: "Criptomonedas" },
+  { value: "efectivo", label: "Efectivo" },
+  { value: "otro", label: "Otro" },
+];
+
+const liabilityTypes: { value: LiabilityType; label: string }[] = [
+  { value: "credito_hipotecario", label: "Crédito hipotecario" },
+  { value: "credito_consumo", label: "Crédito de consumo" },
+  { value: "tarjeta_credito", label: "Tarjeta de crédito" },
+  { value: "prestamo_personal", label: "Préstamo personal" },
+  { value: "otro", label: "Otro" },
+];
+
+const currencies: { value: string; label: string }[] = [
+  { value: "COP", label: "COP - Peso colombiano" },
+  { value: "USD", label: "USD - Dólar" },
+  { value: "EUR", label: "EUR - Euro" },
+  { value: "MXN", label: "MXN - Peso mexicano" },
+];
+
+const entityLabels: Record<EntityType, { create: string; edit: string; title: string }> = {
+  account: { create: "Nueva Cuenta", edit: "Editar Cuenta", title: "Cuenta bancaria" },
+  asset: { create: "Nuevo Activo", edit: "Editar Activo", title: "Activo financiero" },
+  liability: { create: "Nueva Deuda", edit: "Editar Deuda", title: "Pasivo financiero" },
+};
+
+export function WealthDialog({
+  open,
+  onOpenChange,
+  entityType,
+  entity,
+  onCreated,
+}: WealthDialogProps) {
+  const createAccount = useCreateBankAccount();
+  const updateAccount = useUpdateBankAccount();
+  const createAsset = useCreateFinancialAsset();
+  const updateAsset = useUpdateFinancialAsset();
+  const createLiability = useCreateFinancialLiability();
+  const updateLiability = useUpdateFinancialLiability();
+
+  const isEditing = !!entity;
+  const labels = entityLabels[entityType];
+
+  const isPending =
+    createAccount.isPending ||
+    updateAccount.isPending ||
+    createAsset.isPending ||
+    updateAsset.isPending ||
+    createLiability.isPending ||
+    updateLiability.isPending;
+
+  const [name, setName] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountType, setAccountType] = useState<string>("ahorros");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [assetType, setAssetType] = useState<string>("acciones");
+  const [liabilityType, setLiabilityType] = useState<string>("tarjeta_credito");
+  const [amount, setAmount] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+  const [annualRate, setAnnualRate] = useState("");
+  const [yieldFrequency, setYieldFrequency] = useState("monthly");
+  const [rateType, setRateType] = useState("EA");
+  const [interestEnabled, setInterestEnabled] = useState(true);
+  const [termDays, setTermDays] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [maturityDate, setMaturityDate] = useState("");
+  const [autoRenew, setAutoRenew] = useState(true);
+  const [isPrimary, setIsPrimary] = useState(false);
+  const [exempt4x1000, setExempt4x1000] = useState(false);
+  const [currency, setCurrency] = useState("COP");
+  const [symbol, setSymbol] = useState("");
+  const [quoteSource, setQuoteSource] = useState("yahoo");
+  const [currentYield, setCurrentYield] = useState("");
+
+  useEffect(() => {
+    if (!entity) {
+      reset();
+      return;
+    }
+    if (entityType === "account") {
+      populateAccountFields(entity as BankAccount);
+    } else if (entityType === "asset") {
+      populateAssetFields(entity as FinancialAsset);
+    } else {
+      populateLiabilityFields(entity as FinancialLiability);
+    }
+  }, [entity, open, entityType]);
+
+  function reset() {
+    setName("");
+    setBankName("");
+    setAccountType("ahorros");
+    setAccountNumber("");
+    setAssetType("acciones");
+    setLiabilityType("tarjeta_credito");
+    setAmount("");
+    setInterestRate("");
+    setAnnualRate("");
+    setYieldFrequency("monthly");
+    setRateType("EA");
+    setInterestEnabled(true);
+    setTermDays("");
+    setStartDate("");
+    setMaturityDate("");
+    setAutoRenew(true);
+    setIsPrimary(false);
+    setExempt4x1000(false);
+    setCurrency("COP");
+    setSymbol("");
+    setQuoteSource("yahoo");
+    setCurrentYield("");
+  }
+
+  function populateAccountFields(a: BankAccount) {
+    setBankName(a.bank_name);
+    setAccountType(a.account_type);
+    setAccountNumber("");
+    setAmount(String(Number(a.display_balance ?? 0)));
+    setCurrency(a.currency ?? "COP");
+    setIsPrimary(a.is_primary);
+    setExempt4x1000(a.exempt_4x1000);
+    setAnnualRate(a.annual_interest_rate != null ? String(a.annual_interest_rate) : "");
+    setYieldFrequency(a.yield_frequency ?? "monthly");
+    setRateType(a.rate_type ?? "EA");
+    setInterestEnabled(a.interest_enabled ?? true);
+    setTermDays(a.term_days != null ? String(a.term_days) : "");
+    setStartDate(a.start_date ?? "");
+    setMaturityDate(a.maturity_date ?? "");
+    setAutoRenew(a.auto_renew ?? true);
+  }
+
+  function populateAssetFields(a: FinancialAsset) {
+    setName(a.name);
+    setAssetType(a.asset_type);
+    setAmount(String(a.current_value));
+    setCurrency(a.currency ?? "COP");
+    setSymbol(a.symbol ?? "");
+    setQuoteSource(a.quote_source ?? "yahoo");
+    setCurrentYield(a.current_yield != null ? String(a.current_yield) : "");
+  }
+
+  function populateLiabilityFields(l: FinancialLiability) {
+    setName(l.name);
+    setLiabilityType(l.liability_type);
+    setAmount(String(l.current_balance));
+    setInterestRate(String(l.interest_rate ?? ""));
+    setCurrency(l.currency ?? "COP");
+  }
+
+  async function submitAccount() {
+    const dto = {
+      bank_name: bankName,
+      account_type: accountType as AccountType,
+      account_number: accountNumber || "0000",
+      balance: Number(amount) || 0,
+      currency: currency !== "COP" ? currency : undefined,
+      annual_interest_rate: annualRate ? Number(annualRate) : undefined,
+      yield_frequency: yieldFrequency,
+      rate_type: rateType,
+      interest_enabled: interestEnabled,
+      term_days: termDays ? Number(termDays) : undefined,
+      start_date: startDate || undefined,
+      auto_renew: autoRenew,
+      is_primary: isPrimary,
+      exempt_4x1000: exempt4x1000,
+    };
+    if (isEditing) {
+      await updateAccount.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Cuenta actualizada");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error(t("err.account.update")),
+        },
+      );
+    } else {
+      await createAccount.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Cuenta creada");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error(t("err.register.create")),
+      });
+    }
+  }
+
+  async function submitAsset() {
+    const dto = {
+      asset_type: assetType as AssetType,
+      name: name.trim(),
+      current_value: Number(amount) || 0,
+      current_yield: currentYield ? Number(currentYield) : undefined,
+      currency: currency !== "COP" ? currency : undefined,
+      symbol: symbol.trim() || undefined,
+      quote_source: symbol.trim() ? (quoteSource as "yahoo" | "coingecko") : undefined,
+    };
+    if (isEditing) {
+      await updateAsset.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Activo actualizado");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error(t("err.asset.update")),
+        },
+      );
+    } else {
+      await createAsset.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Activo creado");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error(t("err.asset.create")),
+      });
+    }
+  }
+
+  async function submitLiability() {
+    const dto = {
+      liability_type: liabilityType as LiabilityType,
+      name: name.trim(),
+      current_balance: Number(amount) || 0,
+      interest_rate: interestRate ? Number(interestRate) : undefined,
+      currency: currency !== "COP" ? currency : undefined,
+    };
+    if (isEditing) {
+      await updateLiability.mutateAsync(
+        { id: String(entity.id), dto },
+        {
+          onSuccess: () => {
+            toast.success("Deuda actualizada");
+            reset();
+            onOpenChange(false);
+          },
+          onError: () => toast.error(t("err.debt.update")),
+        },
+      );
+    } else {
+      await createLiability.mutateAsync(dto, {
+        onSuccess: (created) => {
+          toast.success("Deuda creada");
+          reset();
+          onCreated?.(created);
+          onOpenChange(false);
+        },
+        onError: () => toast.error(t("err.debt.create")),
+      });
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (entityType === "account") {
+      await submitAccount();
+    } else if (entityType === "asset") {
+      await submitAsset();
+    } else {
+      await submitLiability();
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset();
+        onOpenChange(v);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? labels.edit : labels.create}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? `Modifica los datos del ${labels.title.toLowerCase()}.`
+              : `Registra un nuevo ${labels.title.toLowerCase()}.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {entityType === "account" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-bank">Banco</Label>
+                <Input
+                  id="wealth-account-bank"
+                  placeholder="Ej. Bancolombia"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nombre de la entidad bancaria donde tienes la cuenta.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-type">Tipo de cuenta</Label>
+                <Select value={accountType} onValueChange={setAccountType}>
+                  <SelectTrigger id="wealth-account-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountTypes.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona el tipo de cuenta que deseas registrar.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-number">Número de cuenta</Label>
+                <Input
+                  id="wealth-account-number"
+                  placeholder="Opcional"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Opcional. Solo visible para ti.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-balance">Saldo</Label>
+                <CurrencyInput
+                  id="wealth-account-balance"
+                  value={amount}
+                  onChange={setAmount}
+                  placeholder="0"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Saldo actual disponible en la cuenta.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-annual-rate">Tasa de interés anual %</Label>
+                <Input
+                  id="wealth-account-annual-rate"
+                  type="number"
+                  step="any"
+                  min="0"
+                  max="100"
+                  placeholder="0"
+                  value={annualRate}
+                  onChange={(e) => setAnnualRate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Rentabilidad anual que genera la cuenta (para proyecciones).
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-yield-frequency">Frecuencia del rendimiento</Label>
+                <Select value={yieldFrequency} onValueChange={setYieldFrequency}>
+                  <SelectTrigger id="wealth-account-yield-frequency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Diaria</SelectItem>
+                    <SelectItem value="monthly">Mensual</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Cada cuanto se entrega el rendimiento en la cuenta.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-rate-type">Tipo de tasa</Label>
+                <Select value={rateType} onValueChange={setRateType}>
+                  <SelectTrigger id="wealth-account-rate-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EA">Efectiva Anual (E.A.)</SelectItem>
+                    <SelectItem value="nominal">Nominal</SelectItem>
+                    <SelectItem value="MV">Mes Vencido (M.V.)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  En Colombia las captaciones suelen publicarse en E.A.
+                </p>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Capitalizar automáticamente</p>
+                  <p className="text-xs text-muted-foreground">
+                    El patrimonio se actualiza con un ingreso de rendimientos en cada periodo.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={interestEnabled}
+                  onCheckedChange={(v) => setInterestEnabled(v === true)}
+                  aria-label="Capitalizar automáticamente"
+                />
+              </div>
+              {accountType === "cdt" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wealth-account-term-days">Plazo (días)</Label>
+                      <Input
+                        id="wealth-account-term-days"
+                        type="number"
+                        min="1"
+                        placeholder="Ej. 360"
+                        value={termDays}
+                        onChange={(e) => setTermDays(e.target.value)}
+                        required={accountType === "cdt"}
+                      />
+                      <p className="text-xs text-muted-foreground">Plazo del CDT en días.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wealth-account-start-date">Fecha inicio</Label>
+                      <Input
+                        id="wealth-account-start-date"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        required={accountType === "cdt"}
+                      />
+                      <p className="text-xs text-muted-foreground">Fecha de inicio del CDT.</p>
+                    </div>
+                  </div>
+                  {maturityDate && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wealth-account-maturity-date">Vencimiento</Label>
+                      <Input
+                        id="wealth-account-maturity-date"
+                        type="date"
+                        value={maturityDate}
+                        disabled
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Calculada automáticamente (inicio + plazo).
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Auto-renovar al vencer</p>
+                      <p className="text-xs text-muted-foreground">
+                        Renovar el CDT automáticamente al mismo plazo.
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={autoRenew}
+                      onCheckedChange={(v) => setAutoRenew(v === true)}
+                      aria-label="Auto-renovar CDT"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-account-currency">Moneda</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger id="wealth-account-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda en la que está denominada la cuenta.
+                </p>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Cuenta principal</p>
+                  <p className="text-xs text-muted-foreground">
+                    Marca esta cuenta como tu cuenta principal.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={isPrimary}
+                  onCheckedChange={(v) => setIsPrimary(v === true)}
+                  aria-label="Marcar como cuenta principal"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface p-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Exenta del 4x1000</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cuenta exenta del impuesto a los movimientos financieros (GMF).
+                  </p>
+                </div>
+                <Checkbox
+                  checked={exempt4x1000}
+                  onCheckedChange={(v) => setExempt4x1000(v === true)}
+                  aria-label="Marcar como exenta del 4x1000"
+                />
+              </div>
+            </>
+          )}
+          {entityType === "asset" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-asset-name">Nombre</Label>
+                <Input
+                  id="wealth-asset-name"
+                  placeholder="Ej. Portafolio de inversiones"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nombre descriptivo para identificar este activo.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-asset-type">Tipo de activo</Label>
+                <Select value={assetType} onValueChange={setAssetType}>
+                  <SelectTrigger id="wealth-asset-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assetTypes.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Clasifica tu activo para mejor organización.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-asset-value">Valor actual</Label>
+                <CurrencyInput
+                  id="wealth-asset-value"
+                  value={amount}
+                  onChange={setAmount}
+                  placeholder="0"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Valor estimado actual del activo en el mercado.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-asset-currency">Moneda</Label>
+                  <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger id="wealth-asset-currency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currencies.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Moneda en la que está denominado el activo.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-asset-yield">Rendimiento actual %</Label>
+                  <Input
+                    id="wealth-asset-yield"
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0"
+                    value={currentYield}
+                    onChange={(e) => setCurrentYield(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Rentabilidad anual que genera el activo.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-asset-symbol">Símbolo (opcional)</Label>
+                  <Input
+                    id="wealth-asset-symbol"
+                    placeholder="Ej. NU, AAPL, USDT"
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ticker para consultar su valor en línea.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-asset-quote-source">Fuente</Label>
+                  <Select value={quoteSource} onValueChange={setQuoteSource}>
+                    <SelectTrigger id="wealth-asset-quote-source">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yahoo">Yahoo (acciones)</SelectItem>
+                      <SelectItem value="coingecko">CoinGecko (cripto)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Origen del precio al consultar.</p>
+                </div>
+              </div>
+            </>
+          )}
+          {entityType === "liability" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-liability-name">Nombre</Label>
+                <Input
+                  id="wealth-liability-name"
+                  placeholder="Ej. Tarjeta Visa"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nombre descriptivo para identificar esta deuda.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-liability-type">Tipo de deuda</Label>
+                <Select value={liabilityType} onValueChange={setLiabilityType}>
+                  <SelectTrigger id="wealth-liability-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {liabilityTypes.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Clasifica tu deuda para mejor organización.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-liability-balance">Saldo actual</Label>
+                  <CurrencyInput
+                    id="wealth-liability-balance"
+                    value={amount}
+                    onChange={setAmount}
+                    placeholder="0"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">Saldo pendiente por pagar.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wealth-liability-interest-rate">Tasa de interés %</Label>
+                  <Input
+                    id="wealth-liability-interest-rate"
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0"
+                    value={interestRate}
+                    onChange={(e) => setInterestRate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Porcentaje de interés anual que genera la deuda.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wealth-liability-currency">Moneda</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger id="wealth-liability-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencies.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Moneda en la que está denominada la deuda.
+                </p>
+              </div>
+            </>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
+            >
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isEditing ? "Actualizar" : "Crear"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

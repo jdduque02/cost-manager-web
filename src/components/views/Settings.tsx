@@ -1,0 +1,1062 @@
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { Card, Badge } from "@/components/ui/primitives";
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/lib/auth";
+import {
+  useFinancialBudgetProfile,
+  useUpdateFinancialBudgetProfile,
+  useCreateFinancialBudgetProfile,
+  useUpdateUser,
+  useSessions,
+  useRevokeSession,
+  useAccessHistory,
+} from "@/lib/hooks/use-api";
+import {
+  User,
+  Bell,
+  Shield,
+  Globe,
+  Palette,
+  ChevronRight,
+  Check,
+  Wallet,
+  Loader2,
+  Sun,
+  Moon,
+  Monitor,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  CreditCard,
+} from "lucide-react";
+import { authApi, type Session, type AccessEvent } from "@/lib/api/auth";
+
+import { t, getLocale, setLocale, type Locale } from "@/lib/i18n/errors";
+const sections = [
+  { id: "profile", label: "Perfil", icon: User },
+  { id: "financial", label: "Perfil Financiero", icon: Wallet },
+  { id: "notifications", label: "Notificaciones", icon: Bell },
+  { id: "security", label: "Seguridad", icon: Shield },
+  { id: "billing", label: "Facturacion", icon: CreditCard },
+  { id: "language", label: "Idioma y Region", icon: Globe },
+  { id: "appearance", label: "Apariencia", icon: Palette },
+];
+
+function LanguageRow() {
+  const [lang, setLang] = useState<Locale>(getLocale());
+  return (
+    <SettingRow label={t("ui.lang.label")}>
+      <Select
+        value={lang}
+        onValueChange={(v) => {
+          setLocale(v as Locale);
+          setLang(v as Locale);
+        }}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="es">{t("ui.lang.es")}</SelectItem>
+          <SelectItem value="en">{t("ui.lang.en")}</SelectItem>
+        </SelectContent>
+      </Select>
+    </SettingRow>
+  );
+}
+
+function SettingRow({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between py-4 border-b border-border last:border-0">
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {value && <p className="text-xs text-muted-foreground mt-0.5">{value}</p>}
+      </div>
+      {children ?? <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+        checked ? "bg-primary" : "bg-surface-2",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+          checked ? "translate-x-6" : "translate-x-1",
+        )}
+      />
+    </button>
+  );
+}
+
+export function Settings() {
+  const [active, setActive] = useState("profile");
+
+  return (
+    <div className="space-y-7">
+      <div>
+        <p className="text-sm text-muted-foreground">Preferencias</p>
+        <h1 className="mt-1 font-display text-3xl font-semibold">Configuracion</h1>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        {/* Sidebar nav */}
+        <Card className="p-2 h-fit lg:col-span-1">
+          <nav className="space-y-0.5">
+            {sections.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActive(s.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150 ease-out text-left",
+                    active === s.id
+                      ? "bg-surface-2 text-foreground"
+                      : "text-muted-foreground hover:bg-surface hover:text-foreground",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-4 w-4 flex-shrink-0",
+                      active === s.id ? "text-primary" : "text-muted-foreground",
+                    )}
+                  />
+                  {s.label}
+                </button>
+              );
+            })}
+          </nav>
+        </Card>
+
+        {/* Content */}
+        <div className="lg:col-span-3 space-y-5">
+          {active === "profile" && <ProfileSettings />}
+
+          {active === "financial" && <FinancialProfileSettings />}
+
+          {active === "notifications" && <NotificationSettings />}
+
+          {active === "security" && <SecuritySettings />}
+
+          {active === "billing" && (
+            <Card>
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <h3 className="font-display text-lg font-semibold">Facturacion</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Sprig es de uso personal y gratuito por ahora.
+                  </p>
+                </div>
+                <Badge tone="muted">Proximamente</Badge>
+              </div>
+              <SettingRow
+                label="Plan de facturacion"
+                value="Todavia no hay un plan de facturacion disponible en Sprig."
+              />
+            </Card>
+          )}
+
+          {active === "language" && (
+            <Card>
+              <h3 className="font-display text-lg font-semibold mb-2">Idioma y Region</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Configura tu idioma preferido, zona horaria y formato de moneda.
+              </p>
+              <LanguageRow />
+              <SettingRow label="Zona horaria" value="America/Bogota (UTC-5)" />
+              <SettingRow label="Formato de fecha" value="DD/MM/YYYY" />
+              <SettingRow label="Formato de numeros" value="1.234.567" />
+            </Card>
+          )}
+
+          {active === "appearance" && <AppearanceSection />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileSettings() {
+  const { user, userId, refreshUser } = useAuth();
+  const updateUser = useUpdateUser();
+
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [documentId, setDocumentId] = useState("");
+  const [address, setAddress] = useState("");
+  const [locale, setLocale] = useState("es");
+  const [timezone, setTimezone] = useState("America/Bogota");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    setFullName(user.full_name ?? "");
+    setEmail(user.email ?? "");
+    setPhone(user.phone ?? "");
+    setDocumentId(user.document_id ?? "");
+    setAddress(user.address ?? "");
+    setLocale(user.locale ?? "es");
+    setTimezone(user.timezone ?? "America/Bogota");
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!userId) return;
+    setSaving(true);
+    try {
+      await updateUser.mutateAsync({
+        full_name: fullName.trim() || null,
+        email: email.trim() || undefined,
+        phone: phone.trim() || null,
+        document_id: documentId.trim() || null,
+        address: address.trim() || null,
+        locale,
+        timezone,
+      });
+      await refreshUser();
+      setSaved(true);
+      toast.success("Perfil actualizado correctamente");
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("err.profile.update"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "CM";
+
+  let profileButtonContent: React.ReactNode;
+  if (saving) {
+    profileButtonContent = (
+      <>
+        <Loader2 className="h-4 w-4 animate-spin" /> Guardando...
+      </>
+    );
+  } else if (saved) {
+    profileButtonContent = (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  } else {
+    profileButtonContent = "Guardar cambios";
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Perfil</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Administra tu informacion personal y detalles de la cuenta.
+      </p>
+
+      <div className="flex items-center gap-5 mb-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-primary text-xl font-semibold text-primary-foreground shadow-glow">
+          {initials}
+        </div>
+        <div>
+          <p className="font-medium">{user?.full_name || user?.username || "Sprig User"}</p>
+          <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
+        </div>
+      </div>
+
+      <div className="space-y-0 mb-6">
+        <SettingRow label="Usuario" value={user?.username ? `@${user.username}` : ""} />
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="full-name">Nombre completo</Label>
+          <Input
+            id="full-name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Tu nombre completo"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Correo electronico</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@correo.com"
+          />
+          <p className="text-xs text-muted-foreground">
+            El correo se sincroniza con tu cuenta de acceso (Keycloak).
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Documento, teléfono y dirección son opcionales: Sprig funciona sin ellos y solo se guardan
+          si los ingresas. Más información en la{" "}
+          <a href="/privacidad" className="font-medium text-primary underline">
+            Política de Privacidad
+          </a>
+          , los{" "}
+          <a href="/terminos" className="font-medium text-primary underline">
+            Términos
+          </a>{" "}
+          y la{" "}
+          <a href="/cookies" className="font-medium text-primary underline">
+            Política de Cookies
+          </a>
+          .
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="document-id">Documento de identidad</Label>
+          <Input
+            id="document-id"
+            value={documentId}
+            onChange={(e) => setDocumentId(e.target.value)}
+            placeholder="Cedula / Pasaporte"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Telefono</Label>
+          <Input
+            id="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+57 300 123 4567"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="address">Direccion</Label>
+          <Input
+            id="address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Direccion de residencia"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Pais / Idioma</Label>
+            <Select value={locale} onValueChange={setLocale}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="es">Colombia</SelectItem>
+                <SelectItem value="en">Estados Unidos</SelectItem>
+                <SelectItem value="fr">Francia</SelectItem>
+                <SelectItem value="pt">Brasil</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Zona horaria</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="America/Bogota">America/Bogota (UTC-5)</SelectItem>
+                <SelectItem value="America/New_York">America/New_York (UTC-5)</SelectItem>
+                <SelectItem value="America/Mexico_City">America/Mexico_City (UTC-6)</SelectItem>
+                <SelectItem value="Europe/Madrid">Europe/Madrid (UTC+1)</SelectItem>
+                <SelectItem value="Etc/UTC">UTC</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out",
+            saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
+            saving && "opacity-70",
+          )}
+        >
+          {profileButtonContent}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+interface NotificationPrefs {
+  email: boolean;
+  push: boolean;
+  budget: boolean;
+}
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  email: true,
+  push: true,
+  budget: true,
+};
+
+function readNotificationPrefs(metadata: Record<string, unknown> | undefined): NotificationPrefs {
+  const raw = metadata?.notifications;
+  if (!raw || typeof raw !== "object") return DEFAULT_NOTIFICATION_PREFS;
+  const prefs = raw as Partial<NotificationPrefs>;
+  return {
+    email: prefs.email ?? DEFAULT_NOTIFICATION_PREFS.email,
+    push: prefs.push ?? DEFAULT_NOTIFICATION_PREFS.push,
+    budget: prefs.budget ?? DEFAULT_NOTIFICATION_PREFS.budget,
+  };
+}
+
+function NotificationSettings() {
+  const { user, refreshUser } = useAuth();
+  const updateUser = useUpdateUser();
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [savingKey, setSavingKey] = useState<keyof NotificationPrefs | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setPrefs(readNotificationPrefs(user.metadata));
+  }, [user]);
+
+  const handleToggle = async (key: keyof NotificationPrefs, value: boolean) => {
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    setSavingKey(key);
+    try {
+      await updateUser.mutateAsync({
+        metadata: { ...(user?.metadata ?? {}), notifications: next },
+      });
+      await refreshUser();
+      toast.success("Preferencias de notificacion actualizadas");
+    } catch (err) {
+      setPrefs(prefs);
+      toast.error(err instanceof Error ? err.message : t("err.prefs.save"));
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Notificaciones</h3>
+      <p className="text-sm text-muted-foreground mb-6">Configura cuando y como recibes alertas.</p>
+      <SettingRow label="Notificaciones por correo" value="Resumenes e informes por correo">
+        {savingKey === "email" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.email} onChange={(v) => handleToggle("email", v)} />
+        )}
+      </SettingRow>
+      <SettingRow label="Notificaciones push" value="Alertas en tu dispositivo">
+        {savingKey === "push" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.push} onChange={(v) => handleToggle("push", v)} />
+        )}
+      </SettingRow>
+      <SettingRow label="Alertas de presupuesto" value="Notificar cuando el gasto exceda el 80%">
+        {savingKey === "budget" ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <Toggle checked={prefs.budget} onChange={(v) => handleToggle("budget", v)} />
+        )}
+      </SettingRow>
+    </Card>
+  );
+}
+
+function FinancialProfileSettings() {
+  const { userId } = useAuth();
+  const { data: profile, isLoading, error } = useFinancialBudgetProfile();
+  const createProfile = useCreateFinancialBudgetProfile();
+  const updateProfile = useUpdateFinancialBudgetProfile();
+
+  const [needsRatio, setNeedsRatio] = useState(50);
+  const [wantsRatio, setWantsRatio] = useState(30);
+  const [savingsRatio, setSavingsRatio] = useState(20);
+  const [investmentRatio, setInvestmentRatio] = useState(10);
+  const [maxDebtRatio, setMaxDebtRatio] = useState(40);
+  const [salary, setSalary] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setNeedsRatio(profile.needs_ratio);
+      setWantsRatio(profile.wants_ratio);
+      setSavingsRatio(profile.savings_ratio);
+      setInvestmentRatio(profile.investment_ratio);
+      setMaxDebtRatio(profile.max_debt_ratio);
+      setSalary(profile.monthly_income != null ? String(profile.monthly_income) : "");
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    if (!userId) return;
+
+    const totalRatio = needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio;
+    if (totalRatio > 100) {
+      toast.error(
+        `La suma de los porcentajes supera el 100% (${totalRatio}%). Revisa los valores.`,
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const monthlyIncome = salary ? Number(salary.replace(/\D/g, "")) || undefined : undefined;
+      const dto = {
+        needs_ratio: needsRatio,
+        wants_ratio: wantsRatio,
+        savings_ratio: savingsRatio,
+        investment_ratio: investmentRatio,
+        max_debt_ratio: maxDebtRatio,
+        monthly_income: monthlyIncome,
+      };
+      if (!profile) {
+        await createProfile.mutateAsync({ user_id: userId, ...dto });
+      } else {
+        await updateProfile.mutateAsync(dto);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Error saving profile:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-32 items-center justify-center text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  const hasProfile = !error && profile;
+
+  let profileButtonContent: React.ReactNode;
+  if (saving) {
+    profileButtonContent = <Loader2 className="h-4 w-4 animate-spin" />;
+  } else if (saved) {
+    profileButtonContent = (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  } else if (hasProfile) {
+    profileButtonContent = "Guardar cambios";
+  } else {
+    profileButtonContent = "Crear perfil";
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Perfil Financiero</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        {hasProfile
+          ? "Actualiza tu presupuesto personalizado basado en la regla 50/30/20."
+          : "Configura tu presupuesto personalizado basado en la regla 50/30/20."}
+      </p>
+
+      {!hasProfile && (
+        <div className="p-4 bg-surface-2 rounded-xl text-center mb-4">
+          <p className="text-sm text-muted-foreground">
+            No tienes un perfil financiero configurado.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Configura tus objetivos de ahorro usando los ratios predeterminados.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label>Salario mensual (COP)</Label>
+          <CurrencyInput value={salary} onChange={setSalary} placeholder="Ej. 3.500.000" />
+          <p className="text-xs text-muted-foreground">
+            Se almacena cifrado. Se usa para calcular tus límites por rango.
+          </p>
+        </div>
+        <RatioSlider label="Necesidades" value={needsRatio} onChange={setNeedsRatio} />
+        <RatioSlider label="Deseos" value={wantsRatio} onChange={setWantsRatio} />
+        <RatioSlider label="Ahorros" value={savingsRatio} onChange={setSavingsRatio} />
+        <RatioSlider label="Inversión" value={investmentRatio} onChange={setInvestmentRatio} />
+        <RatioSlider label="Deuda maxima" value={maxDebtRatio} onChange={setMaxDebtRatio} />
+
+        <div
+          className={cn(
+            "flex items-center justify-between rounded-xl border p-3 text-sm",
+            needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio > 100
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-border bg-surface text-muted-foreground",
+          )}
+        >
+          <span className="font-medium">Total asignado</span>
+          <span className="font-semibold">
+            {needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio}%
+            {needsRatio + wantsRatio + savingsRatio + investmentRatio + maxDebtRatio > 100 &&
+              " · supera el 100%"}
+          </span>
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out bg-gradient-primary hover:opacity-90 disabled:opacity-70"
+        >
+          {profileButtonContent}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function RatioSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-sm font-semibold">{value}%</span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
+      />
+      <div className="flex justify-between mt-1">
+        <span className="text-xs text-muted-foreground">0%</span>
+        <span className="text-xs text-muted-foreground">100%</span>
+      </div>
+    </div>
+  );
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function SecuritySettings() {
+  return (
+    <div className="space-y-5">
+      <Card>
+        <h3 className="font-display text-lg font-semibold mb-2">Seguridad</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Protege tu cuenta con opciones avanzadas de seguridad.
+        </p>
+        <SettingRow label="Autenticacion de dos factores" value="Anade una capa extra de seguridad">
+          <Badge tone="muted">Proximamente</Badge>
+        </SettingRow>
+      </Card>
+      <SessionsSection />
+      <AccessHistorySection />
+      <ChangePasswordSection />
+    </div>
+  );
+}
+
+function SessionsSection() {
+  const { data: sessions, isLoading, error } = useSessions();
+  const revokeSession = useRevokeSession();
+  const [sessionToRevoke, setSessionToRevoke] = useState<Session | null>(null);
+
+  const handleRevoke = async () => {
+    if (!sessionToRevoke) return;
+    try {
+      await revokeSession.mutateAsync(sessionToRevoke.id);
+      toast.success("Sesion revocada correctamente");
+      setSessionToRevoke(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("err.session.revoke"));
+    }
+  };
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Sesiones activas</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Dispositivos que tienen una sesion iniciada en tu cuenta.
+      </p>
+
+      {isLoading && (
+        <div className="flex h-20 items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <p className="text-sm text-destructive">No se pudieron cargar las sesiones.</p>
+      )}
+
+      {!isLoading && !error && sessions && sessions.length === 0 && (
+        <p className="text-sm text-muted-foreground">No hay sesiones activas.</p>
+      )}
+
+      {!isLoading &&
+        !error &&
+        sessions?.map((session) => (
+          <SettingRow
+            key={session.id}
+            label={session.browser || "Dispositivo desconocido"}
+            value={`${session.ipAddress} · Inicio: ${formatDateTime(session.start)} · Ultimo acceso: ${formatDateTime(session.lastAccess)}`}
+          >
+            <button
+              type="button"
+              onClick={() => setSessionToRevoke(session)}
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors duration-150 ease-out hover:bg-destructive/10"
+            >
+              Revocar
+            </button>
+          </SettingRow>
+        ))}
+
+      <ConfirmDialog
+        open={sessionToRevoke !== null}
+        onOpenChange={(open) => !open && setSessionToRevoke(null)}
+        title="Revocar sesion"
+        description={`Esto cerrara la sesion en "${sessionToRevoke?.browser ?? "este dispositivo"}". Podras iniciar sesion nuevamente cuando quieras.`}
+        onConfirm={handleRevoke}
+        loading={revokeSession.isPending}
+        confirmLabel="Revocar"
+      />
+    </Card>
+  );
+}
+
+function AccessHistorySection() {
+  const { data: history, isLoading, error } = useAccessHistory();
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Historial de accesos</h3>
+      <p className="text-sm text-muted-foreground mb-6">Eventos recientes de acceso a tu cuenta.</p>
+
+      {isLoading && (
+        <div className="flex h-20 items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <p className="text-sm text-destructive">No se pudo cargar el historial de accesos.</p>
+      )}
+
+      {!isLoading && !error && history && history.length === 0 && (
+        <p className="text-sm text-muted-foreground">No hay eventos de acceso registrados.</p>
+      )}
+
+      {!isLoading &&
+        !error &&
+        history?.map((event: AccessEvent, idx) => (
+          <SettingRow
+            key={`${event.type}-${event.time}-${idx}`}
+            label={event.type}
+            value={`${event.ipAddress} · ${formatDateTime(event.time)}`}
+          >
+            {event.error ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {event.error}
+              </span>
+            ) : (
+              <Badge tone="success">Exitoso</Badge>
+            )}
+          </SettingRow>
+        ))}
+    </Card>
+  );
+}
+
+function getPasswordErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "No se pudo cambiar la contraseña";
+}
+
+function getPasswordButtonContent(saving: boolean, saved: boolean): React.ReactNode {
+  if (saving) {
+    return (
+      <>
+        <Loader2 className="h-4 w-4 animate-spin" /> Cambiando...
+      </>
+    );
+  }
+  if (saved) {
+    return (
+      <>
+        <Check className="h-4 w-4" /> Guardado!
+      </>
+    );
+  }
+  return "Cambiar contraseña";
+}
+
+function ChangePasswordSection() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const hints = [
+    { label: "Mínimo 12 caracteres", test: (p: string) => p.length >= 12 },
+    { label: "2 letras mayúsculas", test: (p: string) => (p.match(/[A-Z]/g) || []).length >= 2 },
+    { label: "2 letras minúsculas", test: (p: string) => (p.match(/[a-z]/g) || []).length >= 2 },
+    { label: "2 números", test: (p: string) => (p.match(/\d/g) || []).length >= 2 },
+    { label: "1 carácter especial", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+
+  const allHintsPass = hints.every((h) => h.test(newPassword));
+  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+  const canSubmit = currentPassword && allHintsPass && passwordsMatch;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+
+    setSaving(true);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      toast.success("Contraseña cambiada exitosamente");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(getPasswordErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const passwordButtonContent = getPasswordButtonContent(saving, saved);
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-2">
+        <Lock className="h-5 w-5 text-primary" />
+        <h3 className="font-display text-lg font-semibold">Cambiar contraseña</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mb-6">
+        Actualiza tu contraseña regularmente para mantener tu cuenta segura.
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="current-password">Contraseña actual</Label>
+          <div className="relative">
+            <Input
+              id="current-password"
+              type={showCurrent ? "text" : "password"}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Tu contraseña actual"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(!showCurrent)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="new-password">Nueva contraseña</Label>
+          <div className="relative">
+            <Input
+              id="new-password"
+              type={showNew ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Tu nueva contraseña"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(!showNew)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {newPassword.length > 0 && (
+            <div className="space-y-1 mt-2">
+              {hints.map((h) => (
+                <div key={h.label} className="flex items-center gap-2 text-xs">
+                  <span className={h.test(newPassword) ? "text-success" : "text-muted-foreground"}>
+                    {h.test(newPassword) ? "✓" : "✗"}
+                  </span>
+                  <span
+                    className={h.test(newPassword) ? "text-foreground" : "text-muted-foreground"}
+                  >
+                    {h.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirm-password">Confirmar nueva contraseña</Label>
+          <div className="relative">
+            <Input
+              id="confirm-password"
+              type={showConfirm ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repite tu nueva contraseña"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+            >
+              {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {confirmPassword.length > 0 && (
+            <p className={`text-xs ${passwordsMatch ? "text-success" : "text-destructive"}`}>
+              {passwordsMatch ? "Las contraseñas coinciden" : t("err.reset.mismatch")}
+            </p>
+          )}
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={!canSubmit || saving}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow transition-all duration-150 ease-out",
+              saved ? "bg-success" : "bg-gradient-primary hover:opacity-90",
+              (!canSubmit || saving) && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            {passwordButtonContent}
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const themes = [
+    { value: "light", label: "Claro", icon: Sun, description: "Tema claro para uso diurno" },
+    { value: "dark", label: "Oscuro", icon: Moon, description: "Tema oscuro (predeterminado)" },
+    {
+      value: "system",
+      label: "Sistema",
+      icon: Monitor,
+      description: "Usar preferencia del sistema",
+    },
+  ];
+
+  function handleThemeChange(value: string) {
+    document.documentElement.classList.add("theme-transitioning");
+    setTheme(value);
+    setTimeout(() => document.documentElement.classList.remove("theme-transitioning"), 300);
+  }
+
+  return (
+    <Card>
+      <h3 className="font-display text-lg font-semibold mb-2">Apariencia</h3>
+      <p className="text-sm text-muted-foreground mb-6">Personaliza la apariencia de tu panel.</p>
+      <div className="space-y-4">
+        <p className="text-sm font-medium">Tema</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {themes.map(({ value, label, icon: Icon, description }) => {
+            const active = mounted ? theme === value : value === "dark";
+            return (
+              <button
+                key={value}
+                onClick={() => handleThemeChange(value)}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200 ease-out",
+                  active
+                    ? "border-primary bg-primary/5 shadow-glow"
+                    : "border-border bg-surface/40 hover:border-muted-foreground hover:bg-surface/60",
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 transition-colors duration-200",
+                    active ? "text-primary" : "text-muted-foreground",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "text-sm font-medium",
+                    active ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
+                <span className="text-xs text-muted-foreground text-center">{description}</span>
+                {active && <Check className="h-4 w-4 text-primary mt-1" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
+}

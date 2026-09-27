@@ -1,0 +1,1018 @@
+import { useEffect, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  financeApi,
+  type CreateTransactionDto,
+  type UpdateTransactionDto,
+  type CreateObjectiveDto,
+  type CalculateQuotaRequest,
+  type TransactionQuery,
+  type TransactionSummaryQuery,
+  type CreateTransferDto,
+  type TransactionRecord,
+} from "@/lib/api/finance";
+import { empresaApi, type CreateEmpresaDto } from "@/lib/api/empresas";
+import {
+  bankingApi,
+  type CreateBankAccountDto,
+  type CreateFinancialAssetDto,
+  type CreateFinancialLiabilityDto,
+  type FxRates,
+} from "@/lib/api/banking";
+import {
+  identityApi,
+  type CreateFinancialBudgetProfileDto,
+  type UpdateFinancialBudgetProfileDto,
+  type UpdateUserDto,
+} from "@/lib/api/identity";
+import {
+  catalogApi,
+  type CreateCategoryDto,
+  type UpdateCategoryDto,
+  type UpdateSubcategoryDto,
+} from "@/lib/api/catalog";
+import { newsApi } from "@/lib/api/news";
+import { authApi } from "@/lib/api/auth";
+import { statementImportApi, type StatementImportProgress } from "@/lib/api/statement-imports";
+import { useAuth } from "@/lib/auth";
+import { getSocket, NEWS_EVENTS, STATEMENT_IMPORT_PROGRESS } from "@/lib/socket";
+
+// ─── Query Keys ───────────────────────────────────────────────────────────────
+
+const qk = {
+  transactions: (userId: string, params?: TransactionQuery) =>
+    ["transactions", userId, params ?? {}] as const,
+  transactionSummary: (userId: string, params: TransactionSummaryQuery) =>
+    [
+      "transaction-summary",
+      userId,
+      params.date_from,
+      params.date_to,
+      params.group_by ?? "day",
+      params.type ?? "",
+    ] as const,
+  objectives: (userId: string) => ["objectives", userId] as const,
+  periods: (userId: string) => ["periods", userId] as const,
+  accounts: (userId: string) => ["bank-accounts", userId] as const,
+  assets: (userId: string) => ["financial-assets", userId] as const,
+  liabilities: (userId: string) => ["financial-liabilities", userId] as const,
+  financialBudgetProfile: (userId: string) => ["financialBudgetProfile", userId] as const,
+  categories: ["categories"] as const,
+  subcategories: (userId: string, categoryId?: number) =>
+    ["subcategories", userId, categoryId] as const,
+  financialSummary: (userId: string) => ["financialSummary", userId] as const,
+  taxSummary: (userId: string, year?: number) => ["taxSummary", userId, year] as const,
+  financialAiAnalysis: (userId: string, periodId?: number) =>
+    ["financialAiAnalysis", userId, periodId ?? null] as const,
+  empresas: (userId: string) => ["empresas", userId] as const,
+  news: ["news"] as const,
+  statementImports: (userId: string) => ["statement-imports", userId] as const,
+  statementImportJob: (userId: string, id: number | null) =>
+    ["statement-import", userId, id] as const,
+  sessions: (userId: string) => ["auth-sessions", userId] as const,
+  accessHistory: (userId: string) => ["auth-access-history", userId] as const,
+};
+
+// ─── Finance Hooks ────────────────────────────────────────────────────────────
+
+export function useTransactions(params?: TransactionQuery) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.transactions(userId ?? "", params),
+    queryFn: async () => {
+      const data = await financeApi.getTransactions(userId!, params);
+      return data.map((t) => ({ ...t, amount: Number(t.amount) }));
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useTransactionSummary(params: TransactionSummaryQuery) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.transactionSummary(userId ?? "", params),
+    queryFn: () => financeApi.getTransactionSummary(userId!, params),
+    enabled: !!userId && !!params.date_from && !!params.date_to,
+  });
+}
+
+export function useCreateTransaction() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateTransactionDto) => financeApi.createTransaction(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteTransaction() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => financeApi.deleteTransaction(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useBulkDeleteTransactions() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => financeApi.bulkDeleteTransactions(userId!, ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateTransaction() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateTransactionDto }) =>
+      financeApi.updateTransaction(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useObjectives() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.objectives(userId ?? ""),
+    queryFn: () => financeApi.getObjectives(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateObjective() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateObjectiveDto) => financeApi.createObjective(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateObjective() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateObjectiveDto> }) =>
+      financeApi.updateObjective(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteObjective() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => financeApi.deleteObjective(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+    },
+  });
+}
+
+// ─── Statement Imports (extractos bancarios) ──────────────────────────────────
+
+const TERMINAL_STATUSES = new Set(["completed", "partial", "failed"]);
+
+const MAX_POLL_JOB_AGE_MS = 10 * 60_000;
+
+function isStuckJob(job: { created_at?: string; status: string }): boolean {
+  if (TERMINAL_STATUSES.has(job.status)) return false;
+  if (!job.created_at) return false;
+  return Date.now() - new Date(job.created_at).getTime() > MAX_POLL_JOB_AGE_MS;
+}
+
+export function useStatementImports() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statementImports(userId ?? ""),
+    queryFn: () => statementImportApi.list(userId!),
+    enabled: !!userId,
+    refetchInterval: (query) => {
+      const jobs = query.state.data;
+      const hasActive = jobs?.some((j) => !TERMINAL_STATUSES.has(j.status));
+      if (!hasActive) return false;
+      if (jobs?.some((j) => !isStuckJob(j))) return 3000;
+      return false;
+    },
+  });
+}
+
+/**
+ * Pollea el lote de importación mientras no esté en estado terminal, de modo que
+ * el frontend avanza aunque se pierdan los eventos de WebSocket. También se
+ * actualiza en tiempo real con los eventos cuando el socket está operativo.
+ */
+export function useStatementImportJob(id: number | null) {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: qk.statementImportJob(userId ?? "", id),
+    queryFn: () => statementImportApi.get(userId!, id!),
+    enabled: !!userId && !!id,
+    refetchInterval: (query) => {
+      const job = query.state.data;
+      if (!job || TERMINAL_STATUSES.has(job.status)) return false;
+      return isStuckJob(job) ? false : 2500;
+    },
+  });
+
+  useEffect(() => {
+    if (query.data && TERMINAL_STATUSES.has(query.data.status)) {
+      queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    }
+  }, [query.data, queryClient, userId]);
+
+  return query;
+}
+
+export function useCreateStatementImport() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (formData: FormData) => statementImportApi.create(userId!, formData),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    },
+  });
+}
+
+export function useRetryStatementImport() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password }: { id: number; password?: string }) =>
+      statementImportApi.retry(userId!, id, password),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+    },
+  });
+}
+
+/**
+ * Escucha el progreso de cargas de extractos por WebSocket. Cuando el lote
+ * termina, invalida transacciones/resumen/saldos/imports para refrescar la UI.
+ */
+export function useStatementImportProgress(onProgress?: (p: StatementImportProgress) => void) {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleProgress = (payload: StatementImportProgress) => {
+      onProgressRef.current?.(payload);
+      if (TERMINAL_STATUSES.has(payload.status)) {
+        queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+        queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+      }
+    };
+    socket.on(STATEMENT_IMPORT_PROGRESS, handleProgress);
+    return () => {
+      socket.off(STATEMENT_IMPORT_PROGRESS, handleProgress);
+    };
+  }, [queryClient, userId]);
+}
+
+// ─── Quota Calculation ────────────────────────────────────────────────────────
+
+export function useCalculateQuota() {
+  const { userId } = useAuth();
+  return useMutation({
+    mutationFn: (dto: CalculateQuotaRequest) => financeApi.calculateQuota(userId!, dto),
+  });
+}
+
+export type { CalculateQuotaResponse } from "@/lib/api/finance";
+
+// ─── Transfers ───────────────────────────────────────────────────────────────
+
+/** A transfer moves money between accounts, objectives and credit cards (liabilities). */
+function invalidateTransferData(qc: ReturnType<typeof useQueryClient>, userId: string | null) {
+  const uid = userId ?? "";
+  for (const queryKey of [
+    ["transfers"],
+    qk.transactions(uid),
+    ["transaction-summary", uid],
+    qk.accounts(uid),
+    qk.objectives(uid),
+    qk.liabilities(uid),
+  ]) {
+    qc.invalidateQueries({ queryKey });
+  }
+}
+
+export function useCreateTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateTransferDto) => financeApi.createTransfer(userId!, dto),
+    onSuccess: () => invalidateTransferData(qc, userId),
+  });
+}
+
+export function useDeleteTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => financeApi.deleteTransfer(userId!, id),
+    onSuccess: () => invalidateTransferData(qc, userId),
+  });
+}
+
+export function useUpdateTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateTransferDto> }) =>
+      financeApi.updateTransfer(userId!, id, dto),
+    onSuccess: () => invalidateTransferData(qc, userId),
+  });
+}
+
+// ─── Banking Hooks ────────────────────────────────────────────────────────────
+
+export function useBankAccounts() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.accounts(userId ?? ""),
+    queryFn: () => bankingApi.getAccounts(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateBankAccount() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateBankAccountDto) => bankingApi.createAccount(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateBankAccount() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateBankAccountDto> }) =>
+      bankingApi.updateAccount(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteBankAccount() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => bankingApi.deleteAccount(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+    },
+  });
+}
+
+const FX_CACHE_KEY = "cost-manager.fx-rates.v1";
+const FX_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+
+function readFxCache(): { data: FxRates; cachedAt: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FX_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: FxRates; cachedAt: number };
+    if (!parsed?.data || typeof parsed.cachedAt !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeFxCache(data: FxRates): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FX_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() }));
+  } catch {
+    // Sin acceso a localStorage (modo privado, cuota llena): ignorar.
+  }
+}
+
+export function useExchangeRate() {
+  const cached = useMemo(() => readFxCache(), []);
+  const isFresh = cached && Date.now() - cached.cachedAt < FX_CACHE_MAX_AGE;
+  const query = useQuery<FxRates, Error>({
+    queryKey: ["currency-rates"],
+    queryFn: () => bankingApi.getCurrencyRates(),
+    initialData: isFresh ? cached.data : undefined,
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: 6 * 60 * 60 * 1000,
+    retry: 1,
+  });
+  useEffect(() => {
+    if (query.data) writeFxCache(query.data);
+  }, [query.data]);
+  return query;
+}
+
+export function useFinancialAssets() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.assets(userId ?? ""),
+    queryFn: () => bankingApi.getAssets(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateFinancialAsset() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateFinancialAssetDto) => bankingApi.createAsset(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateFinancialAsset() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateFinancialAssetDto> }) =>
+      bankingApi.updateAsset(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteFinancialAsset() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => bankingApi.deleteAsset(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
+export function useRefreshAssetQuotes() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => bankingApi.getAssetQuotes(userId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+    },
+  });
+}
+
+export function useFinancialLiabilities() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.liabilities(userId ?? ""),
+    queryFn: () => bankingApi.getLiabilities(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateFinancialLiability() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateFinancialLiabilityDto) => bankingApi.createLiability(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateFinancialLiability() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateFinancialLiabilityDto> }) =>
+      bankingApi.updateLiability(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteFinancialLiability() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => bankingApi.deleteLiability(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+    },
+  });
+}
+
+export function useNetWorth() {
+  const accounts = useBankAccounts();
+  const assets = useFinancialAssets();
+  const liabilities = useFinancialLiabilities();
+
+  const isLoading = accounts.isLoading || assets.isLoading || liabilities.isLoading;
+  const error = accounts.error ?? assets.error ?? liabilities.error;
+
+  const summary =
+    accounts.data && assets.data && liabilities.data
+      ? bankingApi.computeNetWorth(assets.data, liabilities.data, accounts.data)
+      : null;
+
+  return { summary, isLoading, error };
+}
+
+// ─── Identity Hooks - Financial Budget Profile ────────────────────────────────
+
+export function useUpdateUser() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: UpdateUserDto) => identityApi.updateUser(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["user", userId ?? ""] });
+    },
+  });
+}
+
+export function useFinancialBudgetProfile() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.financialBudgetProfile(userId ?? ""),
+    queryFn: () => identityApi.getFinancialBudgetProfile(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateFinancialBudgetProfile() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateFinancialBudgetProfileDto) =>
+      identityApi.createFinancialBudgetProfile(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.financialBudgetProfile(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateFinancialBudgetProfile() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: UpdateFinancialBudgetProfileDto) =>
+      identityApi.updateFinancialBudgetProfile(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.financialBudgetProfile(userId ?? "") });
+    },
+  });
+}
+
+// ─── Catalog Hooks ────────────────────────────────────────────────────────────
+
+export function useCategories() {
+  return useQuery({
+    queryKey: qk.categories,
+    queryFn: () => catalogApi.getCategories(),
+  });
+}
+
+export function useSubcategories(categoryId?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.subcategories(userId ?? "", categoryId),
+    queryFn: () => catalogApi.getSubcategories(userId!, categoryId),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateSubcategory() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: {
+      category_id: number;
+      name: string;
+      icon_key?: string;
+      color_hex?: string;
+    }) => catalogApi.createSubcategory(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
+    },
+  });
+}
+
+export function useUpdateSubcategory() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: UpdateSubcategoryDto }) =>
+      catalogApi.updateSubcategory(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
+    },
+  });
+}
+
+export function useDeleteSubcategory() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => catalogApi.deleteSubcategory(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subcategories"] });
+    },
+  });
+}
+
+export function useCreateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateCategoryDto) => catalogApi.createCategory(dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.categories });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: UpdateCategoryDto }) =>
+      catalogApi.updateCategory(id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.categories });
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => catalogApi.deleteCategory(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.categories });
+    },
+  });
+}
+
+// ─── Empresas Hooks ─────────────────────────────────────────────────────────
+
+export function useEmpresas() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.empresas(userId ?? ""),
+    queryFn: () => empresaApi.getEmpresas(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCreateEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateEmpresaDto) => empresaApi.createEmpresa(userId!, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: Partial<CreateEmpresaDto> }) =>
+      empresaApi.updateEmpresa(userId!, id, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+    },
+  });
+}
+
+export function useDeleteEmpresa() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => empresaApi.deleteEmpresa(userId!, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+    },
+  });
+}
+
+export function useCloneTransaction() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      dto,
+    }: {
+      id: number;
+      dto?: { transaction_date?: string; amount?: number; description?: string };
+    }) => api.post<TransactionRecord>(`users/${userId}/transactions/${id}/clone`, dto ?? {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+    },
+  });
+}
+
+export function useCloneTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      dto,
+    }: {
+      id: number;
+      dto?: { transaction_date?: string; amount?: number; description?: string };
+    }) => financeApi.cloneTransfer(userId ?? "", String(id), dto),
+    onSuccess: () => invalidateTransferData(qc, userId),
+  });
+}
+
+// ─── Intelligence Hooks ───────────────────────────────────────────────────────
+
+import { api, apiFetchBlob, downloadBlob } from "@/lib/api/client";
+
+export interface TaxSummary {
+  id: number;
+  user_id: number;
+  fiscal_year: number;
+  total_income: number;
+  total_assets: number;
+  total_liabilities: number;
+  patrimony: number | null;
+  income_in_uvt: number | null;
+  assets_in_uvt: number | null;
+  uvt_value: number;
+  must_declare: boolean;
+  estimated_tax: number | null;
+  created_at: string;
+}
+
+function normalizeTaxSummary(t: TaxSummary): TaxSummary {
+  return {
+    ...t,
+    fiscal_year: Number(t.fiscal_year),
+    total_income: Number(t.total_income ?? 0),
+    total_assets: Number(t.total_assets ?? 0),
+    total_liabilities: Number(t.total_liabilities ?? 0),
+    patrimony: t.patrimony != null ? Number(t.patrimony) : null,
+    income_in_uvt: t.income_in_uvt != null ? Number(t.income_in_uvt) : null,
+    assets_in_uvt: t.assets_in_uvt != null ? Number(t.assets_in_uvt) : null,
+    uvt_value: Number(t.uvt_value ?? 0),
+    estimated_tax: t.estimated_tax != null ? Number(t.estimated_tax) : null,
+  };
+}
+
+export function useTaxSummary(year?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.taxSummary(userId ?? "", year),
+    queryFn: async () => {
+      const qs = year ? `?year=${year}` : "";
+      const result = await api.get<TaxSummary[]>(`users/${userId}/intelligence/tax-summary${qs}`);
+      return normalizeTaxSummary(Array.isArray(result) ? result[0] : result);
+    },
+    enabled: !!userId,
+  });
+}
+
+export interface UpdateTaxSummaryDto {
+  total_income?: number;
+  total_assets?: number;
+  total_liabilities?: number;
+  uvt_value?: number;
+  estimated_tax?: number;
+  must_declare?: boolean;
+}
+
+export function useCalculateTaxSummary() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params?: { year?: number; uvt?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.year) qs.set("year", String(params.year));
+      if (params?.uvt) qs.set("uvt", String(params.uvt));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      return api.post<TaxSummary>(
+        `users/${userId}/intelligence/tax-summary/calculate${suffix}`,
+        {},
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.taxSummary(userId ?? "") });
+    },
+  });
+}
+
+export function useUpdateTaxSummary() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: UpdateTaxSummaryDto }) =>
+      api.put<TaxSummary>(`users/${userId}/intelligence/tax-summary/${id}`, dto),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.taxSummary(userId ?? "") });
+    },
+  });
+}
+
+export interface FinancialInsight {
+  type: string;
+  severity: string;
+  message: string;
+  category_id?: number;
+  suggested_action?: string;
+}
+
+export interface FinancialAiAnalysis {
+  id: number;
+  user_id: number;
+  financial_period_id: number;
+  total_income: number;
+  total_expense: number;
+  total_debt: number;
+  net_worth: number;
+  expense_ratio: number | null;
+  debt_ratio: number | null;
+  savings_rate: number | null;
+  recommended_max_expense: number | null;
+  recommended_savings: number | null;
+  is_over_spending: boolean;
+  is_over_indebted: boolean;
+  insights: FinancialInsight[];
+  calculated_at: string | null;
+  is_final: boolean;
+  narrative: string;
+  recommendations: string[];
+  provider: string;
+  generated_at: string;
+}
+
+function buildPeriodQuery(periodId?: number): string {
+  return periodId ? `?periodId=${periodId}` : "";
+}
+
+function normalizeFinancialAiAnalysis(
+  a: FinancialAiAnalysis | undefined,
+): FinancialAiAnalysis | undefined {
+  if (!a) return undefined;
+  return {
+    ...a,
+    total_income: Number(a.total_income ?? 0),
+    total_expense: Number(a.total_expense ?? 0),
+    total_debt: Number(a.total_debt ?? 0),
+    net_worth: Number(a.net_worth ?? 0),
+    expense_ratio: a.expense_ratio != null ? Number(a.expense_ratio) : null,
+    debt_ratio: a.debt_ratio != null ? Number(a.debt_ratio) : null,
+    savings_rate: a.savings_rate != null ? Number(a.savings_rate) : null,
+    recommended_max_expense:
+      a.recommended_max_expense != null ? Number(a.recommended_max_expense) : null,
+    recommended_savings: a.recommended_savings != null ? Number(a.recommended_savings) : null,
+    recommendations: Array.isArray(a.recommendations) ? a.recommendations : [],
+  };
+}
+
+export function useFinancialAiAnalysis(periodId?: number) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.financialAiAnalysis(userId ?? "", periodId),
+    queryFn: async () => {
+      const result = await api.get<FinancialAiAnalysis[]>(
+        `users/${userId}/intelligence/ai-analysis${buildPeriodQuery(periodId)}`,
+      );
+      return normalizeFinancialAiAnalysis(Array.isArray(result) ? result[0] : result);
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useDownloadFinancialAiReport() {
+  const { userId } = useAuth();
+  return useMutation({
+    mutationFn: async (periodId?: number) => {
+      if (!userId) throw new Error("No hay un usuario autenticado.");
+      const { blob, filename } = await apiFetchBlob(
+        `users/${userId}/intelligence/report${buildPeriodQuery(periodId)}`,
+      );
+      downloadBlob(blob, filename ?? `reporte-financiero-${userId}.pdf`);
+    },
+  });
+}
+
+export function useNews(limit?: number) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleNewNews = () => {
+      queryClient.invalidateQueries({ queryKey: qk.news });
+    };
+
+    socket.on(NEWS_EVENTS.NEW_NEWS, handleNewNews);
+    return () => {
+      socket.off(NEWS_EVENTS.NEW_NEWS, handleNewNews);
+    };
+  }, [queryClient]);
+
+  return useQuery({
+    queryKey: [...qk.news, limit],
+    queryFn: () => newsApi.getNews(limit),
+    staleTime: 60_000,
+  });
+}
+
+// ─── Auth Hooks - Sessions & Access History ───────────────────────────────────
+
+export function useSessions() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.sessions(userId ?? ""),
+    queryFn: () => authApi.getSessions(),
+    enabled: !!userId,
+  });
+}
+
+export function useRevokeSession() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => authApi.revokeSession(sessionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.sessions(userId ?? "") });
+    },
+  });
+}
+
+export function useAccessHistory() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.accessHistory(userId ?? ""),
+    queryFn: () => authApi.getAccessHistory(),
+    enabled: !!userId,
+  });
+}
