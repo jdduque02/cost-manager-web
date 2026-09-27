@@ -125,7 +125,10 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
 
   const isPendingSubmit = createTransfer.isPending || updateTransfer.isPending;
 
-  const sourceBalance = sourceAccount ? Number(sourceAccount.display_balance) : 0;
+  // When editing, the balance already has this transfer subtracted: add it back.
+  const sourceBalance = sourceAccount
+    ? Number(sourceAccount.display_balance) + (transfer ? Number(transfer.amount) : 0)
+    : 0;
   const transferAmount = amount ? parseCurrency(amount) : 0;
   const insufficientBalance = isInsufficientBalance(transferAmount, sourceBalance);
 
@@ -139,7 +142,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       description: description || undefined,
       objective_id: objectiveId ? Number(objectiveId) : undefined,
       company_id: companyId ? Number(companyId) : undefined,
-      is_fixed: isFixed || undefined,
+      is_fixed: isFixed,
       fixed_type: isFixed ? ("deduction" as const) : undefined,
       frequency: fixedOpt(frequency as FixedFrequency),
       due_day: fixedOpt(dueDay ? Number(dueDay) : undefined),
