@@ -16,11 +16,11 @@ interface CurrencyInputProps {
  * Normalize display/user input into a raw amount:
  * digits + optional "." decimal (max 2 places). No thousand separators.
  *
- * Display uses es-CO ("." thousands, "," decimal). While typing, the browser
- * sends the formatted string back (e.g. "4.890" + "0" → "4.8900"), so dots
- * must be treated as thousands unless they clearly mark a decimal.
+ * Display is es-CO ("." thousands, "," decimal). A single "." followed by 0–2
+ * digits is still read as a decimal (en keyboard / pasted USD "12.50"), except
+ * while deleting: backspace on "1.500" leaves "1.50", which must stay 150.
  */
-function parseUserInput(input: string): string {
+function parseUserInput(input: string, deleting = false): string {
   if (!input) return "";
 
   // Comma = decimal (es-CO keyboard / explicit decimal)
@@ -38,22 +38,13 @@ function parseUserInput(input: string): string {
   }
 
   const s = input.replace(/[^0-9.]/g, "");
-  if (!s) return "";
-
-  const parts = s.split(".");
-  if (parts.length === 1) return parts[0];
-
-  // Multiple dots → thousand separators only (1.234.567)
-  if (parts.length > 2) return parts.join("");
-
-  // Single dot: "4.8900" (continue typing after thousands) vs "4.99" (decimal)
-  const after = parts[1] ?? "";
-  if (after.length >= 3) {
-    // 3+ digits after one dot → thousands (48.900 / 4.8900)
-    return parts[0] + after;
+  const digits = s.replace(/\./g, "");
+  if (!digits) return "";
+  const [intPart, decPart, ...rest] = s.split(".");
+  if (!deleting && decPart !== undefined && !rest.length && decPart.length <= 2) {
+    return `${intPart}.${decPart}`;
   }
-  // 0–2 digits → decimal (4.9 / 4.99 / "12.")
-  return parts[0] + "." + after.slice(0, 2);
+  return digits;
 }
 
 /** Format raw amount for es-CO display. */
@@ -90,7 +81,8 @@ export function CurrencyInput({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = parseUserInput(e.target.value);
+      const inputType = (e.nativeEvent as InputEvent).inputType ?? "";
+      const raw = parseUserInput(e.target.value, inputType.startsWith("delete"));
       setDisplayValue(formatDisplay(raw));
       onChange(raw);
     },
