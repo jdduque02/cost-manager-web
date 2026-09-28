@@ -2,7 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n/errors";
-import { availableCredit, type FinancialLiability } from "@/lib/api/banking";
+import {
+  availableCredit,
+  type FinancialAsset,
+  type BankAccount,
+  type FinancialLiability,
+} from "@/lib/api/banking";
 import { WealthDialog } from "./WealthDialog";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -26,6 +31,21 @@ vi.mock("@/lib/hooks/use-api", () => {
 
 describe("WealthDialog", () => {
   const defaultProps = { open: true, onOpenChange: vi.fn() };
+
+  const liability = (over: Partial<FinancialLiability>): FinancialLiability => ({
+    id: 5,
+    user_id: 1,
+    liability_type: "tarjeta_credito",
+    name: "Visa",
+    current_balance: 300000,
+    currency: "COP",
+    created_at: "2026-01-01",
+    updated_at: null,
+    ...over,
+  });
+
+  const lastDto = (): Record<string, unknown> =>
+    (mockMutate.mock.calls[0][0] as { dto: Record<string, unknown> }).dto;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,18 +110,6 @@ describe("WealthDialog", () => {
   });
 
   describe("campos solo para tarjeta", () => {
-    const liability = (over: Partial<FinancialLiability>): FinancialLiability => ({
-      id: 5,
-      user_id: 1,
-      liability_type: "tarjeta_credito",
-      name: "Visa",
-      current_balance: 300000,
-      currency: "COP",
-      created_at: "2026-01-01",
-      updated_at: null,
-      ...over,
-    });
-
     it("muestra cupo, día de corte y día de pago en una tarjeta y los envía", async () => {
       const user = userEvent.setup({ pointerEventsCheck: 0 });
       render(
@@ -139,6 +147,62 @@ describe("WealthDialog", () => {
       expect(dto).not.toHaveProperty("credit_limit");
       expect(dto).not.toHaveProperty("statement_day");
       expect(dto).not.toHaveProperty("payment_due_day");
+    });
+  });
+
+  describe("saldo inicial no negativo", () => {
+    // Regresión del 400 IS_MIN: CurrencyInput borra el "-", así que un saldo negativo en BD se veía
+    // positivo en pantalla y se reenviaba negativo al guardar sin tocar el campo.
+    it.each([
+      ["negativo", -150000, "0", 0],
+      ["cero", 0, "0", 0],
+      ["positivo", 300000, "300.000", 300000],
+    ] as const)(
+      "siembra y envía un saldo %s al editar un pasivo",
+      async (_caso, currentBalance, shown, enviado) => {
+        const user = userEvent.setup({ pointerEventsCheck: 0 });
+        render(
+          <WealthDialog
+            {...defaultProps}
+            entityType="liability"
+            entity={liability({ current_balance: currentBalance })}
+          />,
+        );
+        await user.click(screen.getByRole("button", { name: "Actualizar" }));
+
+        expect(lastDto()).toMatchObject({ current_balance: enviado });
+        expect(screen.getByLabelText("Saldo actual")).toHaveValue(shown);
+      },
+    );
+
+    it("siembra y envía un saldo no negativo al editar una cuenta", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(
+        <WealthDialog
+          {...defaultProps}
+          entityType="account"
+          entity={{ bank_name: "Nu", display_balance: "-150000" } as BankAccount}
+        />,
+      );
+      expect(screen.getByLabelText("Saldo")).toHaveValue("0");
+      await user.click(screen.getByRole("button", { name: "Actualizar" }));
+
+      expect(lastDto()).toMatchObject({ balance: 0 });
+    });
+
+    it("siembra y envía un saldo no negativo al editar un activo", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(
+        <WealthDialog
+          {...defaultProps}
+          entityType="asset"
+          entity={{ asset_type: "acciones", name: "CDT", current_value: -150000 } as FinancialAsset}
+        />,
+      );
+      expect(screen.getByLabelText("Valor actual")).toHaveValue("0");
+      await user.click(screen.getByRole("button", { name: "Actualizar" }));
+
+      expect(lastDto()).toMatchObject({ current_value: 0 });
     });
   });
 
