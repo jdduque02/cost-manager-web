@@ -869,7 +869,8 @@ export function Wealth() {
                       outerRadius={85}
                       paddingAngle={3}
                       dataKey="value"
-                      stroke="none"
+                      stroke={colors.cardBorder}
+                      strokeWidth={1}
                     >
                       {wealthComposition.map((c, i) => (
                         <Cell key={`${c.name}-${i}`} fill={COLORS[i % COLORS.length]} />
