@@ -316,7 +316,6 @@ export function AdminUsers() {
           <TableBody>
             {listQuery.isLoading &&
               Array.from({ length: 5 }).map((_, i) => (
-                // eslint-disable-next-line react/no-array-index-key -- static skeleton rows never reorder
                 <TableRow key={`skeleton-${i}`}>
                   <TableCell colSpan={6}>
                     <Skeleton className="h-10 w-full" />

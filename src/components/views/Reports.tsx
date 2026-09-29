@@ -163,8 +163,11 @@ export function Reports() {
       "custom",
     ] as const).withDefault("this-month"),
   );
-  const [customFrom, setCustomFrom] = useQueryState("from", parseAsIsoDate.withDefault(null));
-  const [customTo, setCustomTo] = useQueryState("to", parseAsIsoDate.withDefault(null));
+  // Sin withDefault: el parser queda nullable (Date | null) y con `null` como
+  // default no compilaba, porque withDefault exige NonNullable<T>. El preset
+  // "custom" es el único que usa estas fechas.
+  const [customFrom, setCustomFrom] = useQueryState("from", parseAsIsoDate);
+  const [customTo, setCustomTo] = useQueryState("to", parseAsIsoDate);
   const [groupBy, setGroupBy] = useQueryState(
     "groupBy",
     parseAsStringEnum(["day", "week", "month"] as const),

@@ -13,17 +13,23 @@ test.describe("Navegación", () => {
 
   test("puede navegar a transacciones", async ({ authenticatedPage: page }) => {
     await page.goto("/transactions");
-    await expect(page.getByRole("heading", { name: /transacciones/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /transacciones/i })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("puede navegar a categorías", async ({ authenticatedPage: page }) => {
     await page.goto("/categories");
-    await expect(page.getByRole("heading", { name: /categorías/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /categorías/i })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("puede registrar una transacción manualmente", async ({ authenticatedPage: page }) => {
     await page.goto("/transactions");
-    await expect(page.getByRole("heading", { name: /transacciones/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /transacciones/i })).toBeVisible({
+      timeout: 10000,
+    });
     await page.getByRole("button", { name: "Nueva", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
   });

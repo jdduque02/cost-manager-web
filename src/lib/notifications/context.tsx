@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   connectSocket,
   disconnectSocket,
@@ -118,9 +126,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   return (
-    <NotificationContext.Provider value={contextValue}>
-      {children}
-    </NotificationContext.Provider>
+    <NotificationContext.Provider value={contextValue}>{children}</NotificationContext.Provider>
   );
 }
 

@@ -69,10 +69,12 @@ function CalendarDayButton({
       {info && info.count > 0 && (
         <span className="pointer-events-none absolute bottom-0.5 flex items-center gap-0.5">
           {info.count > 2 ? (
-            <span className={cn(
-              "text-[0.55rem] font-semibold leading-none tabular-nums",
-              modifiers.selected ? "text-primary-foreground" : "text-muted-foreground",
-            )}>
+            <span
+              className={cn(
+                "text-[0.55rem] font-semibold leading-none tabular-nums",
+                modifiers.selected ? "text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
               {info.count}
             </span>
           ) : (
