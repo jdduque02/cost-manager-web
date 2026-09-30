@@ -4,8 +4,12 @@ import { test } from "./fixtures/index";
 test.describe("Categorías", () => {
   test("muestra lista de categorías", async ({ authenticatedPage: page }) => {
     await page.goto("/categories");
-    await expect(page.getByRole("heading", { name: /categorías/i })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole("button", { name: /nueva categoría/i })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("heading", { name: /categorías/i })).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByRole("button", { name: /nueva categoría/i })).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("puede abrir diálogo de nueva categoría", async ({ authenticatedPage: page }) => {

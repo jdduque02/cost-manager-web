@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { withNuqsTestingAdapter } from "nuqs/adapters/testing";
 import { Reports } from "./Reports";
 import { useTransactionSummary } from "@/lib/hooks/use-api";
 
+vi.mock("./FinancialStatements", () => ({
+  FinancialStatements: () => <div data-testid="financial-statements" />,
+}));
 vi.mock("highcharts-react-official", () => ({ default: () => null }));
 vi.mock("@/lib/hooks/use-formatted-amount", () => ({
   useFormattedAmount: () => (v: number, o?: { currency?: string }) =>
@@ -62,5 +66,22 @@ describe("Reports", () => {
     render(<Reports />, { wrapper: withNuqsTestingAdapter() });
     expect(screen.getByText("Sin clasificar")).toBeInTheDocument();
     expect(screen.queryByText("Categoría 0")).not.toBeInTheDocument();
+  });
+
+  it("abre por defecto la pestaña «Movimientos» con lo de siempre y sin montar los estados", () => {
+    render(<Reports />, { wrapper: withNuqsTestingAdapter() });
+    expect(screen.getByRole("tab", { name: "Movimientos" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Gastos por categoría")).toBeInTheDocument();
+    expect(screen.queryByTestId("financial-statements")).not.toBeInTheDocument();
+  });
+
+  it("al cambiar a «Estados financieros» monta FinancialStatements y desmonta Movimientos", async () => {
+    render(<Reports />, { wrapper: withNuqsTestingAdapter() });
+    await userEvent.click(screen.getByRole("tab", { name: "Estados financieros" }));
+    expect(screen.getByTestId("financial-statements")).toBeInTheDocument();
+    expect(screen.queryByText("Gastos por categoría")).not.toBeInTheDocument();
   });
 });

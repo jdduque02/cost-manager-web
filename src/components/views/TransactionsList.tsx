@@ -989,6 +989,7 @@ export function TransactionsList() {
           <div className="flex items-center gap-2">
             <input
               type="date"
+              aria-label="Desde"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               placeholder="Desde"
@@ -997,6 +998,7 @@ export function TransactionsList() {
             <span className="text-xs text-muted-foreground">a</span>
             <input
               type="date"
+              aria-label="Hasta"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               placeholder="Hasta"

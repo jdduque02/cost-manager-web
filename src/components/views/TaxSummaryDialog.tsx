@@ -68,11 +68,7 @@ export function TaxSummaryDialog({ open, onOpenChange, taxSummary }: TaxSummaryD
           onOpenChange(false);
         },
         onError: (err) =>
-          toast.error(
-            err instanceof Error && err.message
-              ? err.message
-              : t("err.tax.update"),
-          ),
+          toast.error(err instanceof Error && err.message ? err.message : t("err.tax.update")),
       },
     );
   }

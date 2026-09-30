@@ -213,10 +213,7 @@ export function EmailTemplates() {
                   {(segments) => (
                     <nav className="flex flex-wrap items-center gap-1 text-xs">
                       {segments.map((segment, index) => (
-                        <span
-                          key={segment.node.nodeType}
-                          className="flex items-center gap-1"
-                        >
+                        <span key={segment.node.nodeType} className="flex items-center gap-1">
                           {index > 0 && <span className="text-muted-foreground">/</span>}
                           <button
                             onClick={segment.focus}

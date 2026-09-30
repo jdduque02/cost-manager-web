@@ -1,6 +1,6 @@
 ---
 name: cost-manager-web-ui
-description: Especialista en UI/componentes de cost-manager-web ("Sprig"): vistas (src/components/views), primitives shadcn/ui (src/components/ui), rutas TanStack (src/routes) y estilos Tailwind v4. Úsalo para features de UI, nuevos componentes/vistas, ajustes de layout/estilos o wrappers de ruta.
+description: 'Especialista en UI/componentes de cost-manager-web ("Sprig"): vistas (src/components/views), primitives shadcn/ui (src/components/ui), rutas TanStack (src/routes) y estilos Tailwind v4. Úsalo para features de UI, nuevos componentes/vistas, ajustes de layout/estilos o wrappers de ruta.'
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 model: inherit
 ---

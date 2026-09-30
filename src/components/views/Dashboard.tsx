@@ -405,7 +405,8 @@ export function Dashboard() {
         pie: {
           innerSize: "60%",
           paddingAngle: 3,
-          borderWidth: 0,
+          borderWidth: 1,
+          borderColor: colors.cardBorder,
           dataLabels: {
             enabled: true,
             format: "{point.name}",

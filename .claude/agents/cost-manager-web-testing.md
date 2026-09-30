@@ -1,6 +1,6 @@
 ---
 name: cost-manager-web-testing
-description: Especialista en testing de cost-manager-web ("Sprig"): tests unitarios Vitest + Testing Library junto a componentes/hooks, y flujos e2e Playwright en e2e/. Úsalo para escribir/actualizar tests de una feature ya implementada, o para cubrir gaps de testing detectados en code review.
+description: 'Especialista en testing de cost-manager-web ("Sprig"): tests unitarios Vitest + Testing Library junto a componentes/hooks, y flujos e2e Playwright en e2e/. Úsalo para escribir/actualizar tests de una feature ya implementada, o para cubrir gaps de testing detectados en code review.'
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 model: inherit
 ---
