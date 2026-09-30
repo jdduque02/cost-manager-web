@@ -24,5 +24,13 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // Los fixtures de Playwright reciben un callback `use(...)` propio del framework,
+    // que react-hooks confunde con el hook `use` de React.
+    files: ["e2e/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
   eslintPluginPrettier,
 );

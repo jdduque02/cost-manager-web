@@ -41,10 +41,7 @@ if (!token) {
   process.exit(1);
 }
 
-const serverUrl =
-  process.env.SONAR_HOST_URL ||
-  env.SONAR_HOST_URL ||
-  "http://localhost:9000";
+const serverUrl = process.env.SONAR_HOST_URL || env.SONAR_HOST_URL || "http://localhost:9000";
 
 scanner(
   {

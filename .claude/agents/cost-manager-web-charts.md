@@ -20,6 +20,19 @@ El proyecto ya tiene **Highcharts** (`highcharts-react-official`) **y** **Rechar
 
 Usa `fmtCurrency`/`parseCurrency` de `src/lib/format.ts` (es-CO/COP) para ejes, tooltips y labels. No formatees moneda a mano dentro de la configuración del chart.
 
+## Contraste de la paleta en ambos modos (regla dura)
+
+Un `--chart-N` tiene que contrastar **≥3:1 contra `--card` y `--background` en light y en dark**.
+`--card`, `--surface`, `--muted` y `--border` **nunca** son colores válidos para una serie: en dark son
+verdes profundos y un token que coincida con ellos borra la porción (pasó con `--chart-2`, 2026-09-27).
+
+Al cambiar la paleta de dark (`src/styles.css`), el mismo juego de `--chart-N` está duplicado en
+`Sprig-movil/global.css` y `Sprig-movil/src/theme/palette.ts`: el test de paridad del móvil solo compara
+esos dos entre sí, no contra la web. Cambia los tres y revisa la 3ra porción del donut en ambos clientes.
+
+Las porciones de un donut llevan borde separador de 1 px con `--border`: Highcharts `borderWidth: 1` +
+`borderColor: colors.cardBorder`, Recharts `stroke` + `strokeWidth`. El borde separa vecinos; no
+sustituye el contraste del token.
 ## Gestor de paquetes
 
 Usa siempre `pnpm`. Nunca `npm` ni `yarn`.
