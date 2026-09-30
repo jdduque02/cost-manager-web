@@ -5,11 +5,15 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  HeartPulse,
   Inbox,
+  Landmark,
   Receipt,
   Waves,
   type LucideIcon,
 } from "lucide-react";
+import Highcharts from "@/lib/highcharts";
+import HighchartsReact from "highcharts-react-official";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,12 +26,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { useCashFlowStatement, useCategories, useIncomeStatement } from "@/lib/hooks/use-api";
-import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import {
+  useBalanceSheet,
+  useCashFlowStatement,
+  useCategories,
+  useFinancialHealth,
+  useIncomeStatement,
+} from "@/lib/hooks/use-api";
+import { useAmountsHidden, useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
+import { useChartColors } from "@/lib/hooks/use-chart-colors";
 import { summaryCategoryName } from "@/lib/api/finance";
 import {
   paymentMethodLabel,
+  type BalanceCurrencyStatement,
+  type CreditCardLine,
+  type HealthCurrencyIndicators,
   type IncomeCurrencyStatement,
+  type NetWorthEvolutionPoint,
   type StatementPeriod,
   type StatementVariance,
 } from "@/lib/api/statements";
@@ -45,6 +60,15 @@ const signedPctFmt = new Intl.NumberFormat("es-CO", {
 
 /** `*_pct` del API viene en escala 0–100. `null` → "sin datos", nunca 0. */
 const fmtPct = (v: number | null) => (v == null ? NO_DATA : pctFmt.format(v / 100));
+
+const decimalFmt = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
+const compactFmt = new Intl.NumberFormat("es-CO", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+/** Número con unidad ("1,5 veces", "3 meses"); `null` → "sin datos". */
+const fmtUnit = (v: number | null, unit: string) =>
+  v == null ? NO_DATA : `${decimalFmt.format(v)} ${unit}`;
 
 type AmountFormatter = ReturnType<typeof useFormattedAmount>;
 
@@ -69,6 +93,12 @@ function shiftPeriod(p: StatementPeriod, delta: number): string {
 
 const periodLabel = (p: StatementPeriod) =>
   new Date(p.year, p.month - 1, 1).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+
+const fmtMonth = (yyyyMm: string) =>
+  new Date(`${yyyyMm}-01T00:00:00`).toLocaleDateString("es-CO", {
+    month: "short",
+    year: "numeric",
+  });
 
 const fmtDay = (iso: string) =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
@@ -460,6 +490,322 @@ function CashFlowCard({ period }: { period: StatementPeriod }) {
   );
 }
 
+// ─── Balance ─────────────────────────────────────────────────────────────────
+
+const ASSET_ROWS = [
+  { key: "liquid", label: "Líquidos" },
+  { key: "investable", label: "Invertibles" },
+  { key: "illiquid", label: "Ilíquidos" },
+] as const;
+
+const LIABILITY_ROWS = [
+  { key: "short_term", label: "Corto plazo" },
+  { key: "long_term", label: "Largo plazo" },
+] as const;
+
+function AmountList({
+  title,
+  rows,
+  total,
+}: {
+  title: string;
+  rows: { label: string; value: string }[];
+  total: string;
+}) {
+  return (
+    <div className="text-sm">
+      <h3 className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">{title}</h3>
+      <dl className="space-y-1">
+        {rows.map((r) => (
+          <div key={r.label} className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">{r.label}</dt>
+            <dd className="tabular-nums">{r.value}</dd>
+          </div>
+        ))}
+        <div className="flex justify-between gap-2 border-t border-border pt-1 font-medium">
+          <dt>Total</dt>
+          <dd className="tabular-nums">{total}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function BalanceBlock({ b, fmt }: { b: BalanceCurrencyStatement; fmt: AmountFormatter }) {
+  const money = (v: number) => fmt(v, { currency: b.currency });
+  return (
+    <CurrencyBlock currency={b.currency}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <AmountList
+          title="Activos"
+          rows={ASSET_ROWS.map(({ key, label }) => ({ label, value: money(b.assets[key]) }))}
+          total={money(b.assets.total)}
+        />
+        <AmountList
+          title="Pasivos"
+          rows={LIABILITY_ROWS.map(({ key, label }) => ({
+            label,
+            value: money(b.liabilities[key]),
+          }))}
+          total={money(b.liabilities.total)}
+        />
+      </div>
+      <Stat label="Patrimonio neto" value={money(b.net_worth)} tone={signTone(b.net_worth)} />
+    </CurrencyBlock>
+  );
+}
+
+function CreditCardRow({ c, fmt }: { c: CreditCardLine; fmt: AmountFormatter }) {
+  const money = (v: number) => fmt(v, { currency: c.currency });
+  return (
+    <li
+      data-testid={`credit-card-${c.liability_id}`}
+      data-high={c.is_high || undefined}
+      className={cn(
+        "rounded-xl border p-3 text-sm",
+        c.is_high ? "border-warning/40 bg-warning/10" : "border-border",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">{c.name}</span>
+        {c.is_high && (
+          <Badge tone="warning">
+            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+            Uso alto
+          </Badge>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Saldo <span className="tabular-nums text-foreground">{money(c.balance)}</span>
+        {c.utilization_pct == null ? (
+          " · sin cupo registrado"
+        ) : (
+          <>
+            {" · "}
+            {fmtPct(c.utilization_pct)} del cupo · disponible{" "}
+            <span className="tabular-nums text-foreground">
+              {c.available == null ? NO_DATA : money(c.available)}
+            </span>
+          </>
+        )}
+      </p>
+    </li>
+  );
+}
+
+/**
+ * Una línea por moneda, cada una con su eje: COP y USD en un mismo eje aplanarían la menor y un
+ * doble eje confunde. Una sola serie por gráfica, así que no lleva leyenda.
+ */
+function NetWorthLine({
+  currency,
+  points,
+}: {
+  currency: string;
+  points: NetWorthEvolutionPoint[];
+}) {
+  const fmt = useFormattedAmount();
+  const hidden = useAmountsHidden();
+  const colors = useChartColors();
+  const options = useMemo<Highcharts.Options>(
+    () => ({
+      chart: { type: "line", backgroundColor: "transparent", height: 180, spacing: [8, 8, 4, 8] },
+      title: { text: undefined },
+      credits: { enabled: false },
+      legend: { enabled: false },
+      xAxis: {
+        categories: points.map((p) => fmtMonth(p.period_end)),
+        lineColor: colors.border,
+        tickColor: colors.border,
+        crosshair: { color: colors.border },
+        labels: { style: { color: colors.mutedFg, fontSize: "11px" } },
+      },
+      yAxis: {
+        title: { text: undefined },
+        gridLineColor: colors.border,
+        gridLineDashStyle: "Dash",
+        labels: {
+          style: { color: colors.mutedFg, fontSize: "11px" },
+          formatter: function () {
+            return hidden ? "" : compactFmt.format(Number(this.value));
+          },
+        },
+      },
+      tooltip: {
+        backgroundColor: colors.card,
+        borderColor: colors.cardBorder,
+        borderRadius: 12,
+        style: { color: colors.foreground, fontSize: "12px" },
+        formatter: function () {
+          return `<b>${this.key}</b><br/>Neto: ${fmt(Number(this.y), { currency })}`;
+        },
+      },
+      series: [
+        {
+          type: "line",
+          name: `Neto ${currency}`,
+          color: colors.chart1,
+          lineWidth: 2,
+          marker: { enabled: true, radius: 4, lineWidth: 2, lineColor: colors.card },
+          data: points.map((p) => p.net),
+        },
+      ],
+    }),
+    [points, currency, colors, fmt, hidden],
+  );
+  return (
+    <div data-testid={`evolution-${currency}`}>
+      <p className="mb-1 text-xs font-medium text-muted-foreground">{currency}</p>
+      {points.length < 2 ? (
+        <p className="rounded-xl bg-surface-2/60 p-3 text-xs text-muted-foreground">
+          Hay un solo cierre: la gráfica se llena con cada cierre.
+        </p>
+      ) : (
+        <HighchartsReact highcharts={Highcharts} options={options} />
+      )}
+      <ul className="sr-only">
+        {points.map((p) => (
+          <li key={p.period_end}>
+            {fmtMonth(p.period_end)}: {fmt(p.net, { currency })}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function NetWorthEvolution({ points }: { points: NetWorthEvolutionPoint[] }) {
+  const byCurrency = useMemo(() => {
+    const map = new Map<string, NetWorthEvolutionPoint[]>();
+    for (const p of [...points].sort((a, b) => a.period_end.localeCompare(b.period_end))) {
+      map.set(p.currency, [...(map.get(p.currency) ?? []), p]);
+    }
+    // COP primero, igual que los bloques por moneda del API.
+    return [...map].sort(([a], [b]) => Number(b === "COP") - Number(a === "COP"));
+  }, [points]);
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <h3 className="text-xs uppercase tracking-widest text-muted-foreground">
+        Evolución del patrimonio
+      </h3>
+      <p className="text-xs text-muted-foreground">
+        Sale de tus cierres mensuales: solo cuentas y pasivos, no incluye activos.
+      </p>
+      {byCurrency.length === 0 ? (
+        <p className="rounded-xl bg-surface-2/60 p-3 text-xs text-muted-foreground">
+          Aún no hay cierres: la gráfica se llena con cada cierre.
+        </p>
+      ) : (
+        byCurrency.map(([currency, pts]) => (
+          <NetWorthLine key={currency} currency={currency} points={pts} />
+        ))
+      )}
+    </div>
+  );
+}
+
+function BalanceSheetCard() {
+  const query = useBalanceSheet();
+  const fmt = useFormattedAmount();
+  const data = query.data;
+  const blocks = data?.by_currency ?? [];
+  const cards = data?.credit_cards ?? [];
+  return (
+    <StatementCard
+      testId="balance-card"
+      title="Balance"
+      subtitle="Lo que tienes y lo que debes"
+      icon={Landmark}
+      query={query}
+    >
+      <TodayNote>Calculado a hoy{data?.as_of ? ` (${fmtDay(data.as_of)})` : ""}</TodayNote>
+      {blocks.length === 0 ? (
+        <EmptyState>Registra cuentas, activos o deudas para ver tu balance.</EmptyState>
+      ) : (
+        blocks.map((b) => <BalanceBlock key={b.currency} b={b} fmt={fmt} />)
+      )}
+      {cards.length > 0 && (
+        <div className="space-y-2 border-t border-border pt-4">
+          <h3 className="text-xs uppercase tracking-widest text-muted-foreground">
+            Tarjetas de crédito
+          </h3>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {cards.map((c) => (
+              <CreditCardRow key={c.liability_id} c={c} fmt={fmt} />
+            ))}
+          </ul>
+        </div>
+      )}
+      <NetWorthEvolution points={data?.evolution.points ?? []} />
+    </StatementCard>
+  );
+}
+
+// ─── Indicadores de salud ────────────────────────────────────────────────────
+
+const withAnnual = (v: number | null) => (v == null ? NO_DATA : `${fmtPct(v)} anual`);
+
+const HEALTH_ROWS: { label: string; value: (h: HealthCurrencyIndicators) => string }[] = [
+  {
+    label: "Liquidez (líquido / deuda de corto plazo)",
+    value: (h) => fmtUnit(h.liquidity_ratio, "veces"),
+  },
+  {
+    label: "Colchón (líquido / gasto mensual)",
+    value: (h) => fmtUnit(h.cushion_months, "meses"),
+  },
+  { label: "Tasa promedio de tus deudas", value: (h) => withAnnual(h.avg_debt_rate_pct) },
+  { label: "Rendimiento promedio de lo ahorrado", value: (h) => withAnnual(h.avg_yield_pct) },
+  { label: "Apalancamiento (pasivos / activos)", value: (h) => fmtPct(h.leverage_pct) },
+];
+
+function FinancialHealthCard({ period }: { period: StatementPeriod }) {
+  const query = useFinancialHealth(period);
+  const fmt = useFormattedAmount();
+  const data = query.data;
+  const indicators = data?.by_currency ?? [];
+  const leakage = (data?.leakage_12m ?? []).filter((l) => l.amount !== 0);
+  return (
+    <StatementCard
+      testId="health-card"
+      title="Indicadores"
+      subtitle="Qué tan sanas están tus finanzas"
+      icon={HeartPulse}
+      query={query}
+    >
+      <Stat
+        label="Cuotas de deuda / ingreso (COP, mes seleccionado)"
+        value={fmtPct(data?.debt_payment_to_income_pct ?? null)}
+      />
+      {leakage.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Plata que salió sin registrar en los últimos 12 meses:{" "}
+          {leakage.map((l) => fmt(l.amount, { currency: l.currency })).join(" · ")}
+        </p>
+      )}
+      <div className="space-y-4 border-t border-border pt-4">
+        <TodayNote />
+        {indicators.length === 0 ? (
+          <EmptyState>Registra cuentas o deudas para calcular tus indicadores.</EmptyState>
+        ) : (
+          indicators.map((h) => (
+            <CurrencyBlock key={h.currency} currency={h.currency}>
+              <dl className="space-y-1.5 text-sm">
+                {HEALTH_ROWS.map(({ label, value }) => (
+                  <div key={label} className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="shrink-0 tabular-nums">{value(h)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CurrencyBlock>
+          ))
+        )}
+      </div>
+    </StatementCard>
+  );
+}
+
 // ─── Vista ───────────────────────────────────────────────────────────────────
 
 export function FinancialStatements() {
@@ -507,6 +853,8 @@ export function FinancialStatements() {
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <IncomeStatementCard period={period} />
         <CashFlowCard period={period} />
+        <BalanceSheetCard />
+        <FinancialHealthCard period={period} />
       </div>
     </div>
   );

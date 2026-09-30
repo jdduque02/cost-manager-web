@@ -5,16 +5,28 @@ import type { ReactNode } from "react";
 import { FinancialStatements } from "./FinancialStatements";
 import { VisibilityProvider } from "@/lib/visibility-context";
 import { HIDE_AMOUNTS_KEY, MASKED } from "@/lib/format";
-import { useCashFlowStatement, useIncomeStatement } from "@/lib/hooks/use-api";
+import {
+  useBalanceSheet,
+  useCashFlowStatement,
+  useFinancialHealth,
+  useIncomeStatement,
+} from "@/lib/hooks/use-api";
 import type {
+  BalanceSheet,
   CashFlowStatement,
+  FinancialHealth,
   IncomeComparison,
   IncomeCurrencyStatement,
 } from "@/lib/api/statements";
 
+vi.mock("highcharts-react-official", () => ({
+  default: () => <div data-testid="highcharts" />,
+}));
 vi.mock("@/lib/hooks/use-api", () => ({
   useIncomeStatement: vi.fn(),
   useCashFlowStatement: vi.fn(),
+  useBalanceSheet: vi.fn(),
+  useFinancialHealth: vi.fn(),
   useCategories: () => ({ data: [{ id: 3, name: "Mercado" }] }),
 }));
 
@@ -63,10 +75,73 @@ const cashFlow: CashFlowStatement = {
   ],
 };
 
-function setup(income: unknown, flow: unknown = ok(cashFlow), search = "?month=2026-08") {
+const balance: BalanceSheet = {
+  as_of: "2026-09-29",
+  by_currency: [
+    {
+      currency: "COP",
+      assets: { liquid: 100, investable: 50, illiquid: 0, total: 150 },
+      liabilities: { short_term: 40, long_term: 0, total: 40 },
+      net_worth: 110,
+    },
+  ],
+  credit_cards: [
+    {
+      liability_id: 1,
+      name: "Visa Oro",
+      currency: "COP",
+      balance: 850000,
+      credit_limit: 1000000,
+      available: 150000,
+      utilization_pct: 85,
+      is_high: true,
+    },
+    {
+      liability_id: 2,
+      name: "Master sin cupo",
+      currency: "COP",
+      balance: 20000,
+      credit_limit: null,
+      available: null,
+      utilization_pct: null,
+      is_high: false,
+    },
+  ],
+  evolution: {
+    includes_assets: false,
+    points: [
+      { period_end: "2026-09", currency: "COP", net: -5 },
+      { period_end: "2026-08", currency: "USD", net: 10 },
+      { period_end: "2026-09", currency: "USD", net: 12 },
+    ],
+  },
+};
+
+const health: FinancialHealth = {
+  period: { year: 2026, month: 8 },
+  debt_payment_to_income_pct: 18.5,
+  leakage_12m: [{ currency: "COP", amount: 0 }],
+  by_currency: [
+    {
+      currency: "COP",
+      liquidity_ratio: 1.5,
+      cushion_months: null,
+      avg_debt_rate_pct: 28.4,
+      avg_yield_pct: null,
+      leverage_pct: 26.7,
+    },
+  ],
+};
+
+function setup(
+  income: unknown,
+  { flow = ok(cashFlow), sheet = ok(balance), ind = ok(health) }: Record<string, unknown> = {},
+) {
   vi.mocked(useIncomeStatement).mockReturnValue(income as never);
   vi.mocked(useCashFlowStatement).mockReturnValue(flow as never);
-  const Nuqs = withNuqsTestingAdapter({ searchParams: search });
+  vi.mocked(useBalanceSheet).mockReturnValue(sheet as never);
+  vi.mocked(useFinancialHealth).mockReturnValue(ind as never);
+  const Nuqs = withNuqsTestingAdapter({ searchParams: "?month=2026-08" });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Nuqs>
       <VisibilityProvider>{children}</VisibilityProvider>
@@ -183,6 +258,8 @@ describe("FinancialStatements", () => {
     expect(within(flow).getByText("Flujo libre")).toBeInTheDocument();
     expect(within(flow).getByText("Arriendo")).toBeInTheDocument();
     expect(within(flow).getByText("Calculado a hoy")).toBeInTheDocument();
+    expect(within(screen.getByTestId("balance-card")).getByText("Visa Oro")).toBeInTheDocument();
+    expect(within(screen.getByTestId("health-card")).queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("muestra un skeleton por tarjeta mientras carga", () => {
@@ -198,5 +275,59 @@ describe("FinancialStatements", () => {
     expect(await within(flow).findAllByText(MASKED)).not.toHaveLength(0);
     expect(flow).not.toHaveTextContent("$");
     expect(screen.getByTestId("income-card")).not.toHaveTextContent("$");
+    expect(screen.getByTestId("balance-card")).not.toHaveTextContent("$");
+  });
+
+  it("resalta la tarjeta de crédito con uso alto; la que no tiene cupo no muestra %", () => {
+    setup(ok({ period: { year: 2026, month: 8 }, by_currency: [] }));
+    const high = screen.getByTestId("credit-card-1");
+    expect(high).toHaveAttribute("data-high", "true");
+    expect(high).toHaveTextContent("Uso alto");
+    expect(high).toHaveTextContent(/85\s?% del cupo/);
+
+    const noLimit = screen.getByTestId("credit-card-2");
+    expect(noLimit).not.toHaveAttribute("data-high");
+    expect(noLimit).toHaveTextContent("sin cupo registrado");
+    expect(noLimit).not.toHaveTextContent("%");
+  });
+
+  it("evolución: una línea por moneda, aviso de activos y de menos de 2 cierres", () => {
+    setup(ok({ period: { year: 2026, month: 8 }, by_currency: [] }));
+    const card = screen.getByTestId("balance-card");
+    expect(card).toHaveTextContent("no incluye activos");
+    expect(
+      within(screen.getByTestId("evolution-COP")).getByText(/se llena con cada cierre/),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("evolution-COP")).queryByTestId("highcharts"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("evolution-USD")).getByTestId("highcharts"),
+    ).toBeInTheDocument();
+    expect(card).toHaveTextContent(/Calculado a hoy \(29 /);
+  });
+
+  it("indicadores: R4.1 como «Cuotas de deuda / ingreso», unidades y «sin datos»; sin debt_ratio", () => {
+    setup(ok({ period: { year: 2026, month: 8 }, by_currency: [] }));
+    const card = screen.getByTestId("health-card");
+    expect(within(card).getByText(/Cuotas de deuda \/ ingreso/)).toBeInTheDocument();
+    expect(card).toHaveTextContent(/18,5\s?%/);
+    expect(card).toHaveTextContent("1,5 veces");
+    expect(card).toHaveTextContent(/28,4\s?% anual/);
+    expect(card).toHaveTextContent("Calculado a hoy");
+    expect(within(card).getAllByText("sin datos")).toHaveLength(2);
+    expect(card).not.toHaveTextContent(/Deuda total|debt_ratio/i);
+    // Fuga en 0: no se muestra la línea de plata sin registrar.
+    expect(card).not.toHaveTextContent("sin registrar");
+  });
+
+  it("indicador R4.1 null → «sin datos»", () => {
+    setup(ok({ period: { year: 2026, month: 8 }, by_currency: [] }), {
+      ind: ok({ ...health, debt_payment_to_income_pct: null, by_currency: [] }),
+    });
+    const card = screen.getByTestId("health-card");
+    expect(
+      within(card).getByText("Cuotas de deuda / ingreso (COP, mes seleccionado)").nextSibling,
+    ).toHaveTextContent("sin datos");
   });
 });
