@@ -283,7 +283,7 @@ function IncomeBlock({
   );
   return (
     <CurrencyBlock currency={s.currency}>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {TOTALS.map(({ key, label, upIsGood }) => (
           <Stat
             key={key}
@@ -835,7 +835,7 @@ export function FinancialStatements() {
           <p
             aria-live="polite"
             data-testid="statement-period"
-            className="min-w-40 text-center text-sm font-medium capitalize"
+            className="min-w-40 text-center text-sm font-medium first-letter:uppercase"
           >
             {periodLabel(period)}
             {isCurrent && <span className="text-muted-foreground"> (en curso)</span>}
