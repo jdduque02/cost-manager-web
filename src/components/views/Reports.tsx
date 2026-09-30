@@ -15,6 +15,8 @@ import Highcharts from "@/lib/highcharts";
 import HighchartsReact from "highcharts-react-official";
 import { Card, Badge } from "@/components/ui/primitives";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FinancialStatements } from "./FinancialStatements";
 import { cn } from "@/lib/utils";
 import { useTransactionSummary, useCategories } from "@/lib/hooks/use-api";
 import { useFormattedAmount, useAmountsHidden } from "@/lib/hooks/use-formatted-amount";
@@ -151,7 +153,7 @@ function KpiCard({
   );
 }
 
-export function Reports() {
+function Movements() {
   const [preset, setPreset] = useQueryState(
     "period",
     parseAsStringEnum([
@@ -369,11 +371,6 @@ export function Reports() {
 
   return (
     <div className="space-y-7">
-      <div>
-        <p className="text-sm text-muted-foreground">Resúmenes y comparativas</p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">Reportes</h1>
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5">
           {presets.map((p) => (
@@ -550,6 +547,33 @@ export function Reports() {
           del periodo seleccionado. Inversiones se muestran por separado.
         </p>
       </div>
+    </div>
+  );
+}
+
+export function Reports() {
+  const [tab, setTab] = useQueryState(
+    "tab",
+    parseAsStringEnum(["movimientos", "estados"] as const).withDefault("movimientos"),
+  );
+  return (
+    <div className="space-y-7">
+      <div>
+        <p className="text-sm text-muted-foreground">Resúmenes y comparativas</p>
+        <h1 className="mt-1 font-display text-3xl font-semibold">Reportes</h1>
+      </div>
+      <Tabs value={tab} onValueChange={(v) => void setTab(v as typeof tab)}>
+        <TabsList>
+          <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
+          <TabsTrigger value="estados">Estados financieros</TabsTrigger>
+        </TabsList>
+        <TabsContent value="movimientos" className="mt-5">
+          <Movements />
+        </TabsContent>
+        <TabsContent value="estados" className="mt-5">
+          <FinancialStatements />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
