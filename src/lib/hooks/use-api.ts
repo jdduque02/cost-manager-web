@@ -36,6 +36,7 @@ import {
 import { newsApi } from "@/lib/api/news";
 import { authApi } from "@/lib/api/auth";
 import { statementImportApi, type StatementImportProgress } from "@/lib/api/statement-imports";
+import { statementsApi, type StatementPeriod } from "@/lib/api/statements";
 import { useAuth } from "@/lib/auth";
 import { getSocket, NEWS_EVENTS, STATEMENT_IMPORT_PROGRESS } from "@/lib/socket";
 
@@ -73,6 +74,8 @@ const qk = {
   statementImports: (userId: string) => ["statement-imports", userId] as const,
   statementImportJob: (userId: string, id: number | null) =>
     ["statement-import", userId, id] as const,
+  statements: (userId: string, kind: string, period?: StatementPeriod) =>
+    ["statements", userId, kind, period?.year ?? null, period?.month ?? null] as const,
   sessions: (userId: string) => ["auth-sessions", userId] as const,
   accessHistory: (userId: string) => ["auth-access-history", userId] as const,
 };
@@ -1017,6 +1020,45 @@ export function useDownloadFinancialAiReport() {
       );
       downloadBlob(blob, filename ?? `reporte-financiero-${userId}.pdf`);
     },
+  });
+}
+
+// ─── Estados financieros personales (una query por tarjeta: fallan por separado) ─
+
+export function useIncomeStatement(period: StatementPeriod) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statements(userId ?? "", "income", period),
+    queryFn: () => statementsApi.getIncome(userId!, period),
+    enabled: !!userId,
+  });
+}
+
+/** El balance es siempre a hoy: no recibe periodo. */
+export function useBalanceSheet() {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statements(userId ?? "", "balance"),
+    queryFn: () => statementsApi.getBalance(userId!),
+    enabled: !!userId,
+  });
+}
+
+export function useCashFlowStatement(period: StatementPeriod) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statements(userId ?? "", "cash-flow", period),
+    queryFn: () => statementsApi.getCashFlow(userId!, period),
+    enabled: !!userId,
+  });
+}
+
+export function useFinancialHealth(period: StatementPeriod) {
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: qk.statements(userId ?? "", "health", period),
+    queryFn: () => statementsApi.getHealth(userId!, period),
+    enabled: !!userId,
   });
 }
 
