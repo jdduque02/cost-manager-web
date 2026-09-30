@@ -6,6 +6,8 @@ Buenas prácticas de este repo (cada línea ≤200 caracteres):
 - Antes de crear un cliente HTTP, reusa src/lib/api/client.ts (apiFetch) y los módulos de dominio en src/lib/api/.
 - Moneda: usa fmtCurrency/parseCurrency de src/lib/format.ts (es-CO/COP). No dupliques formateo de moneda en componentes.
 - Gráficos: ya existen Highcharts y Recharts; no agregues una tercera librería, reusa la que ya use la vista similar.
+- Paleta: un `--chart-N` de src/styles.css debe contrastar ≥3:1 contra `--card`/`--background` en light y dark; `--card`/`--surface`/`--muted`/`--border` no son colores de serie.
+- El mismo set de `--chart-N` está duplicado en Sprig-movil (global.css + palette.ts): cambia los tres. Donut con borde de 1 px `--border`.
 - UI: reusa los 32 componentes de src/components/ui (shadcn/ui "new-york") antes de crear uno nuevo.
 - Todo componente/hook nuevo o modificado lleva test Vitest; todo flujo cubierto en e2e/ lleva test Playwright.
 - No guardes el token de acceso en localStorage: vive en memoria + cookie httpOnly (ver src/lib/api/client.ts).

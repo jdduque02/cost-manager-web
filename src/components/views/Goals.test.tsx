@@ -87,17 +87,13 @@ describe("Goals", () => {
   });
 
   it("shows 'meses de gastos cubiertos' for an emergency_fund goal with a value set", () => {
-    mockObjectives = [
-      baseGoal({ type: "emergency_fund", months_of_expenses_covered: 3.456 }),
-    ];
+    mockObjectives = [baseGoal({ type: "emergency_fund", months_of_expenses_covered: 3.456 })];
     renderGoals();
     expect(screen.getByText("3.5 meses de gastos cubiertos")).toBeInTheDocument();
   });
 
   it("does not show the coverage indicator when months_of_expenses_covered is null", () => {
-    mockObjectives = [
-      baseGoal({ type: "emergency_fund", months_of_expenses_covered: null }),
-    ];
+    mockObjectives = [baseGoal({ type: "emergency_fund", months_of_expenses_covered: null })];
     renderGoals();
     expect(screen.queryByText(/meses de gastos cubiertos/)).not.toBeInTheDocument();
   });

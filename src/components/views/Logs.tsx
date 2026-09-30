@@ -99,7 +99,9 @@ export function Logs() {
         ].map((stat) => (
           <Card key={stat.label} className="p-3">
             <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-            <p className="mt-1 text-2xl font-display font-semibold">{stat.value.toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-display font-semibold">
+              {stat.value.toLocaleString()}
+            </p>
           </Card>
         ))}
       </div>
@@ -108,7 +110,6 @@ export function Logs() {
     statsSection = (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {[...Array(5)].map((_, i) => (
-          // eslint-disable-next-line react/no-array-index-key -- static skeleton cards never reorder
           <Card key={`skeleton-${i}`} className="p-3">
             <div className="h-3 w-12 rounded bg-surface-2" />
             <div className="mt-2 h-7 w-10 rounded bg-surface-2" />
@@ -155,7 +156,9 @@ export function Logs() {
                     </Badge>
                     <span className="text-xs text-muted-foreground">{log.source}</span>
                     {log.context && (
-                      <span className="text-xs font-mono text-muted-foreground">· {log.context}</span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        · {log.context}
+                      </span>
                     )}
                   </div>
                   <p className="mt-1 text-sm leading-relaxed truncate">{log.message}</p>

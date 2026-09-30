@@ -195,7 +195,9 @@ export function WealthDialog({
     setBankName(a.bank_name);
     setAccountType(a.account_type);
     setAccountNumber("");
-    setAmount(String(Number(a.display_balance ?? 0)));
+    // El API valida @Min(0) y CurrencyInput oculta el signo "-": sin este tope, un saldo negativo en
+    // BD se vería positivo en el input pero se reenviaría negativo al guardar (400 IS_MIN).
+    setAmount(String(Math.max(0, Number(a.display_balance) || 0)));
     setCurrency(a.currency ?? "COP");
     setIsPrimary(a.is_primary);
     setExempt4x1000(a.exempt_4x1000);
@@ -212,7 +214,8 @@ export function WealthDialog({
   function populateAssetFields(a: FinancialAsset) {
     setName(a.name);
     setAssetType(a.asset_type);
-    setAmount(String(a.current_value));
+    // Mismo tope que en cuentas y pasivos: el API exige @Min(0) en current_value.
+    setAmount(String(Math.max(0, Number(a.current_value) || 0)));
     setCurrency(a.currency ?? "COP");
     setSymbol(a.symbol ?? "");
     setQuoteSource(a.quote_source ?? "yahoo");
@@ -222,7 +225,8 @@ export function WealthDialog({
   function populateLiabilityFields(l: FinancialLiability) {
     setName(l.name);
     setLiabilityType(l.liability_type);
-    setAmount(String(l.current_balance));
+    // Mismo tope que en cuentas y activos: el API exige @Min(0) en current_balance.
+    setAmount(String(Math.max(0, Number(l.current_balance) || 0)));
     setInterestRate(String(l.interest_rate ?? ""));
     setCurrency(l.currency ?? "COP");
     setCreditLimit(l.credit_limit != null ? String(l.credit_limit) : "");

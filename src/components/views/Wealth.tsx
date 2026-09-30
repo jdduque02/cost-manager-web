@@ -111,6 +111,8 @@ function AccountToggles({
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       <button
+        type="button"
+        aria-pressed={isPrimary === true}
         onClick={onTogglePrimary}
         className={cn(
           "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
@@ -123,6 +125,8 @@ function AccountToggles({
         {isPrimary ? "Principal" : "Marcar principal"}
       </button>
       <button
+        type="button"
+        aria-pressed={exempt4x1000 === true}
         onClick={onToggleExempt}
         className={cn(
           "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition",
@@ -203,14 +207,20 @@ function Row({
             {debt ? "-" : ""}
             {fmtAmount(value)}
           </span>
-          <div className="flex gap-0.5 opacity-0 transition group-hover:opacity-100">
+          {/* Mismo patrón que Goals/TransactionsList: oculto solo con puntero
+              fino, y visible al recibir foco (teclado) o en táctil. */}
+          <div className="flex gap-0.5 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
             <button
+              type="button"
+              aria-label="Editar"
               onClick={onEdit}
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
+              type="button"
+              aria-label="Eliminar"
               onClick={onDelete}
               className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
             >
@@ -869,7 +879,8 @@ export function Wealth() {
                       outerRadius={85}
                       paddingAngle={3}
                       dataKey="value"
-                      stroke="none"
+                      stroke={colors.cardBorder}
+                      strokeWidth={1}
                     >
                       {wealthComposition.map((c, i) => (
                         <Cell key={`${c.name}-${i}`} fill={COLORS[i % COLORS.length]} />

@@ -63,8 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token: string | null;
       userId: string | null;
     }> {
-      let token = getAccessToken();
-      let userId = getStoredUserId();
+      const token = getAccessToken();
+      const userId = getStoredUserId();
 
       if (token) return { token, userId };
 
@@ -160,9 +160,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, isLoading, isAdmin, roles, login, logout, refreshUser],
   );
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }

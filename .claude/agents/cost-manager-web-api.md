@@ -1,6 +1,6 @@
 ---
 name: cost-manager-web-api
-description: Especialista en la capa de datos y autenticación de cost-manager-web ("Sprig"): src/lib/api (cliente HTTP y módulos de dominio), src/lib/auth (contexto/token/refresh) y src/lib/hooks (React Query). Úsalo para nuevos endpoints consumidos, cambios de auth/refresh de tokens, o hooks de datos.
+description: 'Especialista en la capa de datos y autenticación de cost-manager-web ("Sprig"): src/lib/api (cliente HTTP y módulos de dominio), src/lib/auth (contexto/token/refresh) y src/lib/hooks (React Query). Úsalo para nuevos endpoints consumidos, cambios de auth/refresh de tokens, o hooks de datos.'
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill
 model: inherit
 ---
