@@ -74,7 +74,8 @@ type AmountFormatter = ReturnType<typeof useFormattedAmount>;
 
 // ─── Periodo (?month=YYYY-MM en la web; al API van year/month) ───────────────
 
-const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+// El API solo acepta años 2000–2100 (otro año es 400): fuera de rango se usa el mes actual.
+const MONTH_RE = /^(20\d{2}|2100)-(0[1-9]|1[0-2])$/;
 
 function currentPeriod(): StatementPeriod {
   const now = new Date();
@@ -826,6 +827,7 @@ export function FinancialStatements() {
             variant="ghost"
             size="icon"
             aria-label="Mes anterior"
+            disabled={period.year === 2000 && period.month === 1}
             onClick={() => void setMonth(shiftPeriod(period, -1))}
           >
             <ChevronLeft className="h-4 w-4" />

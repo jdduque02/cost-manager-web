@@ -135,13 +135,18 @@ const health: FinancialHealth = {
 
 function setup(
   income: unknown,
-  { flow = ok(cashFlow), sheet = ok(balance), ind = ok(health) }: Record<string, unknown> = {},
+  {
+    flow = ok(cashFlow),
+    sheet = ok(balance),
+    ind = ok(health),
+    search = "?month=2026-08",
+  }: Record<string, unknown> = {},
 ) {
   vi.mocked(useIncomeStatement).mockReturnValue(income as never);
   vi.mocked(useCashFlowStatement).mockReturnValue(flow as never);
   vi.mocked(useBalanceSheet).mockReturnValue(sheet as never);
   vi.mocked(useFinancialHealth).mockReturnValue(ind as never);
-  const Nuqs = withNuqsTestingAdapter({ searchParams: "?month=2026-08" });
+  const Nuqs = withNuqsTestingAdapter({ searchParams: search as string });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Nuqs>
       <VisibilityProvider>{children}</VisibilityProvider>
@@ -163,6 +168,21 @@ describe("FinancialStatements", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Mes anterior" }));
     expect(useIncomeStatement).toHaveBeenLastCalledWith({ year: 2026, month: 7 });
+  });
+
+  it("un año fuera de 2000–2100 (400 en el API) cae al mes actual; no se retrocede antes de 2000-01", () => {
+    const now = new Date();
+    const empty = ok({ period: { year: 2026, month: 8 }, by_currency: [] });
+    const { unmount } = setup(empty, { search: "?month=1999-12" });
+    expect(useIncomeStatement).toHaveBeenLastCalledWith({
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+    });
+    unmount();
+
+    setup(empty, { search: "?month=2000-01" });
+    expect(useIncomeStatement).toHaveBeenLastCalledWith({ year: 2000, month: 1 });
+    expect(screen.getByRole("button", { name: "Mes anterior" })).toBeDisabled();
   });
 
   it("muestra un bloque por moneda, sin sumarlas", () => {

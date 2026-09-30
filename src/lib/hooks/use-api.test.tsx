@@ -218,6 +218,8 @@ describe("transfer mutations", () => {
         ["bank-accounts", "user-1"],
         ["objectives", "user-1"],
         ["financial-liabilities", "user-1"],
+        // Estados financieros: si no, la pestaña muestra totales viejos hasta el staleTime.
+        ["statements", "user-1"],
       ]) {
         expect(keys).toContain(JSON.stringify(key));
       }

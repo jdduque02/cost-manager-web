@@ -111,6 +111,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -127,6 +128,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -143,6 +145,7 @@ export function useBulkDeleteTransactions() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -160,6 +163,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       qc.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -263,6 +267,7 @@ export function useStatementImportJob(id: number | null) {
     if (query.data && TERMINAL_STATUSES.has(query.data.status)) {
       queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+      queryClient.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
       queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -314,6 +319,7 @@ export function useStatementImportProgress(onProgress?: (p: StatementImportProgr
       if (TERMINAL_STATUSES.has(payload.status)) {
         queryClient.invalidateQueries({ queryKey: qk.transactions(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: ["transaction-summary", userId ?? ""] });
+        queryClient.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
         queryClient.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
@@ -348,6 +354,7 @@ function invalidateTransferData(qc: ReturnType<typeof useQueryClient>, userId: s
     ["transfers"],
     qk.transactions(uid),
     ["transaction-summary", uid],
+    ["statements", uid],
     qk.accounts(uid),
     qk.objectives(uid),
     qk.liabilities(uid),
@@ -402,6 +409,7 @@ export function useCreateBankAccount() {
     mutationFn: (dto: CreateBankAccountDto) => bankingApi.createAccount(userId!, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -414,6 +422,7 @@ export function useUpdateBankAccount() {
       bankingApi.updateAccount(userId!, id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -425,6 +434,7 @@ export function useDeleteBankAccount() {
     mutationFn: (id: string) => bankingApi.deleteAccount(userId!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.accounts(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -487,6 +497,7 @@ export function useCreateFinancialAsset() {
     mutationFn: (dto: CreateFinancialAssetDto) => bankingApi.createAsset(userId!, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -499,6 +510,7 @@ export function useUpdateFinancialAsset() {
       bankingApi.updateAsset(userId!, id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -510,6 +522,7 @@ export function useDeleteFinancialAsset() {
     mutationFn: (id: string) => bankingApi.deleteAsset(userId!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -521,6 +534,7 @@ export function useRefreshAssetQuotes() {
     mutationFn: () => bankingApi.getAssetQuotes(userId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -541,6 +555,7 @@ export function useCreateFinancialLiability() {
     mutationFn: (dto: CreateFinancialLiabilityDto) => bankingApi.createLiability(userId!, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -553,6 +568,7 @@ export function useUpdateFinancialLiability() {
       bankingApi.updateLiability(userId!, id, dto),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -564,6 +580,7 @@ export function useDeleteFinancialLiability() {
     mutationFn: (id: string) => bankingApi.deleteLiability(userId!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
+      qc.invalidateQueries({ queryKey: ["statements", userId ?? ""] });
     },
   });
 }
@@ -597,6 +614,7 @@ function useInvalidateClosures() {
       qk.productClosures(userId ?? ""),
       qk.transactions(userId ?? ""),
       ["transaction-summary", userId ?? ""],
+      ["statements", userId ?? ""],
       qk.accounts(userId ?? ""),
       qk.liabilities(userId ?? ""),
     ]) {
