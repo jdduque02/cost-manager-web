@@ -638,3 +638,122 @@ describe("session restore without an active session", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("refresh on use (no timer)", () => {
+  const T0 = new Date("2026-10-02T12:00:00Z");
+
+  const okJson = (body: unknown) =>
+    Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+
+  /** fetch mock: auth/refresh devuelve `new-token`; el resto responde 200 vacío. */
+  const mockApi = () =>
+    vi.fn((url: string, _init?: RequestInit) =>
+      url.includes("auth/refresh")
+        ? okJson({
+            status: true,
+            data: [{ access_token: "new-token", expires_in: 300 }],
+            message: "ok",
+            timestamp: "",
+          })
+        : okJson({ status: true, data: [], message: "ok", timestamp: "" }),
+    );
+
+  const refreshCalls = (m: ReturnType<typeof mockApi>) =>
+    m.mock.calls.filter(([url]) => url.includes("auth/refresh")).length;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: T0 });
+    clearTokens();
+    resetSessionExpiredFlag();
+    vi.restoreAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("refreshes before the request when the token is about to expire, and sends the new Bearer", async () => {
+    setTokens("old-token", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 200_000); // quedan 100 s (< 120 s)
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+
+    await api.get("accounts");
+
+    const urls = mockFetch.mock.calls.map(([url]) => url);
+    expect(urls[0]).toContain("auth/refresh");
+    expect(urls[1]).toContain("accounts");
+    const headers = mockFetch.mock.calls[1][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer new-token");
+  });
+
+  it("does not refresh when the token is still valid", async () => {
+    setTokens("valid-token", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 60_000); // quedan 240 s
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+
+    await api.get("accounts");
+
+    expect(refreshCalls(mockFetch)).toBe(0);
+    const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer valid-token");
+  });
+
+  it("does not refresh by clock: with no requests, time passing triggers nothing", async () => {
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+    setTokens("idle-token", undefined, undefined, 300);
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBe("idle-token");
+  });
+
+  it("dedupes N concurrent requests with an expiring token into a single refresh", async () => {
+    setTokens("old-token", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 250_000);
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+
+    await Promise.all([api.get("a"), api.get("b"), apiFetchBlob("c").catch(() => null)]);
+
+    expect(refreshCalls(mockFetch)).toBe(1);
+  });
+
+  it("still sends the request when the pre-emptive refresh fails (the 401 path decides)", async () => {
+    setTokens("old-token", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 250_000);
+    const mockFetch = vi.fn((url: string) =>
+      url.includes("auth/refresh")
+        ? Promise.reject(new TypeError("Failed to fetch"))
+        : okJson({ status: true, data: [{ id: 1 }], message: "ok", timestamp: "" }),
+    );
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(api.get("accounts")).resolves.toEqual([{ id: 1 }]);
+  });
+
+  it("adopts the expiry of a token broadcast by another tab, so this tab does not refresh", async () => {
+    // Un refresh propio inicializa el canal (como al restaurar sesión al cargar).
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+    await tryRestoreSession();
+
+    // Otra pestaña renueva más tarde y difunde su token con su expiración.
+    vi.setSystemTime(T0.getTime() + 250_000);
+    const otherTab = new BroadcastChannel("cm-auth");
+    otherTab.postMessage({ type: "cm:new-token", token: "other-tab-token", expiresIn: 300 });
+    await vi.waitFor(() => expect(getAccessToken()).toBe("other-tab-token"));
+    otherTab.close();
+
+    mockFetch.mockClear();
+    await api.get("accounts");
+
+    expect(refreshCalls(mockFetch)).toBe(0);
+    const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer other-tab-token");
+  });
+});
