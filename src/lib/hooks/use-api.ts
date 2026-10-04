@@ -116,6 +116,8 @@ export function useCreateTransaction() {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      // La API puede fijar empresa.default_category_id al categorizar un movimiento.
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     },
   });
 }
@@ -168,6 +170,7 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     },
   });
 }
@@ -273,6 +276,8 @@ export function useStatementImportJob(id: number | null) {
       queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+      // El import crea/asocia empresas cuando llega capture_companies=true.
+      queryClient.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     }
   }, [query.data, queryClient, userId]);
 
@@ -325,6 +330,7 @@ export function useStatementImportProgress(onProgress?: (p: StatementImportProgr
         queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
       }
     };
     socket.on(STATEMENT_IMPORT_PROGRESS, handleProgress);

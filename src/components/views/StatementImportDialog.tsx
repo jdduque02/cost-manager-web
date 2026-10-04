@@ -436,18 +436,16 @@ export function StatementImportDialog({
 
             <div className="flex items-center justify-between rounded-xl bg-surface p-3">
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  Capturar empresa desde extractos
-                </p>
+                <p className="text-sm font-medium text-foreground">Capturar y registrar empresas</p>
                 <p className="text-xs text-muted-foreground">
-                  Detecta y asigna empresas automáticamente desde las descripciones de los
-                  movimientos.
+                  Asocia cada movimiento a su comercio; si no existe lo crea (excepto retiros,
+                  transferencias y otras operaciones del banco)
                 </p>
               </div>
               <Checkbox
                 checked={captureCompanies}
                 onCheckedChange={(v) => setCaptureCompanies(v === true)}
-                aria-label="Capturar empresa desde extractos"
+                aria-label="Capturar y registrar empresas"
               />
             </div>
 
