@@ -204,6 +204,42 @@ export function TransactionDialog({
 
   const isPending = createTx.isPending || updateTx.isPending;
 
+  /** Moneda del producto elegido en "Patrimonio asociado" ("account:3" → "USD"). */
+  function productCurrency(value: string): string | undefined {
+    const { account_id, asset_id, liability_id } = parsePatrimony(value);
+    if (account_id) return bankAccounts.find((a) => a.id === account_id)?.currency;
+    if (asset_id) return assets.find((a) => a.id === asset_id)?.currency;
+    if (liability_id) return liabilities.find((l) => l.id === liability_id)?.currency;
+    return undefined;
+  }
+
+  /**
+   * R7.1: con el monto vacío la moneda pasa a la del producto (sigue editable entre COP y USD); con
+   * un monto escrito se conserva para no convertir en silencio 200.000 COP en US$ 200.000.
+   */
+  function selectPatrimony(value: string, currencyOfProduct = productCurrency(value)) {
+    setPatrimony(value);
+    if (!amount && (currencyOfProduct === "COP" || currencyOfProduct === "USD"))
+      setCurrency(currencyOfProduct);
+  }
+
+  // R7.3 al editar: el API solo convierte si ya había `fx_rate` o cambian fecha, moneda o producto
+  // (R1.15); un histórico sin `fx_rate` que no los toca se guarda sin conversión ni aviso.
+  const conversionApplies =
+    !transaction ||
+    transaction.fx_rate != null ||
+    format(date, "yyyy-MM-dd") !== transaction.transaction_date.slice(0, 10) ||
+    currency !== (transaction.currency || "COP") ||
+    patrimony !== resolvePatrimonyValue(transaction);
+  const patrimonyCurrency = productCurrency(patrimony);
+  // R7.3: aviso sin cifra; las monedas fuera de COP/USD las rechaza el API con su mensaje.
+  const fxNotice =
+    conversionApplies &&
+    (patrimonyCurrency === "COP" || patrimonyCurrency === "USD") &&
+    patrimonyCurrency !== currency
+      ? `Se registrará en ${patrimonyCurrency} con la TRM oficial de la fecha`
+      : null;
+
   function populateFormFromTransaction(tx: TransactionRecord) {
     setType(tx.type);
     setAmount(Number(tx.amount).toString());
@@ -402,6 +438,11 @@ export function TransactionDialog({
                         </SelectContent>
                       </Select>
                     </div>
+                    {fxNotice && (
+                      <p role="status" className="text-xs text-muted-foreground">
+                        {fxNotice}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -613,7 +654,7 @@ export function TransactionDialog({
                           setQuickWealthType(wealthTypeMap[v]);
                           return;
                         }
-                        setPatrimony(v);
+                        selectPatrimony(v);
                       }}
                     >
                       <SelectTrigger id="tx-patrimony">
@@ -625,7 +666,7 @@ export function TransactionDialog({
                             <SelectLabel>Cuentas de ahorro</SelectLabel>
                             {bankAccountGroups.savings.map((a) => (
                               <SelectItem key={a.id} value={`account:${a.id}`}>
-                                {a.bank_name} · {a.masked_account_number}
+                                {a.bank_name} · {a.masked_account_number} ({a.currency})
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -635,7 +676,7 @@ export function TransactionDialog({
                             <SelectLabel>Cuentas corrientes</SelectLabel>
                             {bankAccountGroups.checking.map((a) => (
                               <SelectItem key={a.id} value={`account:${a.id}`}>
-                                {a.bank_name} · {a.masked_account_number}
+                                {a.bank_name} · {a.masked_account_number} ({a.currency})
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -645,7 +686,7 @@ export function TransactionDialog({
                             <SelectLabel>Otras cuentas</SelectLabel>
                             {bankAccountGroups.other.map((a) => (
                               <SelectItem key={a.id} value={`account:${a.id}`}>
-                                {a.bank_name} · {a.masked_account_number}
+                                {a.bank_name} · {a.masked_account_number} ({a.currency})
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -655,7 +696,7 @@ export function TransactionDialog({
                           <SelectLabel>Activos / Inversiones</SelectLabel>
                           {assets.map((a) => (
                             <SelectItem key={a.id} value={`asset:${a.id}`}>
-                              {a.name}
+                              {a.name} ({a.currency})
                             </SelectItem>
                           ))}
                           <SelectItem value="__new_asset__">＋ Crear activo…</SelectItem>
@@ -664,7 +705,7 @@ export function TransactionDialog({
                           <SelectLabel>Pasivos / Deudas</SelectLabel>
                           {liabilities.map((l) => (
                             <SelectItem key={l.id} value={`liability:${l.id}`}>
-                              {l.name}
+                              {l.name} ({l.currency})
                             </SelectItem>
                           ))}
                           <SelectItem value="__new_liability__">＋ Crear pasivo…</SelectItem>
@@ -838,9 +879,10 @@ export function TransactionDialog({
         }}
         entityType={quickWealthType ?? "account"}
         onCreated={(e) => {
-          if ("bank_name" in e) setPatrimony(`account:${e.id}`);
-          else if ("asset_type" in e) setPatrimony(`asset:${e.id}`);
-          else setPatrimony(`liability:${e.id}`);
+          // El producto recién creado aún no está en las listas: su moneda viene en `e`.
+          if ("bank_name" in e) selectPatrimony(`account:${e.id}`, e.currency);
+          else if ("asset_type" in e) selectPatrimony(`asset:${e.id}`, e.currency);
+          else selectPatrimony(`liability:${e.id}`, e.currency);
         }}
       />
 

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   bankAccounts: [] as unknown[],
   error: null as Error | null,
   refetch: vi.fn(),
+  cloneTransfer: vi.fn(),
 }));
 
 vi.mock("./TransactionDialog", () => ({
@@ -46,7 +47,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     useDeleteTransfer: mutation,
     useBulkDeleteTransactions: mutation,
     useCloneTransaction: mutation,
-    useCloneTransfer: mutation,
+    useCloneTransfer: () => ({ mutate: state.cloneTransfer, isPending: false }),
   };
 });
 
@@ -203,5 +204,60 @@ describe("TransactionsList transfer clone", () => {
 
     expect(screen.getByText(/Saldo insuficiente/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clonar" })).toBeDisabled();
+  });
+
+  it("clona desde la pierna origen con su monto (R7.6)", async () => {
+    const leg = {
+      ...tx(0),
+      type: "transfer" as TransactionRecord["type"],
+      transfer_group_id: "g2",
+    };
+    state.transactions = [
+      { ...leg, id: 7, amount: 400000, origin_account_id: 1, description: "Ahorro USD" },
+      {
+        ...leg,
+        id: 8,
+        amount: 400000,
+        destination_account_id: 2,
+        applied_amount: 102.24,
+        fx_rate: 3912.47,
+        description: "Ahorro USD",
+      },
+    ];
+    state.bankAccounts = [
+      { id: 1, bank_name: "Bancolombia", display_balance: "1000000", currency: "COP" },
+      { id: 2, bank_name: "Wise", display_balance: "0", currency: "USD" },
+    ];
+    renderList();
+
+    await userEvent.click(screen.getByTitle("Clonar transferencia"));
+    await userEvent.click(screen.getByRole("button", { name: "Clonar" }));
+
+    expect(state.cloneTransfer).toHaveBeenCalledWith(
+      { id: 7, dto: expect.objectContaining({ amount: 400000 }) },
+      expect.anything(),
+    );
+  });
+});
+
+describe("TransactionsList › conversión de moneda (R7.4)", () => {
+  beforeEach(() => {
+    state.error = null;
+    state.bankAccounts = [];
+  });
+
+  it("muestra una segunda línea con el convertido, la TRM y la nota de tasa aproximada", () => {
+    state.transactions = [
+      { ...tx(1, "Suscripción"), amount: 400000, applied_amount: 102.24, fx_rate: 3912.47 },
+      tx(2, "Almuerzo"),
+    ];
+    renderList();
+
+    expect(
+      screen.getByText(
+        /≈ \$102\.24 · TRM \$\s?3\.912,47 \(aprox\.; tu banco puede usar otra tasa\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/TRM/)).toHaveLength(1);
   });
 });

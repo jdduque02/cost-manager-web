@@ -146,6 +146,9 @@ function toMovement(record: TransactionRecord, side: "source" | "destination"): 
     account_type:
       side === "source" ? (record.source_account ?? null) : (record.destination_account ?? null),
     amount: record.amount,
+    currency: record.currency,
+    applied_amount: record.applied_amount ?? null,
+    fx_rate: record.fx_rate ?? null,
     transaction_date: record.transaction_date,
     description: record.description ?? null,
     reference_code: record.reference_code ?? null,
@@ -248,7 +251,9 @@ function groupTransactions(
 
   for (const pair of groups.values()) {
     if (!pair.some((r) => matchesFilters(r, filters, categoryMap, accountMap))) continue;
-    const representative = pair.find((r) => r.destination_account_id != null) ?? pair[0];
+    // La pierna destino: es la que lleva el convertido cuando las monedas difieren (R7.4).
+    const representative =
+      pair.find((r) => r.destination_account_id != null || r.liability_id != null) ?? pair[0];
     const ids = pair.map((r) => r.id);
     for (const r of pair) memberIds.set(r.id, ids);
     items.push(representative);
@@ -484,6 +489,13 @@ function TransactionRow({
           {" · "}
           {formatDate(tx.transaction_date)}
         </p>
+        {tx.applied_amount != null && tx.fx_rate != null && (
+          // Solo hay conversión en el par COP/USD: el producto está en la otra moneda.
+          <p className="text-xs text-muted-foreground">
+            ≈ {fmtAmount(tx.applied_amount, { currency: tx.currency === "USD" ? "COP" : "USD" })} ·
+            TRM {fmtCurrency(tx.fx_rate)} (aprox.; tu banco puede usar otra tasa)
+          </p>
+        )}
       </div>
       {isPendingTx ? (
         <Badge tone="warning">Por editar</Badge>
@@ -918,7 +930,9 @@ export function TransactionsList() {
               setCloneDialogOpen(true);
             }}
             onCloneTransfer={(t) => {
-              setCloningTx(t);
+              // R7.6: el clon parte de la pierna origen (su monto va en la moneda del origen).
+              const pair = transferPairs.get(t.transfer_group_id!);
+              setCloningTx(pair?.find((r) => r.origin_account_id != null) ?? t);
               setCloneDialogOpen(true);
             }}
             cloneTx={cloneTx}
@@ -1225,14 +1239,7 @@ export function TransactionsList() {
         transaction={cloningTx}
         sourceAccount={
           cloningTx?.transfer_group_id
-            ? // The row shown is the destination leg; origin_account_id lives on the source leg.
-              bankAccounts.find(
-                (a) =>
-                  a.id ===
-                  transferPairs
-                    .get(cloningTx.transfer_group_id!)
-                    ?.find((r) => r.origin_account_id != null)?.origin_account_id,
-              )
+            ? bankAccounts.find((a) => a.id === cloningTx.origin_account_id)
             : undefined
         }
         categories={categories}
@@ -1276,7 +1283,7 @@ interface CloneTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction: TransactionRecord | null;
-  sourceAccount?: { id?: number; display_balance?: string };
+  sourceAccount?: { id?: number; display_balance?: string; currency?: string };
   categories: { id: number; name: string }[];
   empresas: { id: number; name: string }[];
   onClone: (dto: {
@@ -1346,7 +1353,8 @@ function CloneTransactionDialog({
             <CurrencyInput value={amount} onChange={setAmount} placeholder="0" required />
             {insufficientBalance && (
               <p className="text-xs font-medium text-destructive">
-                Saldo insuficiente (disponible {fmtCurrency(sourceBalance)})
+                Saldo insuficiente (disponible {fmtCurrency(sourceBalance, sourceAccount?.currency)}
+                )
               </p>
             )}
           </div>
