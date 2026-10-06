@@ -19,6 +19,7 @@ import {
   Users,
   Building2,
   Plus,
+  Repeat,
   type LucideIcon,
 } from "lucide-react";
 import { SprigIsotipo } from "@/components/brand/sprig-isotipo";
@@ -45,6 +46,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { to: "/dashboard", label: "Panel", icon: LayoutDashboard, exact: true, adminOnly: false },
   { to: "/transactions", label: "Transacciones", icon: ArrowLeftRight, adminOnly: false },
+  { to: "/recurring", label: "Recurrentes", icon: Repeat, adminOnly: false },
   { to: "/reports", label: "Reportes", icon: BarChart3, adminOnly: false },
   { to: "/wealth", label: "Patrimonio", icon: Wallet, adminOnly: false },
   { to: "/goals", label: "Metas", icon: Target, adminOnly: false },

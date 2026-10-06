@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, ArrowRight, Target } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Link } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -469,6 +470,13 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               aria-label="Marcar como transferencia fija"
             />
           </div>
+          <Link
+            to="/recurring"
+            onClick={() => onOpenChange(false)}
+            className="block text-xs font-medium text-primary hover:underline"
+          >
+            Gestiona tus recurrentes
+          </Link>
 
           {isFixed && (
             <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">

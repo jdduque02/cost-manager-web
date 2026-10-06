@@ -5,6 +5,11 @@ import type { TransferResponse } from "@/lib/api/finance";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 
 const noop = () => ({
   mutateAsync: vi.fn().mockResolvedValue({}),
