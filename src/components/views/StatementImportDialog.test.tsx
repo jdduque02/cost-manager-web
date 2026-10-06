@@ -41,6 +41,22 @@ describe("StatementImportDialog", () => {
     expect(submit).toBeEnabled();
   });
 
+  it("captura y registra empresas por defecto", async () => {
+    createAsync.mockResolvedValue({ id: 1, status: "pending", total_files: 1, files: [] });
+    const user = userEvent.setup();
+    render(<StatementImportDialog open onOpenChange={vi.fn()} />);
+
+    const toggle = screen.getByRole("checkbox", { name: "Capturar y registrar empresas" });
+    expect(toggle).toBeChecked();
+    expect(screen.getByText(/si no existe lo crea/i)).toBeInTheDocument();
+
+    await uploadPdf(user);
+    await user.click(screen.getByRole("button", { name: /^importar$/i }));
+
+    const form = createAsync.mock.calls[0][0] as FormData;
+    expect(form.get("capture_companies")).toBe("true");
+  });
+
   it("con el producto fijado envía la tarjeta y avisa con onCompleted al terminar el lote", async () => {
     createAsync.mockResolvedValue({
       id: 42,

@@ -10,6 +10,11 @@ import {
   useDeleteTransfer,
   useCloneTransfer,
   useCloneTransaction,
+  useStatementImportJob,
+  useStatementImportProgress,
+  useCreateTransaction,
+  useUpdateTransaction,
+  useNetWorth,
 } from "./use-api";
 import type { Session, AccessEvent } from "@/lib/api/auth";
 
@@ -27,12 +32,39 @@ vi.mock("@/lib/api/finance", () => ({
     updateTransfer: vi.fn().mockResolvedValue({}),
     deleteTransfer: vi.fn().mockResolvedValue(undefined),
     cloneTransfer: vi.fn().mockResolvedValue({}),
+    createTransaction: vi.fn().mockResolvedValue({}),
+    updateTransaction: vi.fn().mockResolvedValue({}),
   },
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/client")>()),
   api: { post: vi.fn().mockResolvedValue({}) },
+}));
+
+const bankingMock = vi.hoisted(() => ({
+  getAccounts: vi.fn(),
+  getAssets: vi.fn(),
+  getLiabilities: vi.fn(),
+  getTrm: vi.fn(),
+}));
+vi.mock("@/lib/api/banking", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/banking")>();
+  return { ...actual, bankingApi: { ...actual.bankingApi, ...bankingMock } };
+});
+
+vi.mock("@/lib/api/statement-imports", () => ({
+  statementImportApi: { get: vi.fn().mockResolvedValue({ id: 7, status: "completed" }) },
+}));
+
+const socketHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>());
+vi.mock("@/lib/socket", () => ({
+  STATEMENT_IMPORT_PROGRESS: "statement-import:progress",
+  NEWS_EVENTS: { NEW_NEWS: "news:new" },
+  getSocket: () => ({
+    on: (event: string, handler: (payload: unknown) => void) => socketHandlers.set(event, handler),
+    off: vi.fn(),
+  }),
 }));
 
 const mockUseAuth = vi.fn();
@@ -223,6 +255,101 @@ describe("transfer mutations", () => {
       ]) {
         expect(keys).toContain(JSON.stringify(key));
       }
+    });
+  });
+});
+
+describe("statement import terminal state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({ userId: "user-1" });
+  });
+
+  // Con capture_companies=true el import crea/asocia empresas: hay que refrescarlas
+  // junto con las transacciones, venga el estado terminal por polling o por WebSocket.
+  it.each([
+    ["polling (useStatementImportJob)", () => useStatementImportJob(7), undefined],
+    [
+      "WebSocket (useStatementImportProgress)",
+      () => useStatementImportProgress(),
+      () => socketHandlers.get("statement-import:progress")!({ id: 7, status: "completed" }),
+    ],
+  ] as const)("%s invalidates empresas and transactions", async (_name, hook, emit) => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    renderHook(() => void hook(), { wrapper });
+    emit?.();
+
+    await waitFor(() => {
+      const keys = invalidateSpy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));
+      expect(keys).toContain(JSON.stringify(["empresas", "user-1"]));
+      expect(keys).toContain(JSON.stringify(["transactions", "user-1", {}]));
+    });
+  });
+});
+
+describe("transaction mutations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({ userId: "user-1" });
+  });
+
+  // Categorizar a mano un movimiento con empresa puede fijar su default_category_id en la API.
+  it.each([
+    ["useCreateTransaction", () => useCreateTransaction(), {}],
+    ["useUpdateTransaction", () => useUpdateTransaction(), { id: "1", dto: {} }],
+  ] as const)("%s invalidates empresas", async (_name, hook, vars) => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(hook, { wrapper });
+
+    await (result.current.mutateAsync as (v: unknown) => Promise<unknown>)(vars);
+
+    const keys = invalidateSpy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));
+    expect(keys).toContain(JSON.stringify(["empresas", "user-1"]));
+  });
+});
+
+describe("useNetWorth", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({ userId: "user-1" });
+    bankingMock.getAccounts.mockResolvedValue([
+      { currency: "COP", display_balance: "1000" },
+      { currency: "USD", display_balance: "2" },
+    ]);
+    bankingMock.getAssets.mockResolvedValue([]);
+    bankingMock.getLiabilities.mockResolvedValue([]);
+  });
+
+  it("consolida en COP con la TRM de hoy", async () => {
+    bankingMock.getTrm.mockResolvedValue({
+      value: 4000,
+      valid_from: "2026-10-03",
+      valid_to: "2026-10-03",
+      source: "datos.gov.co",
+    });
+    const { result } = renderHook(() => useNetWorth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(bankingMock.getTrm).toHaveBeenCalledTimes(1);
+    expect(result.current.summary?.total_cop).toBe(9000);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("si la TRM falla no hay error: queda solo el desglose", async () => {
+    bankingMock.getTrm.mockRejectedValue(new Error("503"));
+    const { result } = renderHook(() => useNetWorth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 4000 });
+    expect(result.current.error).toBeNull();
+    expect(result.current.summary).toMatchObject({
+      total_cop: null,
+      by_currency: { COP: 1000, USD: 2 },
     });
   });
 });

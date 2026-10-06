@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, ArrowRight, Target } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Link } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -111,6 +112,15 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
 
   const sourceAccount = bankAccounts.find((a) => String(a.id) === sourceAccountId);
   const destAccount = bankAccounts.find((a) => String(a.id) === destinationAccountId);
+  const destCurrency =
+    destinationType === "account"
+      ? destAccount?.currency
+      : creditCards.find((l) => String(l.id) === destinationLiabilityId)?.currency;
+  // R7.3: el monto va en la moneda del origen; el destino se acredita convertido (sin cifra antes de guardar).
+  const fxNotice =
+    sourceAccount && destCurrency && sourceAccount.currency !== destCurrency
+      ? `Se registrará en ${destCurrency} con la TRM oficial de la fecha`
+      : null;
   const linkableObjectives = objectives.filter((o) => o.type !== "loan");
   const availableDestinationAccounts = bankAccounts.filter((a) => String(a.id) !== sourceAccountId);
 
@@ -258,19 +268,21 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                 <SelectContent>
                   {bankAccounts.map((a) => (
                     <SelectItem key={a.id} value={String(a.id)}>
-                      {a.bank_name} · {a.masked_account_number}
+                      {a.bank_name} · {a.masked_account_number} ({a.currency})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {sourceAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo: {fmtCurrency(Number(sourceAccount.display_balance))}
+                  Saldo:{" "}
+                  {fmtCurrency(Number(sourceAccount.display_balance), sourceAccount.currency)}
                 </p>
               )}
               {insufficientBalance && (
                 <p className="text-xs font-medium text-destructive">
-                  Saldo insuficiente (disponible {fmtCurrency(sourceBalance)})
+                  Saldo insuficiente (disponible{" "}
+                  {fmtCurrency(sourceBalance, sourceAccount?.currency)})
                 </p>
               )}
             </div>
@@ -332,7 +344,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                     <SelectContent>
                       {availableDestinationAccounts.map((a) => (
                         <SelectItem key={a.id} value={String(a.id)}>
-                          {a.bank_name} · {a.masked_account_number}
+                          {a.bank_name} · {a.masked_account_number} ({a.currency})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -365,11 +377,16 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               )}
               {destAccount && (
                 <p className="text-xs text-muted-foreground">
-                  Saldo: {fmtCurrency(Number(destAccount.display_balance))}
+                  Saldo: {fmtCurrency(Number(destAccount.display_balance), destAccount.currency)}
                 </p>
               )}
             </div>
           </div>
+          {fxNotice && (
+            <p role="status" className="text-xs text-muted-foreground">
+              {fxNotice}
+            </p>
+          )}
           {isEditing && (
             <p className="text-xs text-muted-foreground">
               Las cuentas de la transferencia no se pueden cambiar al editar.
@@ -469,6 +486,13 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               aria-label="Marcar como transferencia fija"
             />
           </div>
+          <Link
+            to="/recurring"
+            onClick={() => onOpenChange(false)}
+            className="block text-xs font-medium text-primary hover:underline"
+          >
+            Gestiona tus recurrentes
+          </Link>
 
           {isFixed && (
             <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">

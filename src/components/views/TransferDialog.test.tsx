@@ -5,6 +5,11 @@ import type { TransferResponse } from "@/lib/api/finance";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 
 const noop = () => ({
   mutateAsync: vi.fn().mockResolvedValue({}),
@@ -19,6 +24,7 @@ let mockBankAccounts: Array<{
   bank_name: string;
   masked_account_number: string;
   display_balance: string;
+  currency?: string;
 }> = [];
 let mockLiabilities: Array<{ id: number; name: string; liability_type: string; currency: string }> =
   [];
@@ -111,12 +117,81 @@ describe("TransferDialog", () => {
     expect(screen.getByText(/Saldo: \$\s?100\.000/)).toBeInTheDocument();
   });
 
+  describe("moneda (R7.2, R7.3, R7.5)", () => {
+    beforeEach(() => {
+      mockBankAccounts = [
+        {
+          id: 1,
+          bank_name: "Bancolombia",
+          masked_account_number: "****1234",
+          display_balance: "100000",
+          currency: "COP",
+        },
+        {
+          id: 2,
+          bank_name: "Wise",
+          masked_account_number: "****9999",
+          display_balance: "250.5",
+          currency: "USD",
+        },
+        {
+          id: 3,
+          bank_name: "Nu",
+          masked_account_number: "****5678",
+          display_balance: "0",
+          currency: "COP",
+        },
+      ];
+    });
+
+    async function pick(user: ReturnType<typeof userEvent.setup>, trigger: number, option: RegExp) {
+      await user.click(screen.getAllByText("Seleccionar...")[trigger]);
+      await user.click(await screen.findByRole("option", { name: option }));
+    }
+
+    it("muestra la moneda en las opciones y el saldo en la moneda de cada cuenta", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} />);
+
+      await user.click(screen.getAllByText("Seleccionar...")[0]);
+      expect(
+        await screen.findByRole("option", { name: "Bancolombia · ****1234 (COP)" }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("option", { name: "Wise · ****9999 (USD)" }));
+
+      expect(screen.getByText(/Saldo: US\$\s?250,5/)).toBeInTheDocument();
+    });
+
+    it("avisa cuando origen y destino tienen distinta moneda", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} />);
+
+      await pick(user, 0, /Bancolombia/);
+      await pick(user, 0, /Wise/);
+
+      expect(
+        screen.getByText("Se registrará en USD con la TRM oficial de la fecha"),
+      ).toBeInTheDocument();
+    });
+
+    it("no avisa cuando origen y destino tienen la misma moneda", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} />);
+
+      await pick(user, 0, /Bancolombia/);
+      await pick(user, 0, /Nu/);
+
+      expect(screen.queryByText(/con la TRM oficial de la fecha/)).not.toBeInTheDocument();
+    });
+  });
+
   describe("editing", () => {
     const movement = {
       liability_id: null,
       bank_name: null,
       account_type: null,
       amount: 80000,
+      currency: "COP",
       transaction_date: "2026-09-01",
       description: null,
       reference_code: null,
