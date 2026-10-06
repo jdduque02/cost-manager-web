@@ -29,6 +29,7 @@ import {
   useTransactions,
   useCategories,
   useProductClosures,
+  useNetWorth,
 } from "@/lib/hooks/use-api";
 import { WealthDialog } from "./WealthDialog";
 import {
@@ -41,8 +42,13 @@ import { CurrencyConverter } from "./CurrencyConverter";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { BankAccount, FinancialAsset, FinancialLiability } from "@/lib/api/banking";
-import { accountTypeLabel, availableCredit } from "@/lib/api/banking";
+import type {
+  BankAccount,
+  Consolidated,
+  FinancialAsset,
+  FinancialLiability,
+} from "@/lib/api/banking";
+import { accountTypeLabel, availableCredit, netWorthDetail } from "@/lib/api/banking";
 import type { TransactionRecord } from "@/lib/api/finance";
 
 import { t } from "@/lib/i18n/errors";
@@ -286,6 +292,27 @@ function CreditLine({
   );
 }
 
+/** Total en COP, o solo el desglose sin TRM, y la nota de la TRM (R6.1–R6.4, R6.9). */
+function ConsolidatedAmount({
+  value,
+  fmtAmount,
+  className,
+}: {
+  value: Consolidated;
+  fmtAmount: (v: number, opts?: { currency?: string }) => string;
+  className?: string;
+}) {
+  const { breakdown, note } = netWorthDetail(value, fmtAmount);
+  return (
+    <>
+      <p className={cn("mt-2 font-display text-2xl font-semibold", className)}>
+        {value.total_cop != null ? fmtAmount(value.total_cop) : breakdown}
+      </p>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+    </>
+  );
+}
+
 export function Wealth() {
   const { data: accounts = [], isLoading: loadAcc } = useBankAccounts();
   const { data: assets = [], isLoading: loadAst } = useFinancialAssets();
@@ -293,6 +320,9 @@ export function Wealth() {
   const { data: transactions = [] } = useTransactions({ limit: 500 });
   const { data: categories = [] } = useCategories();
   const { data: pendingClosures = [] } = useProductClosures({ status: "pending" });
+  const { summary, isLoading: nwLoading } = useNetWorth();
+  // Hasta que llegue la TRM se mostraría el desglose y luego saltaría al total.
+  const netWorth = nwLoading ? null : summary;
   const deleteAccount = useDeleteBankAccount();
   const deleteAsset = useDeleteFinancialAsset();
   const deleteLiability = useDeleteFinancialLiability();
@@ -367,9 +397,6 @@ export function Wealth() {
     const astTotal = assets.reduce((sum, a) => sum + Number(a.current_value ?? 0), 0);
     return accTotal + astTotal;
   }, [accounts, assets]);
-
-  const totalLiab = liabilities.reduce((sum, l) => sum + Number(l.current_balance ?? 0), 0);
-  const net = totalAssets - totalLiab;
 
   const projection = useMemo(() => {
     const rateItems = [
@@ -562,19 +589,27 @@ export function Wealth() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Total Activos</p>
-          <p className="mt-2 font-display text-2xl font-semibold text-success">
-            {fmtAmount(totalAssets)}
-          </p>
+          {netWorth && (
+            <ConsolidatedAmount
+              value={netWorth.assets}
+              fmtAmount={fmtAmount}
+              className="text-success"
+            />
+          )}
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Total Pasivos</p>
-          <p className="mt-2 font-display text-2xl font-semibold text-destructive">
-            -{fmtAmount(totalLiab)}
-          </p>
+          {netWorth && (
+            <ConsolidatedAmount
+              value={netWorth.liabilities}
+              fmtAmount={fmtAmount}
+              className="text-destructive"
+            />
+          )}
         </Card>
         <Card glow>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Patrimonio Neto</p>
-          <p className="mt-2 font-display text-2xl font-semibold">{fmtAmount(net)}</p>
+          {netWorth && <ConsolidatedAmount value={netWorth} fmtAmount={fmtAmount} />}
         </Card>
         <Card>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
