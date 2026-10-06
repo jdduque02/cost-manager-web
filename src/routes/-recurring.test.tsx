@@ -5,7 +5,10 @@ import { fmtCurrency } from "@/lib/format";
 import type { RecurringTransaction } from "@/lib/api/finance";
 import { RecurringPage } from "./recurring";
 
-vi.mock("@tanstack/react-router", () => ({ createFileRoute: () => () => ({}) }));
+vi.mock("@tanstack/react-router", () => ({
+  createFileRoute: () => () => ({}),
+  Link: ({ children }: { children?: React.ReactNode }) => <a href="/transactions">{children}</a>,
+}));
 vi.mock("@/components/layout/AppShell", () => ({ AppShell: () => null }));
 vi.mock("@/components/views/RecurringDialog", async (orig) => ({
   ...(await orig<typeof import("@/components/views/RecurringDialog")>()),

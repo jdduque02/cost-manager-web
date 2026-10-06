@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Loader2, Pencil, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
@@ -186,7 +186,9 @@ export function RecurringPage() {
                 )}
                 {r.end_date && <Badge>Hasta {fmtDate(r.end_date)}</Badge>}
                 {r.pending_validation_count > 0 && (
-                  <Badge tone="warning">{r.pending_validation_count} por validar</Badge>
+                  <Link to="/transactions" search={{ needs_validation: true }}>
+                    <Badge tone="warning">{r.pending_validation_count} por validar</Badge>
+                  </Link>
                 )}
               </div>
             </Card>
