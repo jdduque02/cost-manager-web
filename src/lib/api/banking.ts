@@ -1,5 +1,6 @@
 import { api } from "./client";
-import { buildQueryString } from "./finance";
+import { buildQueryString, numOrNull } from "./finance";
+import { fmtDay } from "@/lib/format";
 
 export type AssetType =
   | "acciones"
@@ -93,6 +94,14 @@ export interface FxRates {
   updated_at: string;
 }
 
+/** TRM oficial (datos.gov.co); `valid_to` < fecha pedida = última publicada. */
+export interface Trm {
+  value: number;
+  valid_from: string;
+  valid_to: string;
+  source: string;
+}
+
 export interface FinancialAsset {
   id: number;
   user_id: number;
@@ -159,6 +168,57 @@ export function availableCredit(l: FinancialLiability): number | null {
   return l.credit_limit == null ? null : l.credit_limit - Number(l.current_balance ?? 0);
 }
 
+/** Monto consolidado (R6.1–R6.3): COP + USD×TRM; otras monedas solo en `by_currency`. */
+export interface Consolidated {
+  /** null si hay saldo en USD y no hay TRM: solo se muestra el desglose (R6.4). */
+  total_cop: number | null;
+  by_currency: Record<string, number>;
+  trm: Trm | null;
+}
+
+/** Patrimonio (cuentas + activos − pasivos) y sus totales de activos y pasivos (negativos) con la misma regla (R6.9). */
+export interface NetWorth extends Consolidated {
+  assets: Consolidated;
+  liabilities: Consolidated;
+}
+
+function consolidate(items: [currency: string, amount: number][], trm?: Trm | null): Consolidated {
+  const by_currency: Record<string, number> = {};
+  for (const [currency, n] of items) {
+    const c = currency || "COP";
+    by_currency[c] = (by_currency[c] ?? 0) + n;
+  }
+  const usd = by_currency.USD ?? 0;
+  // Sin USD el total no necesita TRM (p. ej. mientras el API no exponga `currency/trm`).
+  const total_cop =
+    usd !== 0 && !trm
+      ? null
+      : Math.round(((by_currency.COP ?? 0) + usd * (trm?.value ?? 0)) * 100) / 100;
+  return { total_cop, by_currency, trm: trm ?? null };
+}
+
+/**
+ * Desglose por moneda ("$ 1.000 · US$ 250") y la nota bajo el total: el desglose si hay más de una
+ * moneda y "USD a TRM del {fecha}". Sin total (sin TRM) no hay nota: se muestra solo el desglose.
+ */
+export function netWorthDetail(
+  nw: Consolidated,
+  fmt: (n: number, opts?: { currency?: string }) => string,
+): { breakdown: string; note: string | null } {
+  const currencies = Object.keys(nw.by_currency)
+    .filter((c) => nw.by_currency[c] !== 0)
+    .sort();
+  const breakdown = currencies.map((c) => fmt(nw.by_currency[c], { currency: c })).join(" · ");
+  if (nw.total_cop == null) return { breakdown, note: null };
+  const note = [
+    currencies.length > 1 ? breakdown : "",
+    nw.by_currency.USD && nw.trm ? `USD a TRM del ${fmtDay(nw.trm.valid_from)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { breakdown, note: note || null };
+}
+
 export type ProductKind = "account" | "liability";
 export type ProductClosureStatus = "pending" | "reconciled" | "skipped";
 
@@ -194,8 +254,6 @@ export interface ReconcileProductClosureDto {
   total_payment?: number;
 }
 
-const numOrNull = (v: unknown): number | null => (v == null ? null : Number(v));
-
 // El numeric de Postgres puede llegar como string: todo monto pasa por Number(...).
 function toClosure(c: ProductClosure): ProductClosure {
   return {
@@ -218,6 +276,11 @@ export const bankingApi = {
     api.delete<void>(`users/${userId}/bank-accounts/${id}`),
 
   getCurrencyRates: () => api.get<FxRates>(`currency/rates`),
+  /** Sin `date`, la TRM vigente hoy en Bogotá. */
+  getTrm: (date?: string) =>
+    api
+      .getOne<Trm>(`currency/trm${buildQueryString({ date })}`)
+      .then((t) => ({ ...t, value: Number(t.value) })),
 
   getAssets: (userId: string) =>
     api.get<FinancialAsset[]>(`users/${userId}/financial-assets`).then((assets) =>
@@ -271,11 +334,20 @@ export const bankingApi = {
     assets: FinancialAsset[],
     liabilities: FinancialLiability[],
     bankAccounts: BankAccount[],
-  ) {
-    const totalAssets =
-      assets.reduce((s, a) => s + Number(a.current_value ?? 0), 0) +
-      bankAccounts.reduce((s, a) => s + Number(a.display_balance ?? 0), 0);
-    const totalLiabilities = liabilities.reduce((s, l) => s + Number(l.current_balance ?? 0), 0);
-    return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities };
+    trm?: Trm | null,
+  ): NetWorth {
+    const assetItems: [string, number][] = [
+      ...bankAccounts.map((a): [string, number] => [a.currency, Number(a.display_balance ?? 0)]),
+      ...assets.map((a): [string, number] => [a.currency, Number(a.current_value ?? 0)]),
+    ];
+    const liabilityItems = liabilities.map((l): [string, number] => [
+      l.currency,
+      -Number(l.current_balance ?? 0),
+    ]);
+    return {
+      ...consolidate([...assetItems, ...liabilityItems], trm),
+      assets: consolidate(assetItems, trm),
+      liabilities: consolidate(liabilityItems, trm),
+    };
   },
 };

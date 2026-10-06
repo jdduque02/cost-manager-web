@@ -28,6 +28,10 @@ export interface TransactionRecord {
   type: TransactionType;
   amount: number;
   currency: string;
+  /** Monto aplicado al producto en su moneda si difiere de `currency` (COP/USD); null = sin conversión. */
+  applied_amount?: number | null;
+  /** TRM usada (COP por 1 USD); null = sin conversión. */
+  fx_rate?: number | null;
   is_fixed: boolean;
   fixed_type?: FixedType | null;
   frequency?: FixedFrequency | null;
@@ -278,6 +282,8 @@ export interface TransactionSummaryQuery {
   currency: "COP" | "USD";
 }
 
+export const numOrNull = (v: unknown): number | null => (v == null ? null : Number(v));
+
 export function buildQueryString(params?: object): string {
   if (!params) return "";
   const search = new URLSearchParams();
@@ -294,7 +300,14 @@ export const financeApi = {
   getTransactions: (userId: string, params?: TransactionQuery) =>
     api
       .get<TransactionRecord[]>(`users/${userId}/transactions${buildQueryString(params)}`)
-      .then((txs) => txs.map((t) => ({ ...t, amount: Number(t.amount ?? 0) }))),
+      .then((txs) =>
+        txs.map((t) => ({
+          ...t,
+          amount: Number(t.amount ?? 0),
+          applied_amount: numOrNull(t.applied_amount),
+          fx_rate: numOrNull(t.fx_rate),
+        })),
+      ),
   getTransactionSummary: (userId: string, params: TransactionSummaryQuery) =>
     api
       .get<TransactionSummary>(`users/${userId}/transactions/summary${buildQueryString(params)}`)
@@ -425,7 +438,12 @@ export interface TransferMovement {
   side: "source" | "destination";
   bank_name: string | null;
   account_type: string | null;
+  /** En la moneda del origen (`currency`). */
   amount: number;
+  currency: string;
+  /** Monto acreditado en la moneda de esta pierna si difiere de `currency`; null = sin conversión. */
+  applied_amount?: number | null;
+  fx_rate?: number | null;
   transaction_date: string;
   description: string | null;
   reference_code: string | null;

@@ -487,6 +487,16 @@ export function useExchangeRate() {
   return query;
 }
 
+/** TRM oficial vigente hoy en Bogotá. */
+export function useTrm() {
+  return useQuery({
+    queryKey: ["currency-trm"],
+    queryFn: () => bankingApi.getTrm(),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useFinancialAssets() {
   const { userId } = useAuth();
   return useQuery({
@@ -652,13 +662,16 @@ export function useNetWorth() {
   const accounts = useBankAccounts();
   const assets = useFinancialAssets();
   const liabilities = useFinancialLiabilities();
+  const trm = useTrm();
 
-  const isLoading = accounts.isLoading || assets.isLoading || liabilities.isLoading;
+  const isLoading =
+    accounts.isLoading || assets.isLoading || liabilities.isLoading || trm.isLoading;
+  // Sin TRM el patrimonio sigue mostrándose (solo el desglose): su error no bloquea.
   const error = accounts.error ?? assets.error ?? liabilities.error;
 
   const summary =
     accounts.data && assets.data && liabilities.data
-      ? bankingApi.computeNetWorth(assets.data, liabilities.data, accounts.data)
+      ? bankingApi.computeNetWorth(assets.data, liabilities.data, accounts.data, trm.data)
       : null;
 
   return { summary, isLoading, error };

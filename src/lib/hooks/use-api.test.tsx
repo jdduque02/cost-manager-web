@@ -14,6 +14,7 @@ import {
   useStatementImportProgress,
   useCreateTransaction,
   useUpdateTransaction,
+  useNetWorth,
 } from "./use-api";
 import type { Session, AccessEvent } from "@/lib/api/auth";
 
@@ -40,6 +41,17 @@ vi.mock("@/lib/api/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/client")>()),
   api: { post: vi.fn().mockResolvedValue({}) },
 }));
+
+const bankingMock = vi.hoisted(() => ({
+  getAccounts: vi.fn(),
+  getAssets: vi.fn(),
+  getLiabilities: vi.fn(),
+  getTrm: vi.fn(),
+}));
+vi.mock("@/lib/api/banking", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/banking")>();
+  return { ...actual, bankingApi: { ...actual.bankingApi, ...bankingMock } };
+});
 
 vi.mock("@/lib/api/statement-imports", () => ({
   statementImportApi: { get: vi.fn().mockResolvedValue({ id: 7, status: "completed" }) },
@@ -301,5 +313,43 @@ describe("transaction mutations", () => {
 
     const keys = invalidateSpy.mock.calls.map(([f]) => JSON.stringify(f?.queryKey));
     expect(keys).toContain(JSON.stringify(["empresas", "user-1"]));
+  });
+});
+
+describe("useNetWorth", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({ userId: "user-1" });
+    bankingMock.getAccounts.mockResolvedValue([
+      { currency: "COP", display_balance: "1000" },
+      { currency: "USD", display_balance: "2" },
+    ]);
+    bankingMock.getAssets.mockResolvedValue([]);
+    bankingMock.getLiabilities.mockResolvedValue([]);
+  });
+
+  it("consolida en COP con la TRM de hoy", async () => {
+    bankingMock.getTrm.mockResolvedValue({
+      value: 4000,
+      valid_from: "2026-10-03",
+      valid_to: "2026-10-03",
+      source: "datos.gov.co",
+    });
+    const { result } = renderHook(() => useNetWorth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(bankingMock.getTrm).toHaveBeenCalledTimes(1);
+    expect(result.current.summary?.total_cop).toBe(9000);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("si la TRM falla no hay error: queda solo el desglose", async () => {
+    bankingMock.getTrm.mockRejectedValue(new Error("503"));
+    const { result } = renderHook(() => useNetWorth(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 4000 });
+    expect(result.current.error).toBeNull();
+    expect(result.current.summary).toMatchObject({
+      total_cop: null,
+      by_currency: { COP: 1000, USD: 2 },
+    });
   });
 });

@@ -38,16 +38,16 @@ export const parseCurrency = (s: string): number => {
   return Number.isFinite(v) ? v : 0;
 };
 
+/** Fecha "YYYY-MM-DD" en es-CO ("4 oct 2026"), sin correr el día por la zona horaria. */
+export const fmtDay = (s: string): string =>
+  new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
 /** Periodo "YYYY-MM-DD".."YYYY-MM-DD" en es-CO, sin correr el día por la zona horaria. */
-export const fmtPeriod = (from: string, to: string): string => {
-  const d = (s: string) =>
-    new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  return `${d(from)} – ${d(to)}`;
-};
+export const fmtPeriod = (from: string, to: string): string => `${fmtDay(from)} – ${fmtDay(to)}`;
 
 export const MASKED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
