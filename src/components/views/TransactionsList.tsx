@@ -1,5 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQueryState, parseAsString, parseAsStringEnum, parseAsBoolean } from "nuqs";
+import {
+  useQueryState,
+  parseAsString,
+  parseAsStringEnum,
+  parseAsBoolean,
+  parseAsInteger,
+} from "nuqs";
 import { Card, Badge } from "@/components/ui/primitives";
 import { useFormattedAmount } from "@/lib/hooks/use-formatted-amount";
 import {
@@ -18,6 +24,7 @@ import {
   ArrowLeftRight,
   Copy,
   Building2,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -59,6 +66,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionDialog } from "./TransactionDialog";
 import { TransferDialog } from "./TransferDialog";
+import { ValidatePaymentDialog } from "./ValidatePaymentDialog";
 import { TransactionCalendar } from "./TransactionCalendar";
 import { CurrencyConverter } from "./CurrencyConverter";
 import { GmfCalculator } from "./GmfCalculator";
@@ -434,6 +442,7 @@ interface TransactionRowProps {
   toggleSelected: (id: number) => void;
   handleEdit: (t: TransactionRecord) => void;
   setDeletingTx: (t: TransactionRecord | null) => void;
+  onValidate: (t: TransactionRecord) => void;
   onClone: (t: TransactionRecord) => void;
   onCloneTransfer?: (t: TransactionRecord) => void;
   cloneTx: ReturnType<typeof useCloneTransaction>;
@@ -455,6 +464,7 @@ function TransactionRow({
   toggleSelected,
   handleEdit,
   setDeletingTx,
+  onValidate,
   onClone,
   onCloneTransfer,
   cloneTx,
@@ -503,6 +513,7 @@ function TransactionRow({
         <Badge tone="muted">{categoryName}</Badge>
       )}
       {linkedLabelValue && <Badge tone="primary">{linkedLabelValue}</Badge>}
+      {tx.needs_validation && <Badge tone="warning">Validar pago</Badge>}
       {tx.is_fixed && (
         <Badge tone="primary">
           Fija
@@ -520,6 +531,16 @@ function TransactionRow({
         {fmtAmount(tx.amount, { currency: tx.currency })}
       </span>
       <div className="flex gap-1 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
+        {tx.needs_validation && (
+          <button
+            onClick={() => onValidate(tx)}
+            aria-label={`Validar pago: ${description}`}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-success/10 hover:text-success"
+            title="Validar pago"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(tx) : onClone(tx))}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
@@ -558,6 +579,7 @@ interface MonthSectionProps {
   toggleSelected: (id: number) => void;
   handleEdit: (t: TransactionRecord) => void;
   setDeletingTx: (t: TransactionRecord | null) => void;
+  onValidate: (t: TransactionRecord) => void;
   handleDeleteMonth: (month: MonthGroup) => void;
   onClone: (t: TransactionRecord) => void;
   onCloneTransfer?: (t: TransactionRecord) => void;
@@ -577,6 +599,7 @@ function MonthSection({
   toggleSelected,
   handleEdit,
   setDeletingTx,
+  onValidate,
   handleDeleteMonth,
   onClone,
   onCloneTransfer,
@@ -652,6 +675,7 @@ function MonthSection({
                 toggleSelected={toggleSelected}
                 handleEdit={handleEdit}
                 setDeletingTx={setDeletingTx}
+                onValidate={onValidate}
                 onClone={onClone}
                 onCloneTransfer={onCloneTransfer}
                 cloneTx={cloneTx}
@@ -669,6 +693,12 @@ export function TransactionsList() {
   const [dateFrom, setDateFrom] = useQueryState("from", parseAsString.withDefault(""));
   const [dateTo, setDateTo] = useQueryState("to", parseAsString.withDefault(""));
 
+  const [needsValidation, setNeedsValidation] = useQueryState(
+    "needs_validation",
+    parseAsBoolean.withDefault(false),
+  );
+  const [validateId, setValidateId] = useQueryState("validate", parseAsInteger);
+
   const {
     data: transactions = [],
     isLoading,
@@ -676,6 +706,7 @@ export function TransactionsList() {
     refetch,
   } = useTransactions({
     limit: TX_LIMIT,
+    ...(needsValidation ? { needs_validation: true } : {}),
     ...(dateFrom ? { date_from: dateFrom } : {}),
     ...(dateTo ? { date_to: dateTo } : {}),
   });
@@ -776,6 +807,20 @@ export function TransactionsList() {
     () => transactions.filter((t) => t.category_status === "pending").length,
     [transactions],
   );
+
+  const validating =
+    validateId == null
+      ? null
+      : (transactions.find((t) => String(t.id) === String(validateId) && t.needs_validation) ??
+        null);
+
+  // ?validate=<id> que no está por validar (ya validada, otra página o filtro): aviso y limpia.
+  useEffect(() => {
+    if (validateId != null && !isLoading && !error && !validating) {
+      toast.info("Ese pago ya no está pendiente de validar");
+      void setValidateId(null);
+    }
+  }, [validateId, isLoading, error, validating, setValidateId]);
 
   const groupedByMonth = useMemo(() => groupByMonth(displayItems), [displayItems]);
 
@@ -881,6 +926,7 @@ export function TransactionsList() {
     typeFilter !== "all" ||
     companyFilter !== "all" ||
     uncategorizedOnly ||
+    needsValidation ||
     !!dateFrom ||
     !!dateTo;
 
@@ -889,6 +935,7 @@ export function TransactionsList() {
     void setTypeFilter(null);
     void setCompanyFilter(null);
     void setUncategorizedOnly(null);
+    void setNeedsValidation(null);
     void setDateFrom(null);
     void setDateTo(null);
   };
@@ -924,6 +971,7 @@ export function TransactionsList() {
             toggleSelected={toggleSelected}
             handleEdit={handleEdit}
             setDeletingTx={setDeletingTx}
+            onValidate={(t) => void setValidateId(t.id)}
             handleDeleteMonth={handleDeleteMonth}
             onClone={(t) => {
               setCloningTx(t);
@@ -1079,6 +1127,19 @@ export function TransactionsList() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setNeedsValidation((v) => !v)}
+            aria-pressed={needsValidation}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition",
+              needsValidation
+                ? "border-warning bg-warning/15 text-warning"
+                : "border-border bg-surface text-foreground hover:border-warning/50",
+            )}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Por validar
+          </button>
           <div className="relative">
             <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <select
@@ -1193,6 +1254,8 @@ export function TransactionsList() {
       />
 
       <StatementImportDialog open={importOpen} onOpenChange={setImportOpen} />
+
+      <ValidatePaymentDialog transaction={validating} onClose={() => void setValidateId(null)} />
 
       <ConfirmDialog
         open={!!deletingTx}

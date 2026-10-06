@@ -13,12 +13,17 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: vi.fn(),
   cloneTransfer: vi.fn(),
+  queries: [] as unknown[],
 }));
 
 vi.mock("./TransactionDialog", () => ({
   TransactionDialog: ({ open }: { open: boolean }) => (open ? <div role="dialog" /> : null),
 }));
 vi.mock("./TransferDialog", () => ({ TransferDialog: () => null }));
+vi.mock("./ValidatePaymentDialog", () => ({
+  ValidatePaymentDialog: ({ transaction }: { transaction: { id: number } | null }) =>
+    transaction ? <div role="dialog">validar {transaction.id}</div> : null,
+}));
 vi.mock("./TransactionCalendar", () => ({ TransactionCalendar: () => null }));
 vi.mock("./CurrencyConverter", () => ({ CurrencyConverter: () => null }));
 vi.mock("./GmfCalculator", () => ({ GmfCalculator: () => null }));
@@ -31,12 +36,15 @@ vi.mock("@/lib/hooks/use-api", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false });
   const empty = () => ({ data: [] });
   return {
-    useTransactions: () => ({
-      data: state.transactions,
-      isLoading: false,
-      error: state.error,
-      refetch: state.refetch,
-    }),
+    useTransactions: (params: unknown) => {
+      state.queries.push(params);
+      return {
+        data: state.transactions,
+        isLoading: false,
+        error: state.error,
+        refetch: state.refetch,
+      };
+    },
     useCategories: () => ({ data: [{ id: 1, name: "Mercado" }] }),
     useObjectives: empty,
     useBankAccounts: () => ({ data: state.bankAccounts }),
@@ -259,5 +267,38 @@ describe("TransactionsList › conversión de moneda (R7.4)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/TRM/)).toHaveLength(1);
+  });
+});
+
+describe("TransactionsList: pagos por validar", () => {
+  beforeEach(() => {
+    state.transactions = [];
+    state.queries = [];
+    vi.clearAllMocks();
+  });
+
+  it("muestra el badge solo en filas con needs_validation", () => {
+    state.transactions = [
+      { ...tx(1, "Arriendo"), needs_validation: true },
+      { ...tx(2, "Mercado"), needs_validation: false },
+    ];
+    renderList();
+    expect(screen.getAllByText("Validar pago")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Validar pago: Arriendo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validar pago: Mercado" })).not.toBeInTheDocument();
+  });
+
+  it("el filtro Por validar envía needs_validation=true solo cuando está activo", async () => {
+    state.transactions = [tx(1)];
+    renderList();
+    expect(state.queries.at(-1)).not.toHaveProperty("needs_validation");
+    await userEvent.click(screen.getByRole("button", { name: "Por validar" }));
+    expect(state.queries.at(-1)).toMatchObject({ needs_validation: true });
+  });
+
+  it("?validate=<id> abre el diálogo de esa transacción", () => {
+    state.transactions = [{ ...tx(42, "Arriendo"), needs_validation: true }];
+    renderList("?validate=42");
+    expect(screen.getByRole("dialog")).toHaveTextContent("validar 42");
   });
 });

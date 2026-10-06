@@ -1,6 +1,6 @@
 import type { NotificationPayload } from "@/lib/socket";
 
-export type NotificationKind = "import" | "reminder" | "system";
+export type NotificationKind = "import" | "reminder" | "recurring" | "system";
 
 /** Títulos de notificación enviados como clave i18n (builds antiguos). */
 const TITLE_TRANSLATIONS: Record<string, string> = {
@@ -64,6 +64,7 @@ function getNotificationKind(
 ): NotificationKind {
   const ref = n.reference ?? "";
   if (ref.startsWith("statement-import")) return "import";
+  if (ref.startsWith("recurring:")) return "recurring";
   if (ref.startsWith("fixed:reminder") || (n.title ?? "").startsWith("notification.UPCOMING")) {
     return "reminder";
   }

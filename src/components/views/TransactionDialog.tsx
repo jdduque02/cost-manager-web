@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Link } from "@tanstack/react-router";
 import {
   Dialog,
   DialogContent,
@@ -735,6 +736,13 @@ export function TransactionDialog({
                     aria-label="Marcar como transacción fija"
                   />
                 </div>
+                <Link
+                  to="/recurring"
+                  onClick={() => onOpenChange(false)}
+                  className="block text-xs font-medium text-primary hover:underline"
+                >
+                  Gestiona tus recurrentes
+                </Link>
 
                 {isFixed && (
                   <div className="grid grid-cols-1 gap-4 rounded-lg bg-background/50 p-2.5 sm:grid-cols-2">

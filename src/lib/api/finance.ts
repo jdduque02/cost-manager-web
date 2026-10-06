@@ -59,6 +59,10 @@ export interface TransactionRecord {
   destination_account_id?: number | null;
   /** Origen del movimiento; "reconciliation" = ajuste de un cierre (lo asigna el servidor). */
   source?: string | null;
+  /** Recurrente que generó el movimiento (bigint: la capa API lo pasa a number). */
+  recurring_id?: number | null;
+  /** Generado por un recurrente `confirm` y aún sin validar. */
+  needs_validation?: boolean;
 }
 
 export interface TransactionQuery {
@@ -75,6 +79,7 @@ export interface TransactionQuery {
   liability_id?: number;
   company_id?: number;
   currency?: string;
+  needs_validation?: boolean;
   page?: number;
   limit?: number;
 }
@@ -296,18 +301,23 @@ export function buildQueryString(params?: object): string {
   return qs ? `?${qs}` : "";
 }
 
+/** `amount`/`applied_amount`/`fx_rate` (numeric) y `recurring_id` (bigint) llegan como string. */
+const normalizeTransaction = (t: TransactionRecord): TransactionRecord => ({
+  ...t,
+  amount: Number(t.amount ?? 0),
+  applied_amount: numOrNull(t.applied_amount),
+  fx_rate: numOrNull(t.fx_rate),
+  recurring_id: t.recurring_id == null ? null : Number(t.recurring_id),
+});
+
+/** El envoltorio del API siempre trae `data` como arreglo, aun con un solo objeto. */
+const first = <T>(result: T | T[]): T => (Array.isArray(result) ? result[0] : result);
+
 export const financeApi = {
   getTransactions: (userId: string, params?: TransactionQuery) =>
     api
       .get<TransactionRecord[]>(`users/${userId}/transactions${buildQueryString(params)}`)
-      .then((txs) =>
-        txs.map((t) => ({
-          ...t,
-          amount: Number(t.amount ?? 0),
-          applied_amount: numOrNull(t.applied_amount),
-          fx_rate: numOrNull(t.fx_rate),
-        })),
-      ),
+      .then((txs) => txs.map(normalizeTransaction)),
   getTransactionSummary: (userId: string, params: TransactionSummaryQuery) =>
     api
       .get<TransactionSummary>(`users/${userId}/transactions/summary${buildQueryString(params)}`)
@@ -486,3 +496,111 @@ export interface CreateTransferDto {
   objective_id?: number;
   company_id?: number;
 }
+
+// ── Recurrentes ────────────────────────────────────────────────
+
+export type RecurringMode = "auto" | "confirm";
+export type RecurringStatus = "active" | "cancelled" | "finished";
+
+/** Montos e ids ya llegan como number: el API los convierte en su respuesta. */
+export interface RecurringTransaction {
+  id: number;
+  name: string;
+  type: TransactionType;
+  amount: number;
+  currency: string;
+  category_id: number | null;
+  subcategory_id: number | null;
+  account_id: number | null;
+  liability_id: number | null;
+  origin_account_id: number | null;
+  destination_account_id: number | null;
+  destination_liability_id: number | null;
+  payment_method: PaymentMethod | null;
+  frequency: Frequency;
+  start_date: string;
+  next_due_date: string;
+  end_date: string | null;
+  max_occurrences: number | null;
+  occurrences_count: number;
+  remaining_occurrences: number | null;
+  mode: RecurringMode;
+  reminder_days: number;
+  status: RecurringStatus;
+  pending_validation_count: number;
+  created_at: string;
+}
+
+export interface CreateRecurringTransactionDto {
+  name: string;
+  type: TransactionType;
+  amount: number;
+  category_id?: number;
+  subcategory_id?: number;
+  /** Ingreso, gasto o inversión: exactamente uno de `account_id`/`liability_id`. */
+  account_id?: number;
+  liability_id?: number;
+  /** Solo transfer: origen y un destino (cuenta o pasivo). */
+  origin_account_id?: number;
+  destination_account_id?: number;
+  destination_liability_id?: number;
+  payment_method?: PaymentMethod;
+  frequency: Frequency;
+  start_date: string;
+  /** Excluyente con `max_occurrences`. */
+  end_date?: string;
+  max_occurrences?: number;
+  mode: RecurringMode;
+  reminder_days?: number;
+}
+
+/** `type`, `frequency`, `start_date` y los destinos de transferencia no se editan (400). */
+export interface UpdateRecurringTransactionDto {
+  name?: string;
+  amount?: number;
+  mode?: RecurringMode;
+  reminder_days?: number;
+  payment_method?: PaymentMethod;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+  /** Para pasar de cuenta a pasivo (o al revés) envía el anterior en `null`. */
+  account_id?: number | null;
+  liability_id?: number | null;
+  origin_account_id?: number | null;
+  /** Fijar uno limpia el otro en el servidor. */
+  end_date?: string | null;
+  max_occurrences?: number | null;
+}
+
+export interface ProcessResult {
+  created: number;
+  reminders: number;
+  adopted: number;
+}
+
+const recurringPath = (userId: string) => `users/${userId}/recurring-transactions`;
+
+export const recurringApi = {
+  list: (userId: string, status?: RecurringStatus) =>
+    api.get<RecurringTransaction[]>(`${recurringPath(userId)}${buildQueryString({ status })}`),
+  get: (userId: string, id: number) =>
+    api.getOne<RecurringTransaction>(`${recurringPath(userId)}/${id}`),
+  create: (userId: string, dto: CreateRecurringTransactionDto) =>
+    api.post<RecurringTransaction[]>(recurringPath(userId), dto).then(first),
+  update: (userId: string, id: number, dto: UpdateRecurringTransactionDto) =>
+    api.patch<RecurringTransaction[]>(`${recurringPath(userId)}/${id}`, dto).then(first),
+  cancel: (userId: string, id: number) =>
+    api.post<RecurringTransaction[]>(`${recurringPath(userId)}/${id}/cancel`, {}).then(first),
+  /** Una vez al día por usuario: otra llamada el mismo día responde todo en 0. */
+  process: (userId: string) =>
+    api.post<ProcessResult[]>(`${recurringPath(userId)}/process`, {}).then(first),
+  /** Responde la transacción cruda (en transferencias, la pierna del id). */
+  validate: (
+    userId: string,
+    transactionId: number,
+    dto: { transaction_date: string; amount?: number },
+  ) =>
+    api
+      .post<TransactionRecord[]>(`${recurringPath(userId)}/validate/${transactionId}`, dto)
+      .then((r) => normalizeTransaction(first(r))),
+};

@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   FileCheck2,
   CalendarClock,
+  Repeat,
   BellOff,
   CheckCircle2,
   XCircle,
@@ -43,8 +44,28 @@ const TERMINAL_STATUSES = new Set(["completed", "partial", "failed"]);
 const KIND_META: Record<NotificationKind, { icon: LucideIcon; className: string }> = {
   import: { icon: FileCheck2, className: "bg-primary/10 text-primary" },
   reminder: { icon: CalendarClock, className: "bg-warning/10 text-warning" },
+  recurring: { icon: Repeat, className: "bg-primary/10 text-primary" },
   system: { icon: BellOff, className: "bg-surface-2 text-muted-foreground" },
 };
+
+/**
+ * Referencias de recurrentes: `recurring:<validate|created|not-adopted>:<txId>` y
+ * `recurring:<finished|adopted|reminder|insufficient|skipped>:<ruleId>[:<fecha>]`.
+ * Devuelve a dónde llevar al usuario, o null si no es una referencia de recurrentes.
+ */
+export function parseRecurringReference(
+  reference: string | null | undefined,
+): { to: "/transactions" | "/recurring"; search?: { validate: number } } | null {
+  if (!reference?.startsWith("recurring:")) return null;
+  const [, action, id] = reference.split(":");
+  if (action === "validate") {
+    const txId = Number.parseInt(id ?? "", 10);
+    return Number.isInteger(txId) && txId > 0
+      ? { to: "/transactions", search: { validate: txId } }
+      : { to: "/transactions" };
+  }
+  return { to: action === "created" || action === "not-adopted" ? "/transactions" : "/recurring" };
+}
 
 const STATUS_LABELS: Record<StatementImportStatus, string> = {
   pending: "En cola",
