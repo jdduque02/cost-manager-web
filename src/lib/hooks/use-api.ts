@@ -116,6 +116,8 @@ export function useCreateTransaction() {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      // La API puede fijar empresa.default_category_id al categorizar un movimiento.
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     },
   });
 }
@@ -168,6 +170,7 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: qk.assets(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       qc.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
+      qc.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     },
   });
 }
@@ -273,6 +276,8 @@ export function useStatementImportJob(id: number | null) {
       queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
       queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+      // El import crea/asocia empresas cuando llega capture_companies=true.
+      queryClient.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
     }
   }, [query.data, queryClient, userId]);
 
@@ -325,6 +330,7 @@ export function useStatementImportProgress(onProgress?: (p: StatementImportProgr
         queryClient.invalidateQueries({ queryKey: qk.liabilities(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.objectives(userId ?? "") });
         queryClient.invalidateQueries({ queryKey: qk.statementImports(userId ?? "") });
+        queryClient.invalidateQueries({ queryKey: qk.empresas(userId ?? "") });
       }
     };
     socket.on(STATEMENT_IMPORT_PROGRESS, handleProgress);
@@ -479,6 +485,16 @@ export function useExchangeRate() {
     if (query.data) writeFxCache(query.data);
   }, [query.data]);
   return query;
+}
+
+/** TRM oficial vigente hoy en Bogotá. */
+export function useTrm() {
+  return useQuery({
+    queryKey: ["currency-trm"],
+    queryFn: () => bankingApi.getTrm(),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
 }
 
 export function useFinancialAssets() {
@@ -646,13 +662,16 @@ export function useNetWorth() {
   const accounts = useBankAccounts();
   const assets = useFinancialAssets();
   const liabilities = useFinancialLiabilities();
+  const trm = useTrm();
 
-  const isLoading = accounts.isLoading || assets.isLoading || liabilities.isLoading;
+  const isLoading =
+    accounts.isLoading || assets.isLoading || liabilities.isLoading || trm.isLoading;
+  // Sin TRM el patrimonio sigue mostrándose (solo el desglose): su error no bloquea.
   const error = accounts.error ?? assets.error ?? liabilities.error;
 
   const summary =
     accounts.data && assets.data && liabilities.data
-      ? bankingApi.computeNetWorth(assets.data, liabilities.data, accounts.data)
+      ? bankingApi.computeNetWorth(assets.data, liabilities.data, accounts.data, trm.data)
       : null;
 
   return { summary, isLoading, error };

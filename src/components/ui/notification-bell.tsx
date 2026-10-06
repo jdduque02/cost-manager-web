@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Bell, CheckCheck, Loader2, BellOff, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications/context";
@@ -13,17 +14,25 @@ import {
   NotificationGroupList,
   NotificationDetailDialog,
   NotificationsDialog,
+  parseRecurringReference,
 } from "@/lib/notifications/notification-panel";
 
 export function NotificationBell({ className }: { className?: string }) {
   const { notifications, unreadCount, markRead, markAllRead, loading } = useNotifications();
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewAll, setViewAll] = useState(false);
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<NotificationPayload | null>(null);
 
   function handleSelect(n: NotificationPayload) {
     setMenuOpen(false);
     markRead(n.id);
+    const target = parseRecurringReference(n.reference);
+    if (target) {
+      setViewAll(false);
+      void navigate(target);
+      return;
+    }
     setSelected(n);
   }
 
@@ -114,10 +123,7 @@ export function NotificationBell({ className }: { className?: string }) {
         onOpenChange={setViewAll}
         notifications={notifications}
         unreadCount={unreadCount}
-        onSelect={(n) => {
-          markRead(n.id);
-          setSelected(n);
-        }}
+        onSelect={handleSelect}
         onMarkAllRead={markAllRead}
       />
 

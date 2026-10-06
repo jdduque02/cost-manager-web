@@ -23,6 +23,7 @@ import { RevealSection } from "@/components/ui/reveal-section";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
 import { summaryCategoryName } from "@/lib/api/finance";
+import { netWorthDetail } from "@/lib/api/banking";
 import {
   useNetWorth,
   useTransactions,
@@ -137,12 +138,14 @@ function KPI({
   delta,
   positive,
   icon: Icon,
+  note,
 }: {
   label: string;
   value: string;
   delta: string;
   positive: boolean;
   icon: LucideIcon;
+  note?: string | null;
 }) {
   return (
     <Card>
@@ -161,6 +164,7 @@ function KPI({
       >
         {value}
       </p>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
     </Card>
   );
 }
@@ -214,7 +218,8 @@ export function Dashboard() {
   const amountsHidden = useAmountsHidden();
   const axisFormatter = amountsHidden ? hiddenAxisFormatter : kFormatter;
 
-  const netWorthValue = nw?.netWorth ?? 0;
+  const netWorthValue = nw?.total_cop ?? 0;
+  const nwDetail = nw ? netWorthDetail(nw, fmtAmount) : null;
 
   function txDate(t: { transaction_date?: string | null; created_at?: string }): Date {
     const iso = t.transaction_date ?? t.created_at ?? "";
@@ -473,7 +478,11 @@ export function Dashboard() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KPI
               label="Patrimonio"
-              value={fmtAmount(animatedNetWorth)}
+              // Sin TRM (y con saldo en USD) el valor es el desglose por moneda (R6.4).
+              value={
+                nw?.total_cop != null ? fmtAmount(animatedNetWorth) : (nwDetail?.breakdown ?? "")
+              }
+              note={nwDetail?.note}
               delta="Tiempo real"
               positive
               icon={Wallet}

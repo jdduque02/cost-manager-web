@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { getAccessToken } from "@/lib/api/client";
+import { ensureFreshToken, getAccessToken } from "@/lib/api/client";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace("/api/v1", "")
@@ -47,9 +47,14 @@ export function getSocket(): Socket {
   if (socket) return socket;
 
   socket = io(SOCKET_NAMESPACE, {
-    // auth como callback: se re-evalúa con el token vigente en cada (re)conexión,
-    // así los reintentos usan el token refrescado tras un 401.
-    auth: (cb) => cb({ token: getAccessToken() }),
+    // auth como callback: en cada (re)conexión renueva el token si está por
+    // vencer (la reconexión cuenta como uso) y entrega el vigente. El evento
+    // cm:tokens-updated de ese refresh no reconecta: en el handshake aún no
+    // hay `connected`. Si el refresh falla, cb sale igual con el token actual.
+    auth: (cb) => {
+      const send = () => cb({ token: getAccessToken() });
+      void ensureFreshToken().then(send, send);
+    },
     transports: ["websocket", "polling"],
     autoConnect: false,
     reconnectionAttempts: Infinity,
@@ -59,8 +64,8 @@ export function getSocket(): Socket {
   });
 
   socket.on("connect_error", (err) => {
-    // Token vencido/rechazado: socket.io reintenta con el auth callback, que ya
-    // entrega el token actualizado cuando el cliente refresca la sesión.
+    // Token vencido/rechazado: socket.io reintenta y el auth callback vuelve a
+    // renovar el token antes de entregarlo.
     console.warn("[socket] connect_error:", err.message);
   });
 

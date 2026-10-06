@@ -15,6 +15,8 @@ import {
   NOTIFICATION_EVENTS,
   type NotificationPayload,
 } from "@/lib/socket";
+import { useQueryClient } from "@tanstack/react-query";
+import { recurringApi } from "@/lib/api/finance";
 import { notificationsApi, type NotificationItem } from "@/lib/api/notifications";
 import { useAuth } from "@/lib/auth";
 
@@ -43,10 +45,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const processedFor = useRef<string | null>(null);
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (!isAuthenticated || !userId) {
       setNotifications([]);
+      processedFor.current = null;
       return;
     }
 
@@ -54,6 +59,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const loadInitial = async () => {
       setLoading(true);
+      // Una vez por sesión y antes de pedir notificaciones: el API limita process a una vez al día,
+      // así que {0,0,0} no significa "nada pendiente". Un fallo no bloquea la app.
+      if (processedFor.current !== userId) {
+        processedFor.current = userId;
+        try {
+          const result = await recurringApi.process(userId);
+          if (result && (result.created > 0 || result.adopted > 0)) {
+            qc.invalidateQueries({ queryKey: ["transactions", userId] });
+            qc.invalidateQueries({ queryKey: ["bank-accounts", userId] });
+          }
+        } catch (err) {
+          console.warn("No se pudieron procesar los recurrentes", err);
+        }
+      }
       try {
         const history = await notificationsApi.getNotifications(userId, { is_active: true });
         if (!cancelled) {
@@ -101,7 +120,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       cancelled = true;
       unsubscribeRef.current?.();
     };
-  }, [isAuthenticated, userId]);
+  }, [isAuthenticated, userId, qc]);
 
   const markRead = useCallback(
     (id: number) => {

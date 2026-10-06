@@ -14,6 +14,13 @@ function render(ui: React.ReactElement) {
 }
 
 const kpiState = { loading: false, error: null as Error | null, stale: false };
+const nwState = vi.hoisted(() => ({
+  summary: { total_cop: 0, by_currency: {}, trm: null } as {
+    total_cop: number | null;
+    by_currency: Record<string, number>;
+    trm: { value: number; valid_from: string; valid_to: string; source: string } | null;
+  },
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...props }: Record<string, unknown>) => (
@@ -52,7 +59,7 @@ const monthKey = (offset: number) => {
 
 vi.mock("@/lib/hooks/use-api", () => ({
   useNetWorth: () => ({
-    summary: kpiState.loading || (kpiState.error && !kpiState.stale) ? null : { netWorth: 0 },
+    summary: kpiState.loading || (kpiState.error && !kpiState.stale) ? null : nwState.summary,
     isLoading: kpiState.loading,
     error: kpiState.error,
   }),
@@ -122,6 +129,37 @@ describe("Dashboard — datos agregados en servidor", () => {
     render(<Dashboard />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("Patrimonio")).toBeInTheDocument();
+  });
+
+  describe("patrimonio consolidado (R6.1–R6.4)", () => {
+    afterEach(() => {
+      nwState.summary = { total_cop: 0, by_currency: {}, trm: null };
+    });
+
+    it("muestra el total en COP, el desglose por moneda y la nota de la TRM", () => {
+      nwState.summary = {
+        total_cop: 1400000,
+        by_currency: { COP: 1000000, USD: 100 },
+        trm: {
+          value: 4000,
+          valid_from: "2026-10-03",
+          valid_to: "2026-10-03",
+          source: "datos.gov.co",
+        },
+      };
+      render(<Dashboard />);
+      const card = screen.getByText("Patrimonio").parentElement!;
+      expect(card).toHaveTextContent("COP 1400000");
+      expect(card).toHaveTextContent(/COP 1000000 · USD 100 · USD a TRM del 3/);
+    });
+
+    it("sin TRM muestra solo el desglose", () => {
+      nwState.summary = { total_cop: null, by_currency: { COP: 1000000, USD: 100 }, trm: null };
+      render(<Dashboard />);
+      const card = screen.getByText("Patrimonio").parentElement!;
+      expect(card).toHaveTextContent("COP 1000000 · USD 100");
+      expect(card).not.toHaveTextContent(/TRM/);
+    });
   });
 
   it("renders the KPIs once loaded and links 'Ver todo' to transactions", () => {
