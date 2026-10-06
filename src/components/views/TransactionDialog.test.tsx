@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { TransactionDialog } from "./TransactionDialog";
+import type { TransactionRecord } from "@/lib/api/finance";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -28,6 +29,15 @@ vi.mock("@/components/views/EmpresaDialog", () => ({
 }));
 
 const catState = vi.hoisted(() => ({ empty: false }));
+const productState = vi.hoisted(() => ({
+  accounts: [] as {
+    id: number;
+    bank_name: string;
+    masked_account_number: string;
+    account_type: string;
+    currency: string;
+  }[],
+}));
 const mockCreateTx = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/hooks/use-api", () => {
@@ -64,7 +74,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     }),
     useSubcategories: () => ({ data: [] }),
     useObjectives: () => ({ data: [] }),
-    useBankAccounts: () => ({ data: [] }),
+    useBankAccounts: () => ({ data: productState.accounts }),
     useFinancialAssets: () => ({ data: [] }),
     useFinancialLiabilities: () => ({ data: [] }),
     useEmpresas: () => ({ data: [] }),
@@ -145,6 +155,103 @@ describe("TransactionDialog", () => {
     expect(mockCreateTx).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith("Monto inválido");
     expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  describe("moneda del producto (R7.1–R7.3)", () => {
+    const fxNotice = "Se registrará en USD con la TRM oficial de la fecha";
+
+    beforeEach(() => {
+      productState.accounts = [
+        {
+          id: 3,
+          bank_name: "Nu",
+          masked_account_number: "****1111",
+          account_type: "ahorros",
+          currency: "COP",
+        },
+        {
+          id: 4,
+          bank_name: "Wise",
+          masked_account_number: "****2222",
+          account_type: "ahorros",
+          currency: "USD",
+        },
+      ];
+    });
+    afterEach(() => {
+      productState.accounts = [];
+    });
+
+    it("con el monto vacío hereda la moneda de la cuenta elegida, muestra la moneda en cada opción y no avisa si coinciden", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} />);
+
+      await user.click(screen.getByLabelText("Patrimonio asociado"));
+      expect(
+        await screen.findByRole("option", { name: "Nu · ****1111 (COP)" }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("option", { name: "Wise · ****2222 (USD)" }));
+
+      expect(document.getElementById("tx-currency")).toHaveTextContent("USD");
+      expect(screen.queryByText(fxNotice)).not.toBeInTheDocument();
+    });
+
+    it("avisa sin cifra cuando la moneda elegida difiere de la del producto y deja de avisar al igualarla", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} />);
+
+      await user.click(screen.getByLabelText("Patrimonio asociado"));
+      await user.click(await screen.findByRole("option", { name: "Wise · ****2222 (USD)" }));
+      await user.click(document.getElementById("tx-currency")!);
+      await user.click(await screen.findByRole("option", { name: "COP" }));
+
+      expect(screen.getByText(fxNotice)).toBeInTheDocument();
+
+      await user.click(document.getElementById("tx-currency")!);
+      await user.click(await screen.findByRole("option", { name: "USD" }));
+      expect(screen.queryByText(fxNotice)).not.toBeInTheDocument();
+    });
+
+    it("con un monto escrito, elegir una cuenta USD conserva la moneda y avisa (R7.1)", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} />);
+
+      await user.type(screen.getByLabelText("Monto"), "200000");
+      await user.click(screen.getByLabelText("Patrimonio asociado"));
+      await user.click(await screen.findByRole("option", { name: "Wise · ****2222 (USD)" }));
+
+      expect(document.getElementById("tx-currency")).toHaveTextContent("COP");
+      expect(screen.getByText(fxNotice)).toBeInTheDocument();
+    });
+
+    // Movimiento en COP sobre la cuenta USD, previo a la conversión (sin `fx_rate`).
+    const historic = {
+      id: 9,
+      type: "expense",
+      amount: 50000,
+      currency: "COP",
+      fx_rate: null,
+      account_id: 4,
+      transaction_date: "2024-06-15",
+      is_fixed: false,
+    } as TransactionRecord;
+
+    it("al editar un histórico sin fx_rate no avisa; al cambiarle la fecha sí (R7.3)", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} transaction={historic} />);
+
+      expect(screen.queryByText(fxNotice)).not.toBeInTheDocument();
+
+      const dateInput = screen.getByLabelText("Fecha de la transacción");
+      await user.clear(dateInput);
+      await user.type(dateInput, "16062024");
+      expect(screen.getByText(fxNotice)).toBeInTheDocument();
+    });
+
+    it("al editar un movimiento que ya tenía fx_rate avisa sin tocar nada (R7.3)", () => {
+      render(<TransactionDialog {...defaultProps} transaction={{ ...historic, fx_rate: 4000 }} />);
+      expect(screen.getByText(fxNotice)).toBeInTheDocument();
+    });
   });
 
   it("explica en el selector de patrimonio que un gasto ligado a un pasivo sube la deuda (R6.11)", () => {

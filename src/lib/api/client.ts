@@ -6,6 +6,9 @@
  * - access token en memoria (no localStorage) + cookie httpOnly del backend
  * - refresh token solo en cookie httpOnly; el body de refresh es opcional
  * - credentials: 'include' en todos los fetch
+ * - renovación por uso, sin temporizador: cada petición al API renueva el access
+ *   token si le quedan < 2 min. Una sesión sin uso caduca cuando vence el refresh
+ *   token de Keycloak (la cookie), no antes.
  */
 
 import { translateApiMessage } from "@/lib/i18n/errors";
@@ -15,7 +18,14 @@ const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
 /** Access token en memoria (XSS-safe vs localStorage). */
 let memoryAccessToken: string | null = null;
 let memoryUserId: string | null = null;
-let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+/** Epoch ms en que vence el access token en memoria (null = desconocido). */
+let accessExpiresAt: number | null = null;
+/** Margen antes del vencimiento en que una petición renueva primero el token. */
+const REFRESH_THRESHOLD_MS = 120_000;
+
+function setAccessExpiry(expiresIn?: number) {
+  accessExpiresAt = expiresIn && expiresIn > 0 ? Date.now() + expiresIn * 1000 : null;
+}
 
 /**
  * Token CSRF (doble-submit cookie) en memoria. Lo exige el backend solo en
@@ -99,47 +109,19 @@ export function setTokens(
   expiresIn?: number,
 ) {
   memoryAccessToken = access;
+  setAccessExpiry(expiresIn);
   if (userId !== undefined) memoryUserId = String(userId);
   markSessionPresent();
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
-  }
-  if (expiresIn && expiresIn > 0) {
-    scheduleProactiveRefresh(expiresIn);
   }
 }
 
 export function clearTokens() {
   memoryAccessToken = null;
   memoryUserId = null;
-  cancelProactiveRefresh();
+  accessExpiresAt = null;
   clearSessionMarker();
-}
-
-// ---------------------------------------------------------------------------
-// Proactive refresh — schedules a refresh ~60 s before access token expiry
-// ---------------------------------------------------------------------------
-
-function scheduleProactiveRefresh(expiresIn: number) {
-  cancelProactiveRefresh();
-  const REFRESH_BUFFER_MS = 60_000; // 60 seconds before expiry
-  const delayMs = expiresIn * 1000 - REFRESH_BUFFER_MS;
-  if (delayMs <= 0) {
-    // Token already near-expired; refresh immediately
-    void refreshTokens().catch(() => {});
-    return;
-  }
-  proactiveRefreshTimer = setTimeout(() => {
-    proactiveRefreshTimer = null;
-    void refreshTokens().catch(() => {});
-  }, delayMs);
-}
-
-function cancelProactiveRefresh() {
-  if (proactiveRefreshTimer !== null) {
-    clearTimeout(proactiveRefreshTimer);
-    proactiveRefreshTimer = null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -153,8 +135,9 @@ let broadcastChannel: BroadcastChannel | null = null;
  * originate the refresh — i.e. genuinely different tabs, which never share
  * this tab's `refreshInFlight` JS variable in the first place.
  */
-function adoptBroadcastToken(token: string) {
+function adoptBroadcastToken(token: string, expiresIn?: number) {
   memoryAccessToken = token;
+  setAccessExpiry(expiresIn);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
   }
@@ -166,7 +149,7 @@ function getBroadcastChannel(): BroadcastChannel | null {
     broadcastChannel = new BroadcastChannel("cm-auth");
     broadcastChannel.onmessage = (event: MessageEvent) => {
       if (event.data?.type === "cm:new-token" && event.data.token) {
-        adoptBroadcastToken(event.data.token);
+        adoptBroadcastToken(event.data.token, event.data.expiresIn);
       }
       if (event.data?.type === "cm:session-expired") {
         handleSessionExpired();
@@ -176,8 +159,8 @@ function getBroadcastChannel(): BroadcastChannel | null {
   return broadcastChannel;
 }
 
-function broadcastNewToken(token: string) {
-  getBroadcastChannel()?.postMessage({ type: "cm:new-token", token });
+function broadcastNewToken(token: string, expiresIn?: number) {
+  getBroadcastChannel()?.postMessage({ type: "cm:new-token", token, expiresIn });
 }
 
 function broadcastSessionExpired() {
@@ -261,7 +244,7 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
     tokens.userId ?? memoryUserId ?? undefined,
     tokens.expires_in,
   );
-  broadcastNewToken(tokens.access_token);
+  broadcastNewToken(tokens.access_token, tokens.expires_in);
   resetSessionExpiredFlag();
   return tokens;
 }
@@ -277,8 +260,8 @@ function refreshTokens(): Promise<{ access_token: string; refresh_token?: string
 
 /**
  * Refresh tokens with BroadcastChannel coordination.
- * This is only invoked after a 401, so we always force a real refresh;
- * reusing the in-memory token here would just retry with the rejected token.
+ * Invoked after a 401 and by `ensureFreshToken` (token about to expire), so we
+ * always force a real refresh; reusing the in-memory token would just resend it.
  *
  * `refreshInFlight` lives in this tab's JS memory, so it can only ever be
  * truthy when THIS SAME TAB already kicked off a refresh (e.g. two
@@ -295,6 +278,22 @@ function refreshTokensCoordinated(): Promise<{ access_token: string; refresh_tok
     return refreshInFlight;
   }
   return refreshTokens();
+}
+
+/**
+ * Renovación por uso: si el access token en memoria vence en menos de
+ * `REFRESH_THRESHOLD_MS`, lo renueva antes de la petición (deduplicado con
+ * `refreshInFlight`). Si la renovación falla, se traga el error: la petición
+ * sale igual y el manejo existente del 401 decide (sesión expirada).
+ */
+export async function ensureFreshToken(): Promise<void> {
+  if (!memoryAccessToken || accessExpiresAt === null) return;
+  if (accessExpiresAt - Date.now() >= REFRESH_THRESHOLD_MS) return;
+  try {
+    await refreshTokensCoordinated();
+  } catch {
+    // cae al 401 existente
+  }
 }
 
 export interface ValidationErrorDetail {
@@ -375,6 +374,7 @@ export interface ApiFetchOptions extends RequestInit {
  */
 async function apiFetch<T = unknown>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { token: explicitToken, preservePaginated = false, ...fetchOptions } = options;
+  await ensureFreshToken();
   const token = explicitToken ?? getAccessToken();
 
   const headers: HeadersInit = {
@@ -510,6 +510,7 @@ export async function apiFetchBlob(
   path: string,
   token?: string | null,
 ): Promise<{ blob: Blob; filename: string | null }> {
+  await ensureFreshToken();
   const authToken = token ?? getAccessToken();
 
   const headers: HeadersInit = {
@@ -560,6 +561,7 @@ export async function apiPostForm<T = unknown>(
   formData: FormData,
   token?: string | null,
 ): Promise<T> {
+  await ensureFreshToken();
   const authToken = token ?? getAccessToken();
 
   const headers: HeadersInit = {

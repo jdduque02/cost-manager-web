@@ -12,12 +12,18 @@ const state = vi.hoisted(() => ({
   bankAccounts: [] as unknown[],
   error: null as Error | null,
   refetch: vi.fn(),
+  cloneTransfer: vi.fn(),
+  queries: [] as unknown[],
 }));
 
 vi.mock("./TransactionDialog", () => ({
   TransactionDialog: ({ open }: { open: boolean }) => (open ? <div role="dialog" /> : null),
 }));
 vi.mock("./TransferDialog", () => ({ TransferDialog: () => null }));
+vi.mock("./ValidatePaymentDialog", () => ({
+  ValidatePaymentDialog: ({ transaction }: { transaction: { id: number } | null }) =>
+    transaction ? <div role="dialog">validar {transaction.id}</div> : null,
+}));
 vi.mock("./TransactionCalendar", () => ({ TransactionCalendar: () => null }));
 vi.mock("./CurrencyConverter", () => ({ CurrencyConverter: () => null }));
 vi.mock("./GmfCalculator", () => ({ GmfCalculator: () => null }));
@@ -30,12 +36,15 @@ vi.mock("@/lib/hooks/use-api", () => {
   const mutation = () => ({ mutate: vi.fn(), isPending: false });
   const empty = () => ({ data: [] });
   return {
-    useTransactions: () => ({
-      data: state.transactions,
-      isLoading: false,
-      error: state.error,
-      refetch: state.refetch,
-    }),
+    useTransactions: (params: unknown) => {
+      state.queries.push(params);
+      return {
+        data: state.transactions,
+        isLoading: false,
+        error: state.error,
+        refetch: state.refetch,
+      };
+    },
     useCategories: () => ({ data: [{ id: 1, name: "Mercado" }] }),
     useObjectives: empty,
     useBankAccounts: () => ({ data: state.bankAccounts }),
@@ -46,7 +55,7 @@ vi.mock("@/lib/hooks/use-api", () => {
     useDeleteTransfer: mutation,
     useBulkDeleteTransactions: mutation,
     useCloneTransaction: mutation,
-    useCloneTransfer: mutation,
+    useCloneTransfer: () => ({ mutate: state.cloneTransfer, isPending: false }),
   };
 });
 
@@ -203,5 +212,93 @@ describe("TransactionsList transfer clone", () => {
 
     expect(screen.getByText(/Saldo insuficiente/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clonar" })).toBeDisabled();
+  });
+
+  it("clona desde la pierna origen con su monto (R7.6)", async () => {
+    const leg = {
+      ...tx(0),
+      type: "transfer" as TransactionRecord["type"],
+      transfer_group_id: "g2",
+    };
+    state.transactions = [
+      { ...leg, id: 7, amount: 400000, origin_account_id: 1, description: "Ahorro USD" },
+      {
+        ...leg,
+        id: 8,
+        amount: 400000,
+        destination_account_id: 2,
+        applied_amount: 102.24,
+        fx_rate: 3912.47,
+        description: "Ahorro USD",
+      },
+    ];
+    state.bankAccounts = [
+      { id: 1, bank_name: "Bancolombia", display_balance: "1000000", currency: "COP" },
+      { id: 2, bank_name: "Wise", display_balance: "0", currency: "USD" },
+    ];
+    renderList();
+
+    await userEvent.click(screen.getByTitle("Clonar transferencia"));
+    await userEvent.click(screen.getByRole("button", { name: "Clonar" }));
+
+    expect(state.cloneTransfer).toHaveBeenCalledWith(
+      { id: 7, dto: expect.objectContaining({ amount: 400000 }) },
+      expect.anything(),
+    );
+  });
+});
+
+describe("TransactionsList › conversión de moneda (R7.4)", () => {
+  beforeEach(() => {
+    state.error = null;
+    state.bankAccounts = [];
+  });
+
+  it("muestra una segunda línea con el convertido, la TRM y la nota de tasa aproximada", () => {
+    state.transactions = [
+      { ...tx(1, "Suscripción"), amount: 400000, applied_amount: 102.24, fx_rate: 3912.47 },
+      tx(2, "Almuerzo"),
+    ];
+    renderList();
+
+    expect(
+      screen.getByText(
+        /≈ \$102\.24 · TRM \$\s?3\.912,47 \(aprox\.; tu banco puede usar otra tasa\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/TRM/)).toHaveLength(1);
+  });
+});
+
+describe("TransactionsList: pagos por validar", () => {
+  beforeEach(() => {
+    state.transactions = [];
+    state.queries = [];
+    vi.clearAllMocks();
+  });
+
+  it("muestra el badge solo en filas con needs_validation", () => {
+    state.transactions = [
+      { ...tx(1, "Arriendo"), needs_validation: true },
+      { ...tx(2, "Mercado"), needs_validation: false },
+    ];
+    renderList();
+    expect(screen.getAllByText("Validar pago")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Validar pago: Arriendo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validar pago: Mercado" })).not.toBeInTheDocument();
+  });
+
+  it("el filtro Por validar envía needs_validation=true solo cuando está activo", async () => {
+    state.transactions = [tx(1)];
+    renderList();
+    expect(state.queries.at(-1)).not.toHaveProperty("needs_validation");
+    await userEvent.click(screen.getByRole("button", { name: "Por validar" }));
+    expect(state.queries.at(-1)).toMatchObject({ needs_validation: true });
+  });
+
+  it("?validate=<id> abre el diálogo de esa transacción", () => {
+    state.transactions = [{ ...tx(42, "Arriendo"), needs_validation: true }];
+    renderList("?validate=42");
+    expect(screen.getByRole("dialog")).toHaveTextContent("validar 42");
   });
 });

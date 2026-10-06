@@ -1,4 +1,6 @@
-import { bankingApi } from "./banking";
+import { bankingApi, netWorthDetail } from "./banking";
+import type { BankAccount, FinancialAsset, FinancialLiability } from "./banking";
+import { fmtDay } from "@/lib/format";
 import { statementImportApi } from "./statement-imports";
 
 const mockApi = vi.hoisted(() => ({
@@ -110,5 +112,85 @@ describe("bankingApi › montos que llegan como string se convierten a number", 
       period_to: "2026-09-15",
     });
     expect(job.files?.[1].closing_balance).toBeNull();
+  });
+});
+
+describe("bankingApi.computeNetWorth › consolidado en COP (R6.1–R6.4)", () => {
+  const trm = {
+    value: 4000,
+    valid_from: "2026-10-03",
+    valid_to: "2026-10-05",
+    source: "datos.gov.co",
+  };
+  const account = (currency: string, display_balance: string) =>
+    ({ currency, display_balance }) as unknown as BankAccount;
+  const asset = (currency: string, current_value: number) =>
+    ({ currency, current_value }) as unknown as FinancialAsset;
+  const liability = (currency: string, current_balance: number) =>
+    ({ currency, current_balance }) as unknown as FinancialLiability;
+
+  const assets = [asset("USD", 50), asset("EUR", 10)];
+  const liabilities = [liability("COP", 200000), liability("USD", 20)];
+  const accounts = [account("COP", "1000000"), account("USD", "100.5")];
+
+  it("total = COP + USD × TRM, desglose por moneda (cuentas + activos − pasivos) y EUR fuera del total", () => {
+    const nw = bankingApi.computeNetWorth(assets, liabilities, accounts, trm);
+    expect(nw.by_currency).toEqual({ COP: 800000, USD: 130.5, EUR: 10 });
+    expect(nw.total_cop).toBe(800000 + 130.5 * 4000);
+    expect(nw.trm).toBe(trm);
+  });
+
+  it("sin TRM y con saldo en USD no hay total: solo el desglose", () => {
+    const nw = bankingApi.computeNetWorth(assets, liabilities, accounts, undefined);
+    expect(nw.total_cop).toBeNull();
+    expect(nw.by_currency.USD).toBe(130.5);
+  });
+
+  it("sin USD el total no necesita TRM", () => {
+    const nw = bankingApi.computeNetWorth([], [], [account("COP", "5000")], null);
+    expect(nw.total_cop).toBe(5000);
+  });
+
+  it("totales de activos y pasivos consolidados con la misma regla, cuadran con el patrimonio (R6.9)", () => {
+    const nw = bankingApi.computeNetWorth(assets, liabilities, accounts, trm);
+    expect(nw.assets.by_currency).toEqual({ COP: 1000000, USD: 150.5, EUR: 10 });
+    expect(nw.assets.total_cop).toBe(1000000 + 150.5 * 4000);
+    // Pasivos en negativo: el desglose sin TRM conserva el signo, igual que el total.
+    expect(nw.liabilities.by_currency).toEqual({ COP: -200000, USD: -20 });
+    expect(nw.liabilities.total_cop).toBe(-(200000 + 20 * 4000));
+    expect(nw.assets.total_cop! + nw.liabilities.total_cop!).toBe(nw.total_cop);
+
+    const noTrm = bankingApi.computeNetWorth(assets, liabilities, accounts);
+    expect(noTrm.assets.total_cop).toBeNull();
+    expect(noTrm.liabilities.total_cop).toBeNull();
+  });
+
+  it("netWorthDetail arma el desglose y la nota de la TRM; sin total no hay nota", () => {
+    const fmt = (n: number, o?: { currency?: string }) => `${o?.currency} ${n}`;
+    const withTrm = netWorthDetail(
+      bankingApi.computeNetWorth(assets, liabilities, accounts, trm),
+      fmt,
+    );
+    expect(withTrm.breakdown).toBe("COP 800000 · EUR 10 · USD 130.5");
+    expect(withTrm.note).toBe(
+      `COP 800000 · EUR 10 · USD 130.5 · USD a TRM del ${fmtDay("2026-10-03")}`,
+    );
+
+    const noTrm = netWorthDetail(bankingApi.computeNetWorth(assets, liabilities, accounts), fmt);
+    expect(noTrm.note).toBeNull();
+
+    // Una moneda que suma 0 no aparece en el desglose.
+    const zeroUsd = netWorthDetail(
+      bankingApi.computeNetWorth([], [], [account("COP", "5000"), account("USD", "0")], trm),
+      fmt,
+    );
+    expect(zeroUsd.breakdown).toBe("COP 5000");
+    expect(zeroUsd.note).toBeNull();
+
+    const copOnly = netWorthDetail(
+      bankingApi.computeNetWorth([], [], [account("COP", "5000")]),
+      fmt,
+    );
+    expect(copOnly.note).toBeNull();
   });
 });
