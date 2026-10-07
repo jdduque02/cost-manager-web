@@ -552,6 +552,8 @@ export interface CreateRecurringTransactionDto {
   max_occurrences?: number;
   mode: RecurringMode;
   reminder_days?: number;
+  /** Solo ingreso: moneda propia; el API convierte con TRM. Otros tipos: la del producto (si no, 400). */
+  currency?: "COP" | "USD";
 }
 
 /** `type`, `frequency`, `start_date` y los destinos de transferencia no se editan (400). */
@@ -561,6 +563,8 @@ export interface UpdateRecurringTransactionDto {
   mode?: RecurringMode;
   reminder_days?: number;
   payment_method?: PaymentMethod;
+  /** Solo ingreso. */
+  currency?: "COP" | "USD";
   category_id?: number | null;
   subcategory_id?: number | null;
   /** Para pasar de cuenta a pasivo (o al revés) envía el anterior en `null`. */

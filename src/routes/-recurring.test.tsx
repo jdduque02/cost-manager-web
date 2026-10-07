@@ -64,4 +64,20 @@ describe("RecurringPage", () => {
     expect(screen.getByText(/Pago de deuda/)).toBeInTheDocument();
     expect(mockList).toHaveBeenCalledWith("u1", "active");
   });
+
+  it("muestra un ingreso en USD con su propia moneda", async () => {
+    mockList.mockResolvedValue([
+      { ...debt, id: 8, name: "Freelance", type: "income", currency: "USD", amount: 500 },
+    ]);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <VisibilityProvider>
+          <RecurringPage />
+        </VisibilityProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Freelance")).toBeInTheDocument();
+    expect(screen.getByText(fmtCurrency(500, "USD").replace(/\s/g, " "))).toBeInTheDocument();
+  });
 });

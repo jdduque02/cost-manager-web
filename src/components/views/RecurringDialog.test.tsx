@@ -23,7 +23,12 @@ vi.mock("@/lib/hooks/use-api", () => ({
       { id: 2, bank_name: "Davivienda", masked_account_number: "****5678", currency: "COP" },
     ],
   }),
-  useFinancialLiabilities: () => ({ data: [{ id: 9, name: "Crédito carro", currency: "COP" }] }),
+  useFinancialLiabilities: () => ({
+    data: [
+      { id: 9, name: "Crédito carro", currency: "COP" },
+      { id: 10, name: "Tarjeta dólares", currency: "USD" },
+    ],
+  }),
 }));
 
 const rule = (over: Partial<RecurringTransaction>): RecurringTransaction => ({
@@ -125,6 +130,51 @@ describe("RecurringDialog", () => {
       origin_account_id: 1,
       destination_liability_id: 9,
       reminder_days: 1,
+    });
+  });
+
+  describe("moneda del ingreso", () => {
+    it("gasto: no ofrece moneda, es la del producto", () => {
+      renderDialog();
+      expect(screen.queryByLabelText("Moneda")).not.toBeInTheDocument();
+      expect(screen.getByText(/La moneda es la de la cuenta o el pasivo/)).toBeInTheDocument();
+    });
+
+    it("ingreso: por defecto la del producto, sin nota de tasa", async () => {
+      const user = renderDialog();
+      await user.click(screen.getByRole("button", { name: "Ingreso" }));
+      await user.type(screen.getByLabelText("Nombre"), "Nómina");
+      await user.type(screen.getByLabelText("Monto"), "3000000");
+      await pick(user, "Cuenta o pasivo", /Bancolombia/);
+
+      expect(screen.getByLabelText("Moneda")).toHaveTextContent("COP");
+      expect(screen.queryByText(/tu banco puede usar otra tasa/)).not.toBeInTheDocument();
+      await user.click(save());
+      expect(mockCreate.mock.calls[0][1]).toMatchObject({ type: "income", currency: "COP" });
+    });
+
+    it("ingreso en USD sobre cuenta COP: avisa la TRM y envía currency", async () => {
+      const user = renderDialog();
+      await user.click(screen.getByRole("button", { name: "Ingreso" }));
+      await user.type(screen.getByLabelText("Nombre"), "Freelance");
+      await user.type(screen.getByLabelText("Monto"), "500");
+      await pick(user, "Cuenta o pasivo", /Bancolombia/);
+      await pick(user, "Moneda", /^USD$/);
+
+      expect(screen.getByText(/aprox\.; tu banco puede usar otra tasa/)).toBeInTheDocument();
+      await user.click(save());
+      expect(mockCreate.mock.calls[0][1]).toMatchObject({
+        type: "income",
+        account_id: 1,
+        currency: "USD",
+      });
+    });
+
+    it("editar un ingreso conserva su moneda aunque la cuenta sea otra", async () => {
+      const user = renderDialog(rule({ type: "income", currency: "USD", account_id: 1 }));
+      expect(screen.getByLabelText("Moneda")).toHaveTextContent("USD");
+      await user.click(screen.getByRole("button", { name: "Actualizar" }));
+      expect(mockUpdate.mock.calls[0][2]).toMatchObject({ currency: "USD" });
     });
   });
 

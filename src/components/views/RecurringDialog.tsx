@@ -40,6 +40,7 @@ import {
 
 type Kind = "expense" | "income" | "investment" | "account_transfer" | "debt";
 type EndMode = "none" | "date" | "count";
+type Currency = "COP" | "USD";
 type Frequency = RecurringTransaction["frequency"];
 
 export const KIND_LABELS: Record<Kind, string> = {
@@ -126,6 +127,8 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
   const [name, setName] = useState("");
   const [kind, setKind] = useState<Kind>("expense");
   const [amount, setAmount] = useState("");
+  /** Solo ingreso; vacío = la del producto elegido. */
+  const [currency, setCurrency] = useState<Currency | "">("");
   const [categoryId, setCategoryId] = useState("");
   /** No transferencias: "account:<id>" o "liability:<id>". Transferencias: id de la cuenta origen. */
   const [source, setSource] = useState("");
@@ -145,6 +148,7 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
     setName(r?.name ?? "");
     setKind(k);
     setAmount(r ? String(r.amount) : "");
+    setCurrency(r && k === "income" ? (r.currency as Currency) : "");
     setCategoryId(str(r?.category_id));
     if (!r) setSource("");
     else if (r.type === "transfer") setSource(str(r.origin_account_id));
@@ -163,6 +167,17 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
   const isTransfer = kind === "account_transfer" || kind === "debt";
   const amountValue = parseCurrency(amount);
   const reminder = Number(reminderDays);
+
+  // Moneda del producto elegido; el ingreso puede tener otra y el API convierte con TRM.
+  const [srcType, srcRef] = source.split(":");
+  const productCurrency = (
+    srcType === "account"
+      ? accounts.find((a) => String(a.id) === srcRef)
+      : liabilities.find((l) => String(l.id) === srcRef)
+  )?.currency as Currency | undefined;
+  const effectiveCurrency = currency || productCurrency;
+  const convertsFx =
+    !!productCurrency && !!effectiveCurrency && effectiveCurrency !== productCurrency;
 
   const missing = [
     !name.trim() && "el nombre",
@@ -218,6 +233,7 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
       start_date: startDate,
       mode,
       reminder_days: reminder,
+      ...(kind === "income" && effectiveCurrency ? { currency: effectiveCurrency } : {}),
       ...link,
       ...endFields(),
     };
@@ -242,6 +258,7 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
       amount: amountValue,
       mode,
       reminder_days: reminder,
+      ...(kind === "income" && effectiveCurrency ? { currency: effectiveCurrency } : {}),
       ...link,
       ...category,
       ...(endMode === "none" ? { end_date: null, max_occurrences: null } : endFields()),
@@ -293,6 +310,7 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
                   aria-pressed={kind === k}
                   onClick={() => {
                     setKind(k);
+                    setCurrency("");
                     setSource("");
                     setDestination("");
                   }}
@@ -318,9 +336,33 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
             <div className="space-y-1.5">
               <Label htmlFor="rec-amount">Monto</Label>
               <CurrencyInput id="rec-amount" value={amount} onChange={setAmount} placeholder="0" />
-              <p className="text-xs text-muted-foreground">
-                La moneda es la de la cuenta o el pasivo.
-              </p>
+              {kind === "income" ? (
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="rec-currency">Moneda</Label>
+                  <Select
+                    value={effectiveCurrency ?? ""}
+                    onValueChange={(v) => setCurrency(v as Currency)}
+                  >
+                    <SelectTrigger id="rec-currency">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="COP">COP</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {convertsFx && (
+                    <p className="text-xs text-muted-foreground">
+                      Se convierte a {productCurrency} con la TRM de cada fecha (aprox.; tu banco
+                      puede usar otra tasa).
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  La moneda es la de la cuenta o el pasivo.
+                </p>
+              )}
             </div>
 
             {isTransfer ? (
