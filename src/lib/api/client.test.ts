@@ -613,6 +613,29 @@ describe("session restore without an active session", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the session marker when restore fails with 429/5xx/network, clears it on 400/401", async () => {
+    const outcomes: Array<[unknown, boolean]> = [
+      [{ ok: false, status: 503, json: () => Promise.resolve({}) }, true],
+      [{ ok: false, status: 429, json: () => Promise.resolve({}) }, true],
+      [new TypeError("Failed to fetch"), true],
+      [{ ok: false, status: 400, json: () => Promise.resolve({}) }, false],
+      [{ ok: false, status: 401, json: () => Promise.resolve({}) }, false],
+    ];
+    for (const [outcome, markerKept] of outcomes) {
+      window.localStorage.setItem(HAS_SESSION_KEY, "1");
+      vi.stubGlobal(
+        "fetch",
+        outcome instanceof Error
+          ? vi.fn().mockRejectedValue(outcome)
+          : vi.fn().mockResolvedValue(outcome),
+      );
+
+      expect(await tryRestoreSession()).toBe(false);
+      expect(window.localStorage.getItem(HAS_SESSION_KEY) === "1").toBe(markerKept);
+    }
+    vi.unstubAllGlobals();
+  });
+
   it("restores tokens when auth/refresh succeeds and stores the userId", async () => {
     window.localStorage.setItem(HAS_SESSION_KEY, "1");
     vi.stubGlobal(
@@ -674,7 +697,7 @@ describe("refresh on use (no timer)", () => {
 
   it("refreshes before the request when the token is about to expire, and sends the new Bearer", async () => {
     setTokens("old-token", undefined, undefined, 300);
-    vi.setSystemTime(T0.getTime() + 200_000); // quedan 100 s (< 120 s)
+    vi.setSystemTime(T0.getTime() + 200_000); // pasó más de 1/3 (100 s) de los 300 s
     const mockFetch = mockApi();
     vi.stubGlobal("fetch", mockFetch);
 
@@ -689,7 +712,7 @@ describe("refresh on use (no timer)", () => {
 
   it("does not refresh when the token is still valid", async () => {
     setTokens("valid-token", undefined, undefined, 300);
-    vi.setSystemTime(T0.getTime() + 60_000); // quedan 240 s
+    vi.setSystemTime(T0.getTime() + 60_000); // < 1/3 (100 s) de los 300 s
     const mockFetch = mockApi();
     vi.stubGlobal("fetch", mockFetch);
 
@@ -698,6 +721,106 @@ describe("refresh on use (no timer)", () => {
     expect(refreshCalls(mockFetch)).toBe(0);
     const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer valid-token");
+  });
+
+  it("refreshes exactly once the 1/3 mark of the token lifetime is reached, not before", async () => {
+    setTokens("tok", undefined, undefined, 300);
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+
+    vi.setSystemTime(T0.getTime() + 99_000);
+    await api.get("accounts");
+    expect(refreshCalls(mockFetch)).toBe(0);
+
+    vi.setSystemTime(T0.getTime() + 100_000);
+    await api.get("accounts");
+    expect(refreshCalls(mockFetch)).toBe(1);
+  });
+
+  it("does not expire the session when auth/refresh answers 503 or 429", async () => {
+    for (const status of [503, 429]) {
+      resetSessionExpiredFlag();
+      setTokens("tok", undefined, undefined, 300);
+      vi.setSystemTime(Date.now() + 250_000);
+      const events: string[] = [];
+      const listener = () => events.push("event");
+      window.addEventListener("cm:session-expired", listener);
+      const mockFetch = vi.fn((url: string) =>
+        url.includes("auth/refresh")
+          ? Promise.resolve({ ok: false, status, json: () => Promise.resolve({}) })
+          : okJson({ status: true, data: [{ id: 1 }], message: "ok", timestamp: "" }),
+      );
+      vi.stubGlobal("fetch", mockFetch);
+
+      await expect(api.get("accounts")).resolves.toEqual([{ id: 1 }]);
+
+      expect(events).toEqual([]);
+      expect(getAccessToken()).toBe("tok");
+      window.removeEventListener("cm:session-expired", listener);
+    }
+  });
+
+  it("expires the session when auth/refresh answers 401 or 400", async () => {
+    for (const status of [401, 400]) {
+      resetSessionExpiredFlag();
+      setTokens("tok", undefined, undefined, 300);
+      vi.setSystemTime(Date.now() + 250_000);
+      const events: string[] = [];
+      const listener = () => events.push("event");
+      window.addEventListener("cm:session-expired", listener);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string) =>
+          url.includes("auth/refresh")
+            ? Promise.resolve({ ok: false, status, json: () => Promise.resolve({}) })
+            : okJson({ status: true, data: [], message: "ok", timestamp: "" }),
+        ),
+      );
+
+      await api.get("accounts");
+
+      expect(events).toEqual(["event"]);
+      expect(getAccessToken()).toBeNull();
+      window.removeEventListener("cm:session-expired", listener);
+    }
+  });
+
+  it("does not retry the pre-emptive refresh for ~15 s after a transient failure, then retries", async () => {
+    setTokens("tok", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 250_000);
+    const mockFetch = vi.fn((url: string) =>
+      url.includes("auth/refresh")
+        ? Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })
+        : okJson({ status: true, data: [], message: "ok", timestamp: "" }),
+    );
+    vi.stubGlobal("fetch", mockFetch);
+    const refreshes = () => mockFetch.mock.calls.filter(([u]) => u.includes("auth/refresh")).length;
+
+    await api.get("a");
+    await api.get("b");
+    expect(refreshes()).toBe(1); // la segunda petición cae en el backoff
+
+    vi.setSystemTime(Date.now() + 16_000);
+    await api.get("c");
+    expect(refreshes()).toBe(2);
+  });
+
+  it("clears the backoff on a successful login/refresh (setTokens)", async () => {
+    setTokens("tok", undefined, undefined, 300);
+    vi.setSystemTime(T0.getTime() + 250_000);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))),
+    );
+    await api.get("a").catch(() => null); // fallo de red -> backoff activo
+
+    const mockFetch = mockApi();
+    vi.stubGlobal("fetch", mockFetch);
+    setTokens("tok2", undefined, undefined, 300);
+    vi.setSystemTime(Date.now() + 250_000);
+    await api.get("b");
+
+    expect(refreshCalls(mockFetch)).toBe(1);
   });
 
   it("does not refresh by clock: with no requests, time passing triggers nothing", async () => {

@@ -7,7 +7,7 @@
  * - refresh token solo en cookie httpOnly; el body de refresh es opcional
  * - credentials: 'include' en todos los fetch
  * - renovación por uso, sin temporizador: cada petición al API renueva el access
- *   token si le quedan < 2 min. Una sesión sin uso caduca cuando vence el refresh
+ *   token si ya pasó 1/3 de su vida. Una sesión sin uso caduca cuando vence el refresh
  *   token de Keycloak (la cookie), no antes.
  */
 
@@ -18,13 +18,20 @@ const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1"
 /** Access token en memoria (XSS-safe vs localStorage). */
 let memoryAccessToken: string | null = null;
 let memoryUserId: string | null = null;
-/** Epoch ms en que vence el access token en memoria (null = desconocido). */
-let accessExpiresAt: number | null = null;
-/** Margen antes del vencimiento en que una petición renueva primero el token. */
-const REFRESH_THRESHOLD_MS = 120_000;
+/** Epoch ms en que se emitió/adoptó el access token en memoria (null = desconocido). */
+let accessIssuedAt: number | null = null;
+/** Vida total del access token en ms (null = desconocida). */
+let accessLifetimeMs: number | null = null;
+/** Fracción de la vida del token tras la cual una petición lo renueva primero. */
+const REFRESH_LIFETIME_DIVISOR = 3;
+/** Tras un refresh proactivo fallido, no reintentarlo durante este lapso (evita martillar con 429/5xx). */
+const REFRESH_BACKOFF_MS = 15_000;
+let refreshBackoffUntil = 0;
 
 function setAccessExpiry(expiresIn?: number) {
-  accessExpiresAt = expiresIn && expiresIn > 0 ? Date.now() + expiresIn * 1000 : null;
+  const known = !!expiresIn && expiresIn > 0;
+  accessIssuedAt = known ? Date.now() : null;
+  accessLifetimeMs = known ? expiresIn * 1000 : null;
 }
 
 /**
@@ -110,6 +117,7 @@ export function setTokens(
 ) {
   memoryAccessToken = access;
   setAccessExpiry(expiresIn);
+  refreshBackoffUntil = 0;
   if (userId !== undefined) memoryUserId = String(userId);
   markSessionPresent();
   if (typeof window !== "undefined") {
@@ -120,7 +128,9 @@ export function setTokens(
 export function clearTokens() {
   memoryAccessToken = null;
   memoryUserId = null;
-  accessExpiresAt = null;
+  accessIssuedAt = null;
+  accessLifetimeMs = null;
+  refreshBackoffUntil = 0;
   clearSessionMarker();
 }
 
@@ -216,11 +226,14 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
   });
 
   if (!refreshRes.ok) {
-    if (hadSession) {
+    // Solo 400/401 significa que Keycloak rechazó el refresh token (sesión
+    // muerta). 429/5xx son transitorios: no cierran la sesión del usuario.
+    if (hadSession && (refreshRes.status === 400 || refreshRes.status === 401)) {
       handleSessionExpired();
       broadcastSessionExpired();
+      throw new ApiError("Session expired. Please log in again.", refreshRes.status);
     }
-    throw new Error("Session expired. Please log in again.");
+    throw new ApiError(`Token refresh failed (${refreshRes.status})`, refreshRes.status);
   }
 
   const refreshJson = await refreshRes.json();
@@ -281,18 +294,20 @@ function refreshTokensCoordinated(): Promise<{ access_token: string; refresh_tok
 }
 
 /**
- * Renovación por uso: si el access token en memoria vence en menos de
- * `REFRESH_THRESHOLD_MS`, lo renueva antes de la petición (deduplicado con
- * `refreshInFlight`). Si la renovación falla, se traga el error: la petición
- * sale igual y el manejo existente del 401 decide (sesión expirada).
+ * Renovación por uso: si el access token en memoria ya consumió 1/3 de su
+ * vida (`REFRESH_LIFETIME_DIVISOR`), lo renueva antes de la petición
+ * (deduplicado con `refreshInFlight`). Si la renovación falla, se traga el
+ * error: la petición sale igual y el manejo existente del 401 decide.
  */
 export async function ensureFreshToken(): Promise<void> {
-  if (!memoryAccessToken || accessExpiresAt === null) return;
-  if (accessExpiresAt - Date.now() >= REFRESH_THRESHOLD_MS) return;
+  if (!memoryAccessToken || accessIssuedAt === null || accessLifetimeMs === null) return;
+  if (Date.now() - accessIssuedAt < accessLifetimeMs / REFRESH_LIFETIME_DIVISOR) return;
+  if (Date.now() < refreshBackoffUntil) return;
   try {
     await refreshTokensCoordinated();
   } catch {
-    // cae al 401 existente
+    // cae al 401 existente; no reintentar el refresh proactivo durante el backoff
+    refreshBackoffUntil = Date.now() + REFRESH_BACKOFF_MS;
   }
 }
 
@@ -336,8 +351,9 @@ export async function tryRestoreSession(): Promise<boolean> {
   try {
     await refreshTokens();
     return !!memoryAccessToken;
-  } catch {
-    clearTokens();
+  } catch (err) {
+    // Solo 400/401 = sesión muerta; 429/5xx/red conservan la marca para reintentar.
+    if (err instanceof ApiError && (err.status === 400 || err.status === 401)) clearTokens();
     return false;
   }
 }
