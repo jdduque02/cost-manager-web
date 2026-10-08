@@ -24,6 +24,13 @@ describe("CurrencyInput", () => {
     expect(input).not.toHaveAttribute("id");
   });
 
+  it("shows $ by default and a custom prefix when given", () => {
+    const { rerender } = render(<CurrencyInput value="" onChange={vi.fn()} />);
+    expect(screen.getByText("$")).toBeInTheDocument();
+    rerender(<CurrencyInput value="" onChange={vi.fn()} prefix="US$" />);
+    expect(screen.getByText("US$")).toBeInTheDocument();
+  });
+
   it("displays the formatted es-CO value", () => {
     render(<CurrencyInput value="48900.5" onChange={vi.fn()} />);
     expect(screen.getByDisplayValue("48.900,5")).toBeInTheDocument();

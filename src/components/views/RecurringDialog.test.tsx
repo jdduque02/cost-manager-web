@@ -170,6 +170,23 @@ describe("RecurringDialog", () => {
       });
     });
 
+    it("el prefijo del monto sigue la moneda: US$ en USD, $ en COP", async () => {
+      const user = renderDialog();
+      await user.click(screen.getByRole("button", { name: "Ingreso" }));
+      await pick(user, "Cuenta o pasivo", /Bancolombia/);
+      expect(screen.getByText("$")).toBeInTheDocument();
+
+      await pick(user, "Moneda", /^USD$/);
+      expect(screen.getByText("US$")).toBeInTheDocument();
+      expect(screen.queryByText("$")).not.toBeInTheDocument();
+    });
+
+    it("gasto sobre un pasivo en USD muestra US$", async () => {
+      const user = renderDialog();
+      await pick(user, "Cuenta o pasivo", /Tarjeta dólares/);
+      expect(screen.getByText("US$")).toBeInTheDocument();
+    });
+
     it("editar un ingreso conserva su moneda aunque la cuenta sea otra", async () => {
       const user = renderDialog(rule({ type: "income", currency: "USD", account_id: 1 }));
       expect(screen.getByLabelText("Moneda")).toHaveTextContent("USD");

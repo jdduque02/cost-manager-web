@@ -335,7 +335,13 @@ export function RecurringDialog({ open, onOpenChange, recurring }: RecurringDial
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rec-amount">Monto</Label>
-              <CurrencyInput id="rec-amount" value={amount} onChange={setAmount} placeholder="0" />
+              <CurrencyInput
+                id="rec-amount"
+                value={amount}
+                onChange={setAmount}
+                placeholder="0"
+                prefix={effectiveCurrency === "USD" ? "US$" : "$"}
+              />
               {kind === "income" ? (
                 <div className="space-y-1.5 pt-1">
                   <Label htmlFor="rec-currency">Moneda</Label>

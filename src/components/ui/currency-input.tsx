@@ -10,6 +10,7 @@ interface CurrencyInputProps {
   disabled?: boolean;
   required?: boolean;
   id?: string;
+  prefix?: string;
 }
 
 /**
@@ -72,6 +73,7 @@ export function CurrencyInput({
   disabled,
   required,
   id,
+  prefix = "$",
 }: CurrencyInputProps) {
   const [displayValue, setDisplayValue] = useState(() => formatDisplay(value));
 
@@ -95,7 +97,9 @@ export function CurrencyInput({
 
   return (
     <div className={cn("relative flex items-center", className)}>
-      <span className="pointer-events-none absolute left-3 text-sm text-muted-foreground">$</span>
+      <span className="pointer-events-none absolute left-3 text-sm text-muted-foreground">
+        {prefix}
+      </span>
       <input
         id={id}
         type="text"
@@ -108,7 +112,8 @@ export function CurrencyInput({
         disabled={disabled}
         required={required}
         className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-transparent pl-7 pr-3 py-1 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          prefix.length > 1 ? "pl-11" : "pl-7",
+          "flex h-9 w-full rounded-md border border-input bg-transparent pr-3 py-1 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         )}
       />
     </div>
