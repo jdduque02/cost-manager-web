@@ -9,6 +9,8 @@ import {
   tryRestoreSession,
   onSessionExpired,
   resetSessionExpiredFlag,
+  hasStoredSession,
+  ApiError,
 } from "@/lib/api/client";
 import { identityApi, type User } from "@/lib/api/identity";
 import { loginHref } from "@/lib/auth/guards";
@@ -29,6 +31,13 @@ export interface AuthState {
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
+
+/** Lo emite setTokens (client.ts) al guardar un access token nuevo. */
+const TOKENS_UPDATED = "cm:tokens-updated";
+
+/** 429/5xx o fallo de red: la sesión puede seguir viva. */
+const isTransient = (err: unknown) =>
+  !(err instanceof ApiError) || err.status === 429 || err.status >= 500;
 
 function resolveRoles(user: User | null): string[] {
   if (!user) return [];
@@ -75,36 +84,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { token: getAccessToken(), userId: getStoredUserId() };
     }
 
-    async function bootstrap() {
+    /** true si quedó un usuario cargado. */
+    async function bootstrap(): Promise<boolean> {
       try {
         const session = await ensureAccessToken();
         // Sin clearTokens: ante 429/5xx/red la marca de sesión debe sobrevivir al reload.
-        if (!session) return;
+        if (!session) return false;
         const { token, userId } = session;
         if (!token || !userId) {
           clearTokens();
-          return;
+          return false;
         }
 
         const u = await identityApi.getUser(userId, token);
-        if (!cancelled) {
-          if (u) {
-            setUser(u);
-            setStoredUserId(u.id);
-          } else {
-            clearTokens();
-          }
+        if (cancelled) return false;
+        if (!u) {
+          clearTokens();
+          return false;
         }
-      } catch {
-        clearTokens();
+        setUser(u);
+        setStoredUserId(u.id);
+        return true;
+      } catch (err) {
+        // 429/5xx/red: el token sale de memoria (AppShell lleva a login) pero la marca queda.
+        clearTokens({ keepSessionMarker: isTransient(err) });
+        return false;
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     }
 
-    void bootstrap();
+    // Con la marca viva, el beforeLoad de __root reintenta el restore en cada navegación;
+    // cuando lo logre (setTokens emite cm:tokens-updated), cargar el usuario.
+    async function run() {
+      if (await bootstrap()) return;
+      if (!cancelled && hasStoredSession()) {
+        window.addEventListener(TOKENS_UPDATED, run, { once: true });
+      }
+    }
+
+    void run();
     return () => {
       cancelled = true;
+      window.removeEventListener(TOKENS_UPDATED, run);
     };
   }, []);
 

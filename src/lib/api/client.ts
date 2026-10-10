@@ -67,7 +67,7 @@ function clearSessionMarker(): void {
   }
 }
 
-function hasStoredSession(): boolean {
+export function hasStoredSession(): boolean {
   try {
     return window.localStorage.getItem(HAS_SESSION_KEY) === "1";
   } catch {
@@ -125,13 +125,14 @@ export function setTokens(
   }
 }
 
-export function clearTokens() {
+/** `keepSessionMarker`: tras un error transitorio, el próximo arranque reintenta el restore. */
+export function clearTokens({ keepSessionMarker = false } = {}) {
   memoryAccessToken = null;
   memoryUserId = null;
   accessIssuedAt = null;
   accessLifetimeMs = null;
   refreshBackoffUntil = 0;
-  clearSessionMarker();
+  if (!keepSessionMarker) clearSessionMarker();
 }
 
 // ---------------------------------------------------------------------------

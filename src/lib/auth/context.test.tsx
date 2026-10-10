@@ -2,7 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider } from "./context";
 import { useAuth } from "./useAuth";
+import { act } from "react";
 import {
+  ApiError,
   clearTokens,
   getAccessToken,
   getStoredUserId,
@@ -89,6 +91,8 @@ describe("AuthProvider", () => {
   beforeEach(() => {
     clearTokens();
     vi.clearAllMocks();
+    vi.mocked(getAccessToken).mockReturnValue(null);
+    vi.mocked(getStoredUserId).mockReturnValue(null);
   });
 
   it("renders children and starts with isLoading=true", () => {
@@ -114,6 +118,61 @@ describe("AuthProvider", () => {
     });
     expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
     expect(window.localStorage.getItem(HAS_SESSION_KEY)).toBe("1");
+  });
+
+  it("getUser failing: keeps the marker on 503/network, clears it on 401", async () => {
+    const { identityApi } = await import("@/lib/api/identity");
+    vi.mocked(getAccessToken).mockReturnValue("tok");
+    vi.mocked(getStoredUserId).mockReturnValue("user-1");
+    const outcomes: Array<[Error, string | null]> = [
+      [new ApiError("down", 503), "1"],
+      [new TypeError("Failed to fetch"), "1"],
+      [new ApiError("unauthorized", 401), null],
+    ];
+    for (const [err, marker] of outcomes) {
+      window.localStorage.setItem(HAS_SESSION_KEY, "1");
+      vi.mocked(identityApi.getUser).mockRejectedValueOnce(err);
+      const { unmount } = renderAuth();
+      await waitFor(() => {
+        expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+      });
+      expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
+      expect(window.localStorage.getItem(HAS_SESSION_KEY)).toBe(marker);
+      unmount();
+    }
+  });
+
+  it("loads the user when a later restore (cm:tokens-updated) succeeds after a transient failure", async () => {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
+    vi.mocked(tryRestoreSession).mockResolvedValueOnce(false);
+    renderAuth();
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+    expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
+
+    // El beforeLoad de __root restaura en una navegación posterior.
+    vi.mocked(getAccessToken).mockReturnValue("tok");
+    vi.mocked(getStoredUserId).mockReturnValue("user-1");
+    act(() => {
+      window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("is-authenticated")).toHaveTextContent("true");
+    });
+  });
+
+  it("does not listen for token updates when there was never a session", async () => {
+    const { identityApi } = await import("@/lib/api/identity");
+    renderAuth();
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+    act(() => {
+      window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
+    });
+    expect(identityApi.getUser).not.toHaveBeenCalled();
   });
 
   it("login sets authenticated state", async () => {
