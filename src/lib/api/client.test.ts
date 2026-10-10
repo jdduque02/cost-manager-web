@@ -879,4 +879,31 @@ describe("refresh on use (no timer)", () => {
     const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer other-tab-token");
   });
+
+  it("shares the userId across tabs, so a tab without one can still load its user", async () => {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
+    const otherTab = new BroadcastChannel("cm-auth");
+    const sent: unknown[] = [];
+    otherTab.onmessage = (e) => sent.push(e.data);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        okJson({
+          status: true,
+          data: [{ access_token: "fresh", userId: 7, expires_in: 300 }],
+          message: "ok",
+          timestamp: "",
+        }),
+      ),
+    );
+    await tryRestoreSession();
+    await vi.waitFor(() => expect(sent).toContainEqual(expect.objectContaining({ userId: "7" })));
+
+    // Esta pestaña perdió el userId (p. ej. getUser falló); otra pestaña difunde el suyo.
+    clearTokens({ keepSessionMarker: true });
+    otherTab.postMessage({ type: "cm:new-token", token: "other", expiresIn: 300, userId: "9" });
+    await vi.waitFor(() => expect(getStoredUserId()).toBe("9"));
+    expect(getAccessToken()).toBe("other");
+    otherTab.close();
+  });
 });

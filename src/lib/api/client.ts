@@ -146,9 +146,11 @@ let broadcastChannel: BroadcastChannel | null = null;
  * originate the refresh — i.e. genuinely different tabs, which never share
  * this tab's `refreshInFlight` JS variable in the first place.
  */
-function adoptBroadcastToken(token: string, expiresIn?: number) {
+function adoptBroadcastToken(token: string, expiresIn?: number, userId?: string) {
   memoryAccessToken = token;
   setAccessExpiry(expiresIn);
+  // Sin userId, el bootstrap de AuthProvider descartaría el token (y la marca de sesión).
+  if (userId) memoryUserId = userId;
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("cm:tokens-updated"));
   }
@@ -160,7 +162,7 @@ function getBroadcastChannel(): BroadcastChannel | null {
     broadcastChannel = new BroadcastChannel("cm-auth");
     broadcastChannel.onmessage = (event: MessageEvent) => {
       if (event.data?.type === "cm:new-token" && event.data.token) {
-        adoptBroadcastToken(event.data.token, event.data.expiresIn);
+        adoptBroadcastToken(event.data.token, event.data.expiresIn, event.data.userId);
       }
       if (event.data?.type === "cm:session-expired") {
         handleSessionExpired();
@@ -170,8 +172,8 @@ function getBroadcastChannel(): BroadcastChannel | null {
   return broadcastChannel;
 }
 
-function broadcastNewToken(token: string, expiresIn?: number) {
-  getBroadcastChannel()?.postMessage({ type: "cm:new-token", token, expiresIn });
+function broadcastNewToken(token: string, expiresIn?: number, userId?: string) {
+  getBroadcastChannel()?.postMessage({ type: "cm:new-token", token, expiresIn, userId });
 }
 
 function broadcastSessionExpired() {
@@ -258,7 +260,7 @@ async function requestNewTokens(): Promise<{ access_token: string; refresh_token
     tokens.userId ?? memoryUserId ?? undefined,
     tokens.expires_in,
   );
-  broadcastNewToken(tokens.access_token, tokens.expires_in);
+  broadcastNewToken(tokens.access_token, tokens.expires_in, memoryUserId ?? undefined);
   resetSessionExpiredFlag();
   return tokens;
 }
