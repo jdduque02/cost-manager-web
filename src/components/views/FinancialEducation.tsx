@@ -25,7 +25,7 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <button
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-surface/60"
@@ -47,21 +47,21 @@ function CollapsibleSection({
 
 function StratTable({ rows }: { rows: { concept: string; pct: string; amount: string }[] }) {
   return (
-    <div className="mt-2 overflow-hidden rounded-lg border border-border">
+    <div className="mt-2 overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-surface-2 text-xs text-muted-foreground">
-            <th className="px-3 py-2 text-left font-medium">Concepto</th>
-            <th className="px-3 py-2 text-right font-medium">%</th>
-            <th className="px-3 py-2 text-right font-medium">Monto</th>
+            <th className="px-2 py-2 text-left font-medium sm:px-3">Concepto</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">%</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Monto</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.concept} className="border-t border-border">
-              <td className="px-3 py-2 font-medium">{r.concept}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{r.pct}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+              <td className="px-2 py-2 font-medium sm:px-3">{r.concept}</td>
+              <td className="px-2 py-2 text-right tabular-nums sm:px-3">{r.pct}</td>
+              <td className="px-2 py-2 text-right tabular-nums text-muted-foreground sm:px-3">
                 {r.amount}
               </td>
             </tr>

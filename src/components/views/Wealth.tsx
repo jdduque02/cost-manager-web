@@ -194,9 +194,9 @@ function Row({
   const isAccount = onTogglePrimary !== undefined || onToggleExempt !== undefined;
   return (
     <div className="group rounded-xl border border-border bg-surface/40 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{name}</p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="min-w-0 flex-1 basis-36">
+          <p className="text-sm font-medium break-words">{name}</p>
           <RowMetadata
             type={type}
             currency={currency}
@@ -206,7 +206,7 @@ function Row({
           />
           {extra}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <span
             className={`font-display text-base font-semibold tabular-nums ${debt ? "text-destructive" : "text-success"}`}
           >
@@ -650,10 +650,10 @@ export function Wealth() {
       </p>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <div className="grid gap-6 md:grid-cols-2">
-            <section>
-              <div className="mb-4 flex items-center gap-2">
+            <section className="min-w-0">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/10">
                   <Landmark className="h-4.5 w-4.5 text-success" size={18} />
                 </div>
@@ -855,7 +855,7 @@ export function Wealth() {
                 )}
               </div>
             </section>
-            <section>
+            <section className="min-w-0">
               <div className="mb-4 flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/10">
                   <CreditCard className="h-4.5 w-4.5 text-destructive" size={18} />

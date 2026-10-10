@@ -149,10 +149,10 @@ describe("TransactionsList › ajuste de conciliación", () => {
       { ...tx(2, "Compra sin regla"), category_id: null, category_status: "pending" },
     ];
     renderList();
-    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent(
+    expect(screen.getByText("Ajuste de conciliación").closest("li")).toHaveTextContent(
       "Gasto no identificado",
     );
-    expect(screen.getByText("Compra sin regla").nextSibling).toHaveTextContent("Por editar");
+    expect(screen.getByText("Compra sin regla").closest("li")).toHaveTextContent("Por editar");
     // El banner cuenta todo pendiente (no solo importados): no debe decir "importada(s)".
     expect(screen.getByRole("button", { name: /sin clasificar/ })).toHaveTextContent(
       "2 transacciones sin clasificar.",
@@ -170,7 +170,7 @@ describe("TransactionsList › ajuste de conciliación", () => {
       },
     ];
     renderList();
-    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent(
+    expect(screen.getByText("Ajuste de conciliación").closest("li")).toHaveTextContent(
       "Ingreso no identificado",
     );
   });
@@ -180,7 +180,7 @@ describe("TransactionsList › ajuste de conciliación", () => {
       { ...tx(1, "Ajuste de conciliación"), source: "reconciliation", category_id: 1 },
     ];
     renderList();
-    expect(screen.getByText("Ajuste de conciliación").nextSibling).toHaveTextContent("Mercado");
+    expect(screen.getByText("Ajuste de conciliación").closest("li")).toHaveTextContent("Mercado");
     expect(screen.queryByText(/Gasto no identificado/)).not.toBeInTheDocument();
   });
 });
