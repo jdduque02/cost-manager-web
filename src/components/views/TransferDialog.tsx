@@ -254,7 +254,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Cuentas
           </p>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
             <div className="space-y-1.5">
               <Label>Origen</Label>
               <Select
@@ -262,7 +262,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                 onValueChange={setSourceAccountId}
                 disabled={isEditing}
               >
-                <SelectTrigger>
+                <SelectTrigger className="[&>span]:truncate [&>svg]:shrink-0">
                   <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,7 +332,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                     onValueChange={setDestinationAccountId}
                     disabled={isEditing || availableDestinationAccounts.length === 0}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="[&>span]:truncate [&>svg]:shrink-0">
                       <SelectValue
                         placeholder={
                           availableDestinationAccounts.length === 0
