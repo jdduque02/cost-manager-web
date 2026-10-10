@@ -59,24 +59,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    /** null = no se pudo restaurar; tryRestoreSession ya decidió si limpiar la marca. */
     async function ensureAccessToken(): Promise<{
       token: string | null;
       userId: string | null;
-    }> {
+    } | null> {
       const token = getAccessToken();
       const userId = getStoredUserId();
 
       if (token) return { token, userId };
 
       const restored = await tryRestoreSession();
-      if (!restored) return { token: null, userId: null };
+      if (!restored) return null;
 
       return { token: getAccessToken(), userId: getStoredUserId() };
     }
 
     async function bootstrap() {
       try {
-        const { token, userId } = await ensureAccessToken();
+        const session = await ensureAccessToken();
+        // Sin clearTokens: ante 429/5xx/red la marca de sesión debe sobrevivir al reload.
+        if (!session) return;
+        const { token, userId } = session;
         if (!token || !userId) {
           clearTokens();
           return;

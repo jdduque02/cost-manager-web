@@ -2,7 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider } from "./context";
 import { useAuth } from "./useAuth";
-import { clearTokens, getAccessToken, getStoredUserId } from "@/lib/api/client";
+import {
+  clearTokens,
+  getAccessToken,
+  getStoredUserId,
+  HAS_SESSION_KEY,
+  tryRestoreSession,
+} from "@/lib/api/client";
 
 vi.mock("@/lib/api/client", async () => {
   const actual = await vi.importActual("@/lib/api/client");
@@ -97,6 +103,17 @@ describe("AuthProvider", () => {
     });
     expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
     expect(screen.getByTestId("user-id")).toHaveTextContent("null");
+  });
+
+  it("keeps the session marker when restore fails (tryRestoreSession decides when to clear it)", async () => {
+    window.localStorage.setItem(HAS_SESSION_KEY, "1");
+    vi.mocked(tryRestoreSession).mockResolvedValueOnce(false); // p. ej. auth/refresh 503
+    renderAuth();
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+    expect(screen.getByTestId("is-authenticated")).toHaveTextContent("false");
+    expect(window.localStorage.getItem(HAS_SESSION_KEY)).toBe("1");
   });
 
   it("login sets authenticated state", async () => {
