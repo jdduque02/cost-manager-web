@@ -9,6 +9,7 @@ import {
   useUpdateTransfer,
   useDeleteTransfer,
   useCloneTransfer,
+  useConvertToTransfer,
   useCloneTransaction,
   useStatementImportJob,
   useStatementImportProgress,
@@ -32,6 +33,7 @@ vi.mock("@/lib/api/finance", () => ({
     updateTransfer: vi.fn().mockResolvedValue({}),
     deleteTransfer: vi.fn().mockResolvedValue(undefined),
     cloneTransfer: vi.fn().mockResolvedValue({}),
+    convertToTransfer: vi.fn().mockResolvedValue([]),
     createTransaction: vi.fn().mockResolvedValue({}),
     updateTransaction: vi.fn().mockResolvedValue({}),
   },
@@ -229,6 +231,12 @@ describe("transfer mutations", () => {
     ["useUpdateTransfer", () => useUpdateTransfer(), { id: "1", dto: {} }],
     ["useDeleteTransfer", () => useDeleteTransfer(), "1"],
     ["useCloneTransfer", () => useCloneTransfer(), { id: 1 }],
+    // Convertir borra el ingreso/gasto y crea las dos piernas: mismos saldos.
+    [
+      "useConvertToTransfer",
+      () => useConvertToTransfer(),
+      { id: "40", dto: { source_account_id: 1, amount: 1 } },
+    ],
     // Clonar una transacción también mueve saldos de cuentas, metas y tarjetas.
     ["useCloneTransaction", () => useCloneTransaction(), { id: 1 }],
   ] as const)("%s invalidates every balance a transfer touches", async (_name, hook, vars) => {

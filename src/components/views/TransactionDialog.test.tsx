@@ -22,7 +22,18 @@ vi.mock("@/components/views/WealthDialog", () => ({
   WealthDialog: () => <div data-testid="wealth-dialog" />,
 }));
 vi.mock("@/components/views/TransferDialog", () => ({
-  TransferDialog: () => <div data-testid="transfer-dialog" />,
+  TransferDialog: (p: {
+    open: boolean;
+    convertFrom?: TransactionRecord | null;
+    onConverted?: () => void;
+  }) =>
+    p.open ? (
+      <div data-testid="transfer-dialog" data-convert-from={p.convertFrom?.id ?? ""}>
+        <button type="button" onClick={p.onConverted}>
+          simular conversión
+        </button>
+      </div>
+    ) : null,
 }));
 vi.mock("@/components/views/EmpresaDialog", () => ({
   EmpresaDialog: () => <div data-testid="empresa-dialog" />,
@@ -350,5 +361,65 @@ describe("TransactionDialog", () => {
       />,
     );
     expect(screen.getByText("Editar Transacción")).toBeInTheDocument();
+  });
+
+  describe("convertir en transferencia (R4.1, R4.6, R4.9)", () => {
+    const tx = {
+      id: 40,
+      type: "income",
+      amount: 750000,
+      currency: "COP",
+      account_id: 1,
+      transaction_date: "2026-09-15",
+      is_fixed: false,
+      created_at: "2026-09-15",
+      updated_at: null,
+    } as TransactionRecord;
+
+    it("editar ingreso abre conversión y, al convertir, cierra también la edición", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} transaction={tx} />);
+
+      await user.click(screen.getByRole("button", { name: "Transferencia" }));
+
+      expect(screen.getByTestId("transfer-dialog")).toHaveAttribute("data-convert-from", "40");
+      expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+
+      await user.click(
+        // El mock queda fuera del Dialog modal (aria-hidden); el TransferDialog real va en su propio portal.
+        screen.getByRole("button", { name: "simular conversión", hidden: true }),
+      );
+      expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it.each([
+      ["inversión", { type: "investment" }, /Solo los ingresos y gastos/],
+      ["sin cuenta", { account_id: null }, /ligados a una cuenta bancaria/],
+      ["conciliación", { source: "reconciliation" }, /ajuste de conciliación/],
+      ["recurrente", { recurring_id: 7 }, /ocurrencia de un recurrente/],
+    ] as const)("%s: Transferencia deshabilitado con el motivo", async (_n, patch, reason) => {
+      render(
+        <TransactionDialog
+          {...defaultProps}
+          transaction={{ ...tx, ...patch } as TransactionRecord}
+        />,
+      );
+
+      const button = screen.getByRole("button", { name: "Transferencia" });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", expect.stringMatching(reason));
+      expect(button).toHaveAccessibleDescription(reason);
+      expect(screen.queryByTestId("transfer-dialog")).not.toBeInTheDocument();
+    });
+
+    it("nueva transacción abre transferencia vacía", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransactionDialog {...defaultProps} />);
+
+      await user.click(screen.getByRole("button", { name: "Transferencia" }));
+
+      expect(screen.getByTestId("transfer-dialog")).toHaveAttribute("data-convert-from", "");
+      expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+    });
   });
 });

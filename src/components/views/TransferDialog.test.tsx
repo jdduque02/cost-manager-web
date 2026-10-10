@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransferDialog } from "./TransferDialog";
-import type { TransferResponse } from "@/lib/api/finance";
+import type { TransactionRecord, TransferResponse } from "@/lib/api/finance";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -18,6 +18,7 @@ const noop = () => ({
 });
 
 const mockUpdate = vi.fn();
+const mockConvert = vi.fn();
 
 let mockBankAccounts: Array<{
   id: number;
@@ -32,6 +33,7 @@ let mockLiabilities: Array<{ id: number; name: string; liability_type: string; c
 vi.mock("@/lib/hooks/use-api", () => ({
   useCreateTransfer: () => noop(),
   useUpdateTransfer: () => ({ ...noop(), mutate: mockUpdate }),
+  useConvertToTransfer: () => ({ ...noop(), mutate: mockConvert }),
   useBankAccounts: () => ({ data: mockBankAccounts, isLoading: false }),
   useObjectives: () => ({ data: [], isLoading: false }),
   useEmpresas: () => ({ data: [] }),
@@ -253,6 +255,126 @@ describe("TransferDialog", () => {
 
       expect(toast.error).toHaveBeenCalledWith("Saldo insuficiente");
       expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe("modo conversión", () => {
+    const base = {
+      id: 40,
+      user_id: 1,
+      currency: "COP",
+      is_fixed: false,
+      account_id: 1,
+      amount: 750000,
+      description: "Pago cliente",
+      transaction_date: "2026-09-15T00:00:00.000Z",
+      created_at: "2026-09-15",
+      updated_at: null,
+    };
+    const income = { ...base, type: "income", objective_id: 7 } as unknown as TransactionRecord;
+    const expense = { ...base, type: "expense" } as unknown as TransactionRecord;
+
+    beforeEach(() => {
+      // El saldo de A ya refleja el movimiento original.
+      mockBankAccounts = [
+        {
+          id: 1,
+          bank_name: "Bancolombia",
+          masked_account_number: "****1234",
+          display_balance: "100000",
+        },
+        { id: 2, bank_name: "Nu", masked_account_number: "****5678", display_balance: "900000" },
+      ];
+    });
+
+    it("ingreso: precarga monto, fecha, descripción y meta; A es destino fijo (R4.1, R4.2, R4.4)", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} convertFrom={income} />);
+
+      expect(
+        screen.getByRole("heading", { name: "Convertir en transferencia" }),
+      ).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Pago cliente")).toBeInTheDocument();
+      const [source, destination] = screen.getAllByRole("combobox");
+      expect(destination).toBeDisabled();
+      expect(destination).toHaveTextContent(/Bancolombia/);
+      expect(source).toBeEnabled();
+
+      await user.click(source);
+      expect(screen.queryByRole("option", { name: /Bancolombia/ })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole("option", { name: /Nu/ }));
+      await user.click(screen.getByRole("button", { name: "Convertir en transferencia" }));
+
+      expect(mockConvert).toHaveBeenCalledWith(
+        {
+          id: "40",
+          dto: expect.objectContaining({
+            source_account_id: 2,
+            destination_account_id: 1,
+            amount: 750000,
+            transaction_date: "2026-09-15",
+            description: "Pago cliente",
+            objective_id: 7,
+          }),
+        },
+        expect.anything(),
+      );
+    });
+
+    it("gasto: A es origen fijo y su saldo disponible suma el monto original (R4.3, R4.5)", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} convertFrom={expense} />);
+
+      const [source, destination] = screen.getAllByRole("combobox");
+      expect(source).toBeDisabled();
+      expect(source).toHaveTextContent(/Bancolombia/);
+      // 100.000 + 750.000 alcanza para 750.000.
+      expect(screen.queryByText(/Saldo insuficiente/)).not.toBeInTheDocument();
+
+      await user.click(destination);
+      await user.click(await screen.findByRole("option", { name: /Nu/ }));
+      await user.click(screen.getByRole("button", { name: "Convertir en transferencia" }));
+
+      expect(mockConvert).toHaveBeenCalledWith(
+        {
+          id: "40",
+          dto: expect.objectContaining({ source_account_id: 1, destination_account_id: 2 }),
+        },
+        expect.anything(),
+      );
+      expect(mockConvert.mock.calls[0][0].dto.objective_id).toBeUndefined();
+    });
+
+    it("éxito: toast, cierra y avisa al padre (R4.7)", async () => {
+      mockConvert.mockImplementation((_vars, opts) => opts.onSuccess([]));
+      const onConverted = vi.fn();
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} convertFrom={expense} onConverted={onConverted} />);
+
+      await user.click(screen.getAllByRole("combobox")[1]);
+      await user.click(await screen.findByRole("option", { name: /Nu/ }));
+      await user.click(screen.getByRole("button", { name: "Convertir en transferencia" }));
+
+      expect(toast.success).toHaveBeenCalled();
+      expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+      expect(onConverted).toHaveBeenCalled();
+    });
+
+    it("error: muestra el mensaje del API y deja el formulario abierto (R4.8)", async () => {
+      mockConvert.mockImplementation((_vars, opts) =>
+        opts.onError(new Error("Nu quedaría con saldo negativo")),
+      );
+      const onConverted = vi.fn();
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      render(<TransferDialog {...defaultProps} convertFrom={expense} onConverted={onConverted} />);
+
+      await user.click(screen.getAllByRole("combobox")[1]);
+      await user.click(await screen.findByRole("option", { name: /Nu/ }));
+      await user.click(screen.getByRole("button", { name: "Convertir en transferencia" }));
+
+      expect(toast.error).toHaveBeenCalledWith("Nu quedaría con saldo negativo");
+      expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+      expect(onConverted).not.toHaveBeenCalled();
     });
   });
 });

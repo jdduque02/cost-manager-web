@@ -119,6 +119,18 @@ function getTypeButtonClasses(t: string, activeType: string): string {
   return "bg-primary/15 text-primary ring-1 ring-primary/30";
 }
 
+/** Motivo por el que el movimiento no se puede convertir en transferencia; null = sí se puede (R4.6). */
+function convertBlocker(tx: TransactionRecord): string | null {
+  if (tx.type !== "income" && tx.type !== "expense")
+    return "Solo los ingresos y gastos se pueden convertir en transferencia.";
+  if (!tx.account_id) return "Solo se convierten movimientos ligados a una cuenta bancaria.";
+  if (tx.source === "reconciliation")
+    return "Un ajuste de conciliación no se puede convertir en transferencia.";
+  if (tx.recurring_id != null)
+    return "Una ocurrencia de un recurrente no se puede convertir en transferencia.";
+  return null;
+}
+
 function getTypeLabel(t: string): string {
   if (t === "expense") return "Gasto";
   if (t === "income") return "Ingreso";
@@ -142,6 +154,7 @@ export function TransactionDialog({
   const updateTx = useUpdateTransaction();
 
   const isEditing = !!transaction;
+  const transferBlocker = transaction ? convertBlocker(transaction) : null;
 
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
@@ -399,20 +412,31 @@ export function TransactionDialog({
                     <button
                       key={t}
                       type="button"
+                      disabled={t === "transfer" && !!transferBlocker}
+                      title={t === "transfer" ? (transferBlocker ?? undefined) : undefined}
+                      aria-describedby={
+                        t === "transfer" && transferBlocker ? "tx-transfer-blocker" : undefined
+                      }
                       onClick={() => {
                         if (t === "transfer") {
-                          onOpenChange(false);
+                          // Al editar, el diálogo de edición sigue abierto debajo: la conversión lo necesita.
+                          if (!isEditing) onOpenChange(false);
                           setTransferDialogOpen(true);
                           return;
                         }
                         setType(t);
                       }}
-                      className={`rounded-lg py-2 text-sm font-medium transition ${getTypeButtonClasses(t, type)}`}
+                      className={`rounded-lg py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${getTypeButtonClasses(t, type)}`}
                     >
                       {getTypeLabel(t)}
                     </button>
                   ))}
                 </div>
+                {transferBlocker && (
+                  <p id="tx-transfer-blocker" className="text-xs text-muted-foreground">
+                    {transferBlocker}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
@@ -894,7 +918,12 @@ export function TransactionDialog({
         }}
       />
 
-      <TransferDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen} />
+      <TransferDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        convertFrom={transaction}
+        onConverted={() => onOpenChange(false)}
+      />
 
       <EmpresaDialog
         open={quickEmpresaOpen}

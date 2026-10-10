@@ -28,29 +28,44 @@ import {
 import {
   useCreateTransfer,
   useUpdateTransfer,
+  useConvertToTransfer,
   useBankAccounts,
   useObjectives,
   useEmpresas,
   useFinancialLiabilities,
 } from "@/lib/hooks/use-api";
-import type { TransferResponse, FixedFrequency } from "@/lib/api/finance";
+import type { TransferResponse, FixedFrequency, TransactionRecord } from "@/lib/api/finance";
 
-import { t } from "@/lib/i18n/errors";
+import { errorText, t } from "@/lib/i18n/errors";
 interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transfer?: TransferResponse | null;
+  /** Ingreso o gasto a convertir: su cuenta queda fija (destino si es ingreso, origen si es gasto). */
+  convertFrom?: TransactionRecord | null;
+  onConverted?: () => void;
 }
 
-export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogProps) {
+export function TransferDialog({
+  open,
+  onOpenChange,
+  transfer,
+  convertFrom,
+  onConverted,
+}: TransferDialogProps) {
   const { data: bankAccounts = [], isLoading: loadingAccounts } = useBankAccounts();
   const { data: objectives = [], isLoading: loadingObjectives } = useObjectives();
   const { data: empresas = [] } = useEmpresas();
   const { data: liabilities = [] } = useFinancialLiabilities();
   const createTransfer = useCreateTransfer();
   const updateTransfer = useUpdateTransfer();
+  const convertToTransfer = useConvertToTransfer();
 
   const isEditing = !!transfer;
+  const isIncomeConversion = convertFrom?.type === "income";
+  const isExpenseConversion = convertFrom?.type === "expense";
+  // Lo que el movimiento movió en la cuenta, en su moneda (= moneda del origen si es gasto).
+  const convertAmount = convertFrom ? Number(convertFrom.applied_amount ?? convertFrom.amount) : 0;
 
   const [sourceAccountId, setSourceAccountId] = useState<string>("");
   const [destinationAccountId, setDestinationAccountId] = useState<string>("");
@@ -107,8 +122,19 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       setFrequency(transfer.frequency ?? "");
       setDueDay(String(transfer.due_day ?? ""));
       setReminderDays(String(transfer.reminder_days ?? "3"));
+    } else if (convertFrom) {
+      const accountId = String(convertFrom.account_id ?? "");
+      if (convertFrom.type === "income") {
+        setDestinationAccountId(accountId);
+        setObjectiveId(convertFrom.objective_id ? String(convertFrom.objective_id) : "");
+      } else {
+        setSourceAccountId(accountId);
+      }
+      setAmount(String(convertAmount));
+      setDescription(convertFrom.description ?? "");
+      setDate(new Date(convertFrom.transaction_date.slice(0, 10) + "T00:00:00"));
     }
-  }, [open, transfer]);
+  }, [open, transfer, convertFrom, convertAmount]);
 
   const sourceAccount = bankAccounts.find((a) => String(a.id) === sourceAccountId);
   const destAccount = bankAccounts.find((a) => String(a.id) === destinationAccountId);
@@ -123,6 +149,10 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
       : null;
   const linkableObjectives = objectives.filter((o) => o.type !== "loan");
   const availableDestinationAccounts = bankAccounts.filter((a) => String(a.id) !== sourceAccountId);
+  // Al convertir un ingreso, el destino es fijo: no se ofrece como origen.
+  const availableSourceAccounts = isIncomeConversion
+    ? bankAccounts.filter((a) => String(a.id) !== destinationAccountId)
+    : bankAccounts;
 
   let objectivePlaceholder: string;
   if (loadingObjectives) {
@@ -133,12 +163,14 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     objectivePlaceholder = "Seleccionar meta...";
   }
 
-  const isPendingSubmit = createTransfer.isPending || updateTransfer.isPending;
+  const isPendingSubmit =
+    createTransfer.isPending || updateTransfer.isPending || convertToTransfer.isPending;
 
-  // When editing, the balance already has this transfer subtracted: add it back.
-  const sourceBalance = sourceAccount
-    ? Number(sourceAccount.display_balance) + (transfer ? Number(transfer.amount) : 0)
-    : 0;
+  // When editing (or converting an expense), the balance already has this movement subtracted: add it back.
+  let addBack = 0;
+  if (transfer) addBack = Number(transfer.amount);
+  else if (isExpenseConversion) addBack = convertAmount;
+  const sourceBalance = sourceAccount ? Number(sourceAccount.display_balance) + addBack : 0;
   const transferAmount = amount ? parseCurrency(amount) : 0;
   const insufficientBalance = isInsufficientBalance(transferAmount, sourceBalance);
 
@@ -179,6 +211,27 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     if (!validateTransfer()) return;
 
     const dto = buildDto();
+
+    if (convertFrom) {
+      convertToTransfer.mutate(
+        {
+          id: String(convertFrom.id),
+          // Fecha y descripción siempre viajan: "" borra la descripción en vez de heredar la original.
+          dto: { ...dto, description, source_account_id: Number(sourceAccountId) },
+        },
+        {
+          onSuccess: () => {
+            toast.success("Movimiento convertido en transferencia");
+            onOpenChange(false);
+            onConverted?.();
+          },
+          onError: (err) => {
+            toast.error(errorText(err, "err.transfer.create"));
+          },
+        },
+      );
+      return;
+    }
 
     if (isEditing && transfer) {
       updateTransfer.mutate(
@@ -246,6 +299,20 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     (destinationType === "liability" && !destinationLiabilityId) ||
     isPendingSubmit;
 
+  let title = "Nueva Transferencia";
+  let subtitle = "Registra el movimiento de dinero de una cuenta a otra.";
+  let submitLabel = "Registrar transferencia";
+  if (convertFrom) {
+    title = "Convertir en transferencia";
+    subtitle = `El ${isIncomeConversion ? "ingreso" : "gasto"} original se reemplaza por una transferencia entre tus cuentas.`;
+    submitLabel = "Convertir en transferencia";
+  } else if (isEditing) {
+    title = "Editar Transferencia";
+    subtitle =
+      "Actualiza el movimiento de dinero entre cuentas. Los cambios aplican a ambos movimientos.";
+    submitLabel = "Guardar cambios";
+  }
+
   function renderFormBody() {
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -260,13 +327,13 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
               <Select
                 value={sourceAccountId}
                 onValueChange={setSourceAccountId}
-                disabled={isEditing}
+                disabled={isEditing || isExpenseConversion}
               >
                 <SelectTrigger className="[&>span]:truncate [&>svg]:shrink-0">
                   <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {bankAccounts.map((a) => (
+                  {availableSourceAccounts.map((a) => (
                     <SelectItem key={a.id} value={String(a.id)}>
                       {a.bank_name} · {a.masked_account_number} ({a.currency})
                     </SelectItem>
@@ -293,7 +360,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
 
             <div className="space-y-1.5">
               <Label>Destino</Label>
-              {!isEditing && creditCards.length > 0 && (
+              {!isEditing && !isIncomeConversion && creditCards.length > 0 && (
                 <div className="flex rounded-lg bg-surface p-0.5 mb-2">
                   <button
                     type="button"
@@ -330,7 +397,9 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
                   <Select
                     value={destinationAccountId}
                     onValueChange={setDestinationAccountId}
-                    disabled={isEditing || availableDestinationAccounts.length === 0}
+                    disabled={
+                      isEditing || isIncomeConversion || availableDestinationAccounts.length === 0
+                    }
                   >
                     <SelectTrigger className="[&>span]:truncate [&>svg]:shrink-0">
                       <SelectValue
@@ -390,6 +459,11 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
           {isEditing && (
             <p className="text-xs text-muted-foreground">
               Las cuentas de la transferencia no se pueden cambiar al editar.
+            </p>
+          )}
+          {convertFrom && (
+            <p className="text-xs text-muted-foreground">
+              La cuenta del movimiento original queda fija.
             </p>
           )}
         </div>
@@ -541,7 +615,7 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
             className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-90"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isEditing ? "Guardar cambios" : "Registrar transferencia"}
+            {submitLabel}
           </Button>
         </DialogFooter>
       </form>
@@ -552,12 +626,8 @@ export function TransferDialog({ open, onOpenChange, transfer }: TransferDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar Transferencia" : "Nueva Transferencia"}</DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? "Actualiza el movimiento de dinero entre cuentas. Los cambios aplican a ambos movimientos."
-              : "Registra el movimiento de dinero de una cuenta a otra."}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{subtitle}</DialogDescription>
         </DialogHeader>
 
         {loadingAccounts && renderLoadingBody()}

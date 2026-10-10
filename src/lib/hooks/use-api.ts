@@ -397,6 +397,16 @@ export function useUpdateTransfer() {
   });
 }
 
+export function useConvertToTransfer() {
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: CreateTransferDto }) =>
+      financeApi.convertToTransfer(userId!, id, dto),
+    onSuccess: () => invalidateTransferData(qc, userId),
+  });
+}
+
 // ─── Banking Hooks ────────────────────────────────────────────────────────────
 
 export function useBankAccounts() {

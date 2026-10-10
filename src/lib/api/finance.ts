@@ -437,6 +437,9 @@ export const financeApi = {
     id: string,
     dto?: { transaction_date?: string; amount?: number; description?: string },
   ) => api.post<TransferResponse>(`users/${userId}/transfers/${id}/clone`, dto ?? {}),
+  /** Convierte un ingreso/gasto en transferencia (atómico). `data` llega como arreglo: no se lee, basta invalidar. */
+  convertToTransfer: (userId: string, id: string, dto: CreateTransferDto) =>
+    api.post<TransferResponse[]>(`users/${userId}/transactions/${id}/convert-to-transfer`, dto),
 };
 
 // ── Tipos de transferencia ─────────────────────────────────────

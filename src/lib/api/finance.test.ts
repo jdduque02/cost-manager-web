@@ -109,3 +109,14 @@ describe("bankingApi.getTrm", () => {
     expect(mockApi.getOne).toHaveBeenCalledWith("currency/trm");
   });
 });
+
+describe("financeApi.convertToTransfer", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("hace POST a la ruta de conversión con el CreateTransferDto", async () => {
+    mockApi.post.mockResolvedValue([{ transfer_group_id: "g" }]);
+    const dto = { source_account_id: 1, destination_account_id: 2, amount: 750000 };
+    await financeApi.convertToTransfer("9", "40", dto);
+    expect(mockApi.post).toHaveBeenCalledWith("users/9/transactions/40/convert-to-transfer", dto);
+  });
+});
