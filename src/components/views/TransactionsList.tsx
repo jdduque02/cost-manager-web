@@ -623,7 +623,7 @@ function MonthSection({
             const income = month.incomeByCurrency[cur] ?? 0;
             const expenses = month.expensesByCurrency[cur] ?? 0;
             return (
-              <span key={cur} className="flex items-center gap-3">
+              <span key={cur} className="flex flex-wrap items-center gap-3">
                 {monthCurrencies(month).length > 1 && (
                   <span className="font-semibold text-muted-foreground">{cur}</span>
                 )}

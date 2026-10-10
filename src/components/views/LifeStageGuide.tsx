@@ -66,21 +66,21 @@ function Section({
 
 function StratTable({ rows }: { rows: { concept: string; pct: string; amount: string }[] }) {
   return (
-    <div className="mt-2 overflow-hidden rounded-lg border border-border">
+    <div className="mt-2 overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-surface-2 text-xs text-muted-foreground">
-            <th className="px-3 py-2 text-left font-medium">Concepto</th>
-            <th className="px-3 py-2 text-right font-medium">%</th>
-            <th className="px-3 py-2 text-right font-medium">Monto</th>
+            <th className="px-2 py-2 text-left font-medium sm:px-3">Concepto</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">%</th>
+            <th className="px-2 py-2 text-right font-medium sm:px-3">Monto</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.concept} className="border-t border-border">
-              <td className="px-3 py-2 font-medium">{r.concept}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{r.pct}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+              <td className="px-2 py-2 font-medium sm:px-3">{r.concept}</td>
+              <td className="px-2 py-2 text-right tabular-nums sm:px-3">{r.pct}</td>
+              <td className="px-2 py-2 text-right tabular-nums text-muted-foreground sm:px-3">
                 {r.amount}
               </td>
             </tr>
@@ -412,14 +412,14 @@ export function LifeStageGuide() {
           </div>
         </Section>
 
-        <div className="mt-3 overflow-hidden rounded-xl border border-border">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-surface-2 text-muted-foreground">
-                <th className="px-3 py-2 text-left font-medium">Edad</th>
-                <th className="px-3 py-2 text-left font-medium">Capital</th>
-                <th className="px-3 py-2 text-right font-medium">% Ahorro</th>
-                <th className="px-3 py-2 text-right font-medium">Patrimonio Meta</th>
+                <th className="px-2 py-2 text-left font-medium sm:px-3">Edad</th>
+                <th className="px-2 py-2 text-left font-medium sm:px-3">Capital</th>
+                <th className="px-2 py-2 text-right font-medium sm:px-3">% Ahorro</th>
+                <th className="px-2 py-2 text-right font-medium sm:px-3">Patrimonio Meta</th>
               </tr>
             </thead>
             <tbody>
@@ -462,10 +462,10 @@ export function LifeStageGuide() {
                 },
               ].map((r) => (
                 <tr key={r.age} className="border-t border-border">
-                  <td className="px-3 py-2 font-medium">{r.age}</td>
-                  <td className="px-3 py-2">{r.cap}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.save}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                  <td className="px-2 py-2 font-medium sm:px-3">{r.age}</td>
+                  <td className="px-2 py-2 sm:px-3">{r.cap}</td>
+                  <td className="px-2 py-2 text-right tabular-nums sm:px-3">{r.save}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-muted-foreground sm:px-3">
                     {r.target}
                   </td>
                 </tr>
