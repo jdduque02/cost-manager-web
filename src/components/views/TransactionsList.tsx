@@ -477,7 +477,7 @@ function TransactionRow({
     <li
       key={tx.id}
       className={cn(
-        "group flex items-center gap-4 px-5 py-4 transition hover:bg-surface/60",
+        "group flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition hover:bg-surface/60 sm:flex-nowrap",
         "animate-in fade-in slide-in-from-top-1 duration-200",
         isPendingTx && "bg-warning/[0.03]",
       )}
@@ -491,7 +491,7 @@ function TransactionRow({
       <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", iconBgClass)}>
         <Icon className="h-4.5 w-4.5" size={18} />
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-40 flex-1">
         <p className="truncate text-sm font-medium">{description}</p>
         <p className="text-xs text-muted-foreground">
           {categoryName}
@@ -501,67 +501,71 @@ function TransactionRow({
         </p>
         {tx.applied_amount != null && tx.fx_rate != null && (
           // Solo hay conversión en el par COP/USD: el producto está en la otra moneda.
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground break-words">
             ≈ {fmtAmount(tx.applied_amount, { currency: tx.currency === "USD" ? "COP" : "USD" })} ·
             TRM {fmtCurrency(tx.fx_rate)} (aprox.; tu banco puede usar otra tasa)
           </p>
         )}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {isPendingTx ? (
+            <Badge tone="warning">Por editar</Badge>
+          ) : (
+            <Badge tone="muted">{categoryName}</Badge>
+          )}
+          {linkedLabelValue && <Badge tone="primary">{linkedLabelValue}</Badge>}
+          {tx.needs_validation && <Badge tone="warning">Validar pago</Badge>}
+          {tx.is_fixed && (
+            <Badge tone="primary">
+              Fija
+              {frequencyText}
+              {tx.due_day ? ` · Día ${tx.due_day}` : ""}
+            </Badge>
+          )}
+        </div>
       </div>
-      {isPendingTx ? (
-        <Badge tone="warning">Por editar</Badge>
-      ) : (
-        <Badge tone="muted">{categoryName}</Badge>
-      )}
-      {linkedLabelValue && <Badge tone="primary">{linkedLabelValue}</Badge>}
-      {tx.needs_validation && <Badge tone="warning">Validar pago</Badge>}
-      {tx.is_fixed && (
-        <Badge tone="primary">
-          Fija
-          {frequencyText}
-          {tx.due_day ? ` · Día ${tx.due_day}` : ""}
-        </Badge>
-      )}
-      <span
-        className={cn(
-          "w-28 text-right font-display text-base font-semibold tabular-nums",
-          amountColorClass,
-        )}
-      >
-        {amountSign}
-        {fmtAmount(tx.amount, { currency: tx.currency })}
-      </span>
-      <div className="flex gap-1 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
-        {tx.needs_validation && (
+      <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
+        <span
+          className={cn(
+            "w-28 text-left font-display sm:text-right text-base font-semibold tabular-nums",
+            amountColorClass,
+          )}
+        >
+          {amountSign}
+          {fmtAmount(tx.amount, { currency: tx.currency })}
+        </span>
+        <div className="flex gap-1 transition pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-within:opacity-100">
+          {tx.needs_validation && (
+            <button
+              onClick={() => onValidate(tx)}
+              aria-label={`Validar pago: ${description}`}
+              className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-success/10 hover:text-success"
+              title="Validar pago"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
-            onClick={() => onValidate(tx)}
-            aria-label={`Validar pago: ${description}`}
-            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-success/10 hover:text-success"
-            title="Validar pago"
+            onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(tx) : onClone(tx))}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+            title={isTransfer ? "Clonar transferencia" : "Clonar transacción"}
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5" />
           </button>
-        )}
-        <button
-          onClick={() => (isTransfer && onCloneTransfer ? onCloneTransfer(tx) : onClone(tx))}
-          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-          title={isTransfer ? "Clonar transferencia" : "Clonar transacción"}
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={() => handleEdit(tx)}
-          aria-label={`${t("ui.edit")}: ${description}`}
-          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={() => setDeletingTx(tx)}
-          aria-label={`${t("ui.delete")}: ${description}`}
-          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+          <button
+            onClick={() => handleEdit(tx)}
+            aria-label={`${t("ui.edit")}: ${description}`}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-surface-2 hover:text-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => setDeletingTx(tx)}
+            aria-label={`${t("ui.delete")}: ${description}`}
+            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </li>
   );
@@ -619,7 +623,7 @@ function MonthSection({
             const income = month.incomeByCurrency[cur] ?? 0;
             const expenses = month.expensesByCurrency[cur] ?? 0;
             return (
-              <span key={cur} className="flex items-center gap-3">
+              <span key={cur} className="flex flex-wrap items-center gap-3">
                 {monthCurrencies(month).length > 1 && (
                   <span className="font-semibold text-muted-foreground">{cur}</span>
                 )}

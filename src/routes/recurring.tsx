@@ -37,6 +37,9 @@ const STATUS: Record<RecurringStatus, { label: string; tone: "success" | "muted"
   finished: { label: "Finalizado", tone: "primary" },
 };
 
+// Bajo `sm` las 4 pestañas reparten el ancho; desde `sm` quedan como en ui/tabs.
+const TAB_MOBILE = "max-sm:flex-1 max-sm:px-2 max-sm:text-xs";
+
 const fmtDate = (s: string) =>
   new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
     day: "numeric",
@@ -98,11 +101,19 @@ export function RecurringPage() {
       </div>
 
       <Tabs value={status} onValueChange={(v) => setStatus(v as RecurringStatus | "all")}>
-        <TabsList>
-          <TabsTrigger value="active">Activos</TabsTrigger>
-          <TabsTrigger value="finished">Finalizados</TabsTrigger>
-          <TabsTrigger value="cancelled">Cancelados</TabsTrigger>
-          <TabsTrigger value="all">Todos</TabsTrigger>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="active" className={TAB_MOBILE}>
+            Activos
+          </TabsTrigger>
+          <TabsTrigger value="finished" className={TAB_MOBILE}>
+            Finalizados
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className={TAB_MOBILE}>
+            Cancelados
+          </TabsTrigger>
+          <TabsTrigger value="all" className={TAB_MOBILE}>
+            Todos
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
